@@ -401,9 +401,201 @@ app.post('/chat', async (req, res) => {
     console.log('Processing message:', message);
     console.log('User portfolio:', selectedTickers);
 
-    // STEP 1: DETECT QUERY TYPES EARLY (needed for both data fetching and card generation)
+    // STEP 1: AI-POWERED QUERY CLASSIFICATION
+    // Use AI to understand user intent instead of complex regex patterns
+    const classificationPrompt = `You are a query classifier for a financial data API. Analyze the user's question and return a JSON object with the following structure:
+
+{
+  "intent": "stock_price" | "events" | "institutional" | "macro_economic" | "government_policy" | "market_news" | "general",
+  "tickers": ["TSLA", "AAPL"],  // Array of stock tickers mentioned (empty if none)
+  "timeframe": "current" | "historical" | "upcoming" | "specific_date",
+  "date": "YYYY-MM-DD" or null,  // Specific date if mentioned
+  "dateRange": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"} or null,
+  "speaker": "hassett" | "biden" | "trump" | "yellen" | "powell" | null,  // For government policy queries
+  "eventTypes": ["earnings", "fda", "product", "merger", "legal", "regulatory"],  // Specific event types requested
+  "scope": "focus_stocks" | "outside_focus" | "all_stocks" | "specific_tickers",
+  "needsChart": true | false,  // Does user want to see price charts?
+  "dataNeeded": ["stock_prices", "events", "institutional", "macro", "policy", "news"]  // What data sources to query
+}
+
+User's portfolio: ${selectedTickers.join(', ') || 'none'}
+User's question: "${message}"
+
+Return ONLY the JSON object, no explanation.`;
+
+    let queryIntent;
+    try {
+      const classificationResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: classificationPrompt }],
+        temperature: 0.1,  // Low temperature for consistent classification
+        max_tokens: 300
+      });
+      
+      const classificationText = classificationResponse.choices[0].message.content.trim();
+      console.log('AI Classification:', classificationText);
+      
+      // Parse the JSON response
+      queryIntent = JSON.parse(classificationText);
+      console.log('Parsed intent:', queryIntent);
+      
+    } catch (error) {
+      console.error('Query classification failed:', error);
+      // Fallback to basic classification if AI fails
+      queryIntent = {
+        intent: "general",
+        tickers: selectedTickers || [],
+        timeframe: "current",
+        date: null,
+        dateRange: null,
+        speaker: null,
+        eventTypes: [],
+        scope: "focus_stocks",
+        needsChart: false,
+        dataNeeded: ["stock_prices"]
+      };
+    }
+
+    // STEP 2: FETCH DATA BASED ON AI CLASSIFICATION
     let dataContext = "";
     const lowerMessage = message.toLowerCase();
+    
+    // Determine which tickers to query based on AI classification
+    let tickersToQuery = [];
+    if (queryIntent.scope === 'focus_stocks' && selectedTickers.length > 0) {
+      tickersToQuery = selectedTickers;
+    } else if (queryIntent.scope === 'specific_tickers' && queryIntent.tickers.length > 0) {
+      tickersToQuery = queryIntent.tickers;
+    } else if (queryIntent.tickers.length > 0) {
+      tickersToQuery = queryIntent.tickers;
+    } else if (selectedTickers.length > 0) {
+      tickersToQuery = selectedTickers;
+    }
+    
+    console.log('Tickers to query:', tickersToQuery);
+    console.log('Data sources needed:', queryIntent.dataNeeded);
+    
+    // FETCH MONGODB DATA (institutional, macro, policy, news)
+    if (queryIntent.dataNeeded.includes('institutional') && tickersToQuery.length > 0) {
+      for (const ticker of tickersToQuery.slice(0, 3)) {
+        try {
+          const instResult = await DataConnector.getInstitutionalData(ticker);
+          if (instResult.success && instResult.data.length > 0) {
+            const summary = instResult.data[0];
+            dataContext += `\n\n${ticker} Institutional Ownership (${summary.date}):
+- Total Ownership: ${summary.ownership.percentage}
+- Total Shares: ${summary.ownership.totalShares}
+- Number of Holders: ${summary.ownership.totalHolders}
+- Increased Positions: ${summary.activity.increased.holders} holders, ${summary.activity.increased.shares} shares
+- Decreased Positions: ${summary.activity.decreased.holders} holders, ${summary.activity.decreased.shares} shares
+
+Top Holders:`;
+            summary.topHolders.slice(0, 5).forEach((h, i) => {
+              dataContext += `\n${i + 1}. ${h.owner}: ${h.shares} shares (${h.change})`;
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching institutional data for ${ticker}:`, error);
+        }
+      }
+    }
+    
+    // FETCH MACRO/POLICY/NEWS DATA
+    if (queryIntent.dataNeeded.includes('macro') || queryIntent.dataNeeded.includes('policy') || queryIntent.dataNeeded.includes('news')) {
+      let category = 'economic';
+      if (queryIntent.intent === 'government_policy' || queryIntent.speaker) {
+        category = 'policy';
+      } else if (queryIntent.dataNeeded.includes('news')) {
+        category = 'news';
+      } else if (queryIntent.dataNeeded.includes('macro')) {
+        category = 'economic';
+      }
+      
+      const macroFilters = {};
+      if (queryIntent.speaker) macroFilters.speaker = queryIntent.speaker;
+      if (queryIntent.date) macroFilters.date = queryIntent.date;
+      if (category === 'policy') macroFilters.limit = 20;
+      
+      console.log(`Fetching ${category} data with filters:`, macroFilters);
+      
+      try {
+        const macroResult = await DataConnector.getMacroData(category, macroFilters);
+        if (macroResult.success && macroResult.data.length > 0) {
+          dataContext += `\n\n${category.charAt(0).toUpperCase() + category.slice(1)} data${queryIntent.speaker ? ` (${queryIntent.speaker})` : ''}${queryIntent.date ? ` on ${queryIntent.date}` : ''}:`;
+          macroResult.data.slice(0, 5).forEach((item, i) => {
+            dataContext += `\n${i + 1}. ${item.title || 'No title'}`;
+            if (item.date) dataContext += ` (${item.date})`;
+            if (item.source) dataContext += `\n   Source: ${item.source}`;
+            if (item.description) dataContext += `\n   ${item.description}`;
+            if (item.summary) dataContext += `\n   ${item.summary}`;
+            if (item.content) dataContext += `\n   ${item.content}`;
+          });
+        } else {
+          console.log(`No ${category} data found`);
+        }
+      } catch (error) {
+        console.error(`Error fetching ${category} data:`, error);
+      }
+    }
+    
+    // FETCH SUPABASE STOCK DATA
+    if (queryIntent.dataNeeded.includes('stock_prices') && tickersToQuery.length > 0) {
+      for (const ticker of tickersToQuery.slice(0, 3)) {
+        try {
+          const stockResult = await DataConnector.getStockData(ticker, 'current');
+          if (stockResult.success && stockResult.data.length > 0) {
+            const quote = stockResult.data[0];
+            dataContext += `\n\n${ticker} Current Price: $${quote.close?.toFixed(2)}`;
+            if (quote.change) dataContext += ` (${quote.change >= 0 ? '+' : ''}${quote.change?.toFixed(2)}, ${quote.change_percent?.toFixed(2)}%)`;
+            if (quote.open) dataContext += `\nOpen: $${quote.open?.toFixed(2)}`;
+            if (quote.high) dataContext += `, High: $${quote.high?.toFixed(2)}`;
+            if (quote.low) dataContext += `, Low: $${quote.low?.toFixed(2)}`;
+            if (quote.volume) dataContext += `\nVolume: ${quote.volume?.toLocaleString()}`;
+          }
+        } catch (error) {
+          console.error(`Error fetching stock data for ${ticker}:`, error);
+        }
+      }
+    }
+    
+    // FETCH EVENTS DATA
+    if (queryIntent.dataNeeded.includes('events') && tickersToQuery.length > 0) {
+      for (const ticker of tickersToQuery.slice(0, 3)) {
+        try {
+          const eventsQuery = {
+            ticker,
+            title: { $ne: null },
+            aiInsight: { $ne: null }
+          };
+          
+          if (queryIntent.eventTypes && queryIntent.eventTypes.length > 0) {
+            eventsQuery.type = { $in: queryIntent.eventTypes };
+          }
+          
+          if (queryIntent.timeframe === 'upcoming') {
+            eventsQuery.actualDateTime_et = { $gte: new Date().toISOString() };
+          }
+          
+          const eventsResult = await DataConnector.getEvents({ 
+            query: eventsQuery,
+            limit: 5,
+            sort: queryIntent.timeframe === 'upcoming' ? { actualDateTime_et: 1 } : { actualDateTime_et: -1 }
+          });
+          
+          if (eventsResult.success && eventsResult.data.length > 0) {
+            dataContext += `\n\n${ticker} Events:`;
+            eventsResult.data.forEach((e, i) => {
+              dataContext += `\n${i + 1}. ${e.type}: ${e.title}`;
+              if (e.aiInsight) dataContext += `\n   ${e.aiInsight.substring(0, 100)}...`;
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching events for ${ticker}:`, error);
+        }
+      }
+    }
+
+    // STEP 3: GENERATE VISUAL CARDS (EVENT CARDS, STOCK CARDS)
     
     const isTradingQuery = /trade|traded|trading.*today|today.*trad/i.test(message);
     const isHistoricalQuery = /yesterday|last\s+(day|week|month)|previous|past|historic/i.test(message);
