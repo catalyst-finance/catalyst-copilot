@@ -346,10 +346,33 @@ class DataConnector {
       
       if (filters.date) {
         // Support date or date range filtering
+        // MongoDB date field contains datetime strings like "2025-11-14T21:22:56.16"
+        // So we need to match the date portion using regex
         if (filters.date.$gte || filters.date.$lte) {
-          query.date = filters.date;
+          // Date range query - match dates between start and end
+          const dateConditions = [];
+          if (filters.date.$gte) {
+            // Match dates >= start date (e.g., "2025-10-20" matches "2025-10-20T..." and later)
+            dateConditions.push({ date: { $gte: filters.date.$gte } });
+          }
+          if (filters.date.$lte) {
+            // Match dates <= end date + 1 day (e.g., "2025-11-20" matches up to "2025-11-21T00:00:00")
+            const endDate = new Date(filters.date.$lte);
+            endDate.setDate(endDate.getDate() + 1);
+            const endDateStr = endDate.toISOString().split('T')[0];
+            dateConditions.push({ date: { $lt: endDateStr } });
+          }
+          if (dateConditions.length > 0) {
+            if (!query.$and) query.$and = [];
+            query.$and.push(...dateConditions);
+          }
         } else {
-          query.date = filters.date;
+          // Exact date match - match any datetime on that date
+          const dateStr = filters.date;
+          const nextDay = new Date(dateStr);
+          nextDay.setDate(nextDay.getDate() + 1);
+          const nextDayStr = nextDay.toISOString().split('T')[0];
+          query.date = { $gte: dateStr, $lt: nextDayStr };
         }
       }
       
@@ -952,7 +975,7 @@ Top Holders:`;
             let chartData = null;
             if (hasIntradayData) {
               chartData = intradayResult.data.map(point => ({
-                timestamp: new Date(point.timestamp_et).getTime(),
+                timestamp: new Date(point.timestamp_et || point.timestamp).getTime(),  // Use timestamp_et (ET timezone)
                 price: point.price || point.close,  // intraday_prices uses 'price', aggregated tables use 'close'
                 volume: point.volume || 0
               }));
