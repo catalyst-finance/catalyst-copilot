@@ -88,10 +88,9 @@ class DataConnector {
             .from('intraday_prices')
             .select('*')
             .eq('symbol', symbol)
-            .gte('timestamp_et', `${today}T00:00:00`)
+            .gte('timestamp_et', `${today}T09:30:00`)
             .lte('timestamp_et', `${today}T23:59:59`)
-            .order('timestamp_et', { ascending: true })
-            .limit(500);
+            .order('timestamp_et', { ascending: true });
           break;
           
         case 'daily':
@@ -543,9 +542,12 @@ Top Holders:`;
           });
         } else {
           console.log(`No ${category} data found`);
+          // Tell AI that no data was found so it can inform the user
+          dataContext += `\n\nNO ${category.toUpperCase()} DATA FOUND for the requested query${queryIntent.speaker ? ` about ${queryIntent.speaker}` : ''}${queryIntent.dateRange ? ` from ${queryIntent.dateRange.start} to ${queryIntent.dateRange.end}` : ''}. The database does not contain matching information.`;
         }
       } catch (error) {
         console.error(`Error fetching ${category} data:`, error);
+        dataContext += `\n\nERROR fetching ${category} data: ${error.message}`;
       }
     }
     
