@@ -135,22 +135,61 @@ class DataConnector {
         .not('title', 'is', null)
         .not('aiInsight', 'is', null);
       
-      // Apply filters
-      if (filters.ticker) {
-        query = query.eq('ticker', filters.ticker);
-      }
-      
-      if (filters.type) {
-        if (Array.isArray(filters.type)) {
-          query = query.in('type', filters.type);
-        } else {
-          query = query.eq('type', filters.type);
+      // Support both simple filters and query object
+      if (filters.query) {
+        // MongoDB-style query object for complex queries
+        const q = filters.query;
+        
+        if (q.ticker) {
+          if (q.ticker.$nin) {
+            // NOT IN - exclude tickers
+            query = query.not('ticker', 'in', `(${q.ticker.$nin.join(',')})`);
+          } else if (q.ticker.$eq) {
+            query = query.eq('ticker', q.ticker.$eq);
+          } else {
+            query = query.eq('ticker', q.ticker);
+          }
+        }
+        
+        if (q.type) {
+          if (q.type.$in) {
+            query = query.in('type', q.type.$in);
+          } else {
+            query = query.eq('type', q.type);
+          }
+        }
+        
+        if (q.actualDateTime_et) {
+          if (q.actualDateTime_et.$gte) {
+            query = query.gte('actualDateTime_et', q.actualDateTime_et.$gte);
+          }
+        }
+      } else {
+        // Simple filters (backward compatibility)
+        if (filters.ticker) {
+          query = query.eq('ticker', filters.ticker);
+        }
+        
+        if (filters.type) {
+          if (Array.isArray(filters.type)) {
+            query = query.in('type', filters.type);
+          } else {
+            query = query.eq('type', filters.type);
+          }
+        }
+        
+        if (filters.upcoming) {
+          const today = new Date().toISOString();
+          query = query.gte('actualDateTime_et', today);
         }
       }
       
-      if (filters.upcoming) {
-        const today = new Date().toISOString();
-        query = query.gte('actualDateTime_et', today);
+      // Apply sort
+      if (filters.sort) {
+        const sortField = Object.keys(filters.sort)[0];
+        const sortDirection = filters.sort[sortField] === 1 ? 'asc' : 'desc';
+        query = query.order(sortField, { ascending: sortDirection === 'asc' });
+      } else if (filters.upcoming) {
         query = query.order('actualDateTime_et', { ascending: true });
       } else {
         query = query.order('actualDateTime_et', { ascending: false });
@@ -332,9 +371,14 @@ app.post('/chat', async (req, res) => {
     console.log('Processing message:', message);
     console.log('User portfolio:', selectedTickers);
 
-    // STEP 1: DETECT QUERY TYPE AND FETCH DATA FIRST (like index.tsx pattern)
+    // STEP 1: DETECT QUERY TYPES EARLY (needed for both data fetching and card generation)
     let dataContext = "";
     const lowerMessage = message.toLowerCase();
+    
+    const isTradingQuery = /trade|traded|trading.*today|today.*trad/i.test(message);
+    const isHistoricalQuery = /yesterday|last\s+(day|week|month)|previous|past|historic/i.test(message);
+    const isEventQuery = /event|earnings|FDA|approval|launch|announcement|coming up|upcoming|legal|regulatory/i.test(message);
+    const isPriceQuery = /price|trade|trading|open|close|high|low|volume/i.test(message);
     
     // Detect if MongoDB data is needed
     const needsInstitutional = /institution|institutional|holder|ownership|who owns|top.*holder|position|holdings/i.test(message);
@@ -443,25 +487,519 @@ Top Holders:`;
       }
     }
 
-    // STEP 4: BUILD CONTEXT MESSAGE
+    // STEP 4: PRE-GENERATE EVENT CARDS (BEFORE AI CALL) - Like index.tsx
+    const dataCards = [];
+    const eventData = {}; // Store event data by ID for inline rendering
+    
+    // Also check conversation history for event context (follow-up questions)
+    const hasEventContext = conversationHistory && conversationHistory.some(msg => 
+      msg.role === 'user' && /event|earnings|FDA|approval|launch|announcement|legal|regulatory/i.test(msg.content)
+    );
+    
+    const shouldFetchEvents = isEventQuery || hasEventContext;
+    
+    // Variable to store event card details for AI context
+    let eventCardsContext = "";
+    
+    // Generate event cards if user is asking about events - DO THIS BEFORE AI CALL
+    if (shouldFetchEvents) {
+      const isUpcomingQuery = /coming up|upcoming|next|future|will|2026|2027/i.test(message);
+      const today = new Date().toISOString();
+      
+      // Detect specific event types from the user's query
+      const eventTypeKeywords = {
+        'product': ['product', 'launch'],
+        'earnings': ['earnings', 'earning'],
+        'fda': ['fda', 'approval', 'drug'],
+        'merger': ['merger', 'acquisition', 'M&A'],
+        'conference': ['conference', 'summit'],
+        'investor_day': ['investor day', 'analyst day'],
+        'partnership': ['partnership', 'partner', 'collaboration'],
+        'regulatory': ['regulatory', 'regulation', 'compliance', 'antitrust'],
+        'guidance_update': ['guidance'],
+        'capital_markets': ['capital', 'offering', 'IPO'],
+        'legal': ['legal', 'lawsuit', 'litigation', 'settlement'],
+        'commerce_event': ['commerce', 'retail'],
+        'corporate': ['corporate'],
+        'pricing': ['pricing', 'price change'],
+        'defense_contract': ['defense', 'contract']
+      };
+      
+      // Find which event types the user is asking about
+      const requestedEventTypes = [];
+      for (const [eventType, keywords] of Object.entries(eventTypeKeywords)) {
+        for (const keyword of keywords) {
+          if (lowerMessage.includes(keyword)) {
+            requestedEventTypes.push(eventType);
+            break; // Only add each event type once
+          }
+        }
+      }
+      console.log('Detected event types from query:', requestedEventTypes);
+      
+      // Detect user intent about stock scope
+      const isFocusOnlyQuery = /my.*focus|my.*watchlist|my.*stock|focus.*stock|watchlist.*stock/i.test(message) && 
+                                !/outside|beyond|other|different|not.*in|excluding/i.test(message);
+      const isOutsideFocusQuery = /outside.*focus|beyond.*focus|other.*stock|different.*stock|not.*in.*focus|not.*focus|non-focus|excluding.*focus|outside.*watchlist|beyond.*watchlist/i.test(message);
+      
+      console.log('Query intent - Focus only:', isFocusOnlyQuery, 'Outside focus:', isOutsideFocusQuery);
+      
+      // Determine which tickers to fetch events for
+      let tickersForEvents = [];
+      
+      if (isFocusOnlyQuery) {
+        // User explicitly asking about their focus stocks only
+        tickersForEvents = selectedTickers || [];
+        console.log('Using focus stocks only:', tickersForEvents);
+      } else if (isOutsideFocusQuery) {
+        // User explicitly asking about stocks outside their focus - query database
+        console.log('Querying database for stocks outside focus with requested event types:', requestedEventTypes);
+        
+        try {
+          // Build query to find stocks with relevant events that are NOT in focus list
+          const eventsQuery = { 
+            ticker: { $nin: selectedTickers || [] },
+            title: { $ne: null },
+            aiInsight: { $ne: null }
+          };
+          
+          // Filter by event type if specified
+          if (requestedEventTypes.length > 0) {
+            eventsQuery.type = { $in: requestedEventTypes };
+          }
+          
+          // Only upcoming events
+          if (isUpcomingQuery) {
+            eventsQuery.actualDateTime_et = { $gte: today };
+          }
+          
+          const eventsResult = await DataConnector.getEvents({ 
+            query: eventsQuery,
+            limit: 20,
+            sort: isUpcomingQuery ? { actualDateTime_et: 1 } : { actualDateTime_et: -1 }
+          });
+          
+          if (eventsResult.success && eventsResult.data.length > 0) {
+            // Get unique tickers from the results (3-6 stocks)
+            const uniqueTickersSet = new Set();
+            for (const event of eventsResult.data) {
+              if (uniqueTickersSet.size >= 6) break;
+              uniqueTickersSet.add(event.ticker);
+            }
+            tickersForEvents = Array.from(uniqueTickersSet).slice(0, 6);
+            console.log('Found stocks outside focus with relevant events:', tickersForEvents);
+          }
+        } catch (error) {
+          console.error('Error querying database for outside focus stocks:', error);
+        }
+      } else {
+        // No explicit preference - check focus stocks first, then add relevant outside stocks
+        console.log('No explicit preference - checking both focus and outside stocks');
+        
+        // Start with focus stocks if they have relevant events
+        const focusStocksWithEvents = [];
+        
+        if (selectedTickers && selectedTickers.length > 0) {
+          for (const ticker of selectedTickers) {
+            try {
+              const checkQuery = {
+                ticker,
+                title: { $ne: null },
+                aiInsight: { $ne: null }
+              };
+              
+              if (requestedEventTypes.length > 0) {
+                checkQuery.type = { $in: requestedEventTypes };
+              }
+              
+              if (isUpcomingQuery) {
+                checkQuery.actualDateTime_et = { $gte: today };
+              }
+              
+              const checkResult = await DataConnector.getEvents({ 
+                query: checkQuery,
+                limit: 1 
+              });
+              
+              if (checkResult.success && checkResult.data.length > 0) {
+                focusStocksWithEvents.push(ticker);
+              }
+            } catch (error) {
+              console.error(`Error checking focus stock ${ticker}:`, error);
+            }
+          }
+        }
+        
+        console.log('Focus stocks with relevant events:', focusStocksWithEvents);
+        
+        // Add relevant stocks outside focus (3-6 total)
+        const targetCount = 6;
+        const remainingSlots = Math.max(0, targetCount - focusStocksWithEvents.length);
+        
+        if (remainingSlots > 0) {
+          try {
+            const eventsQuery = {
+              ticker: { $nin: selectedTickers || [] },
+              title: { $ne: null },
+              aiInsight: { $ne: null }
+            };
+            
+            if (requestedEventTypes.length > 0) {
+              eventsQuery.type = { $in: requestedEventTypes };
+            }
+            
+            if (isUpcomingQuery) {
+              eventsQuery.actualDateTime_et = { $gte: today };
+            }
+            
+            const eventsResult = await DataConnector.getEvents({
+              query: eventsQuery,
+              limit: 20,
+              sort: isUpcomingQuery ? { actualDateTime_et: 1 } : { actualDateTime_et: -1 }
+            });
+            
+            if (eventsResult.success && eventsResult.data.length > 0) {
+              const outsideTickersSet = new Set();
+              for (const event of eventsResult.data) {
+                if (outsideTickersSet.size >= remainingSlots) break;
+                outsideTickersSet.add(event.ticker);
+              }
+              
+              const outsideTickers = Array.from(outsideTickersSet);
+              console.log('Added outside focus stocks:', outsideTickers);
+              tickersForEvents = [...focusStocksWithEvents, ...outsideTickers];
+            } else {
+              tickersForEvents = focusStocksWithEvents;
+            }
+          } catch (error) {
+            console.error('Error querying for outside stocks:', error);
+            tickersForEvents = focusStocksWithEvents;
+          }
+        } else {
+          tickersForEvents = focusStocksWithEvents;
+        }
+      }
+      
+      const uniqueTickers = [...new Set(tickersForEvents)];
+      console.log('Final tickers for events:', uniqueTickers);
+      console.log('Selected tickers (focus stocks):', selectedTickers);
+      
+      try {
+        // Fetch events for the determined tickers
+        const eventPromises = uniqueTickers.map(async (ticker) => {
+          try {
+            const eventsQuery = {
+              ticker,
+              title: { $ne: null },
+              aiInsight: { $ne: null }
+            };
+            
+            // Add event type filtering if specific types were requested
+            if (requestedEventTypes.length > 0) {
+              eventsQuery.type = { $in: requestedEventTypes };
+            }
+            
+            if (isUpcomingQuery) {
+              eventsQuery.actualDateTime_et = { $gte: today };
+            }
+            
+            const eventsResult = await DataConnector.getEvents({
+              query: eventsQuery,
+              limit: 5,
+              sort: isUpcomingQuery ? { actualDateTime_et: 1 } : { actualDateTime_et: -1 }
+            });
+            
+            console.log(`Found ${eventsResult.data?.length || 0} events for ${ticker}`);
+            return eventsResult.data || [];
+          } catch (error) {
+            console.error(`Error fetching events for ${ticker}:`, error);
+            return [];
+          }
+        });
+        
+        const allEventsArrays = await Promise.all(eventPromises);
+        const allEvents = allEventsArrays.flat();
+        
+        // Sort events by date and take first 5
+        allEvents.sort((a, b) => {
+          const dateA = new Date(a.actualDateTime_et || a.actualDateTime || 0);
+          const dateB = new Date(b.actualDateTime_et || b.actualDateTime || 0);
+          return isUpcomingQuery ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+        });
+        
+        const topEvents = allEvents.slice(0, 5);
+        
+        // Build context for AI about which event cards will be shown
+        if (topEvents.length > 0) {
+          eventCardsContext = `\n\n**CRITICAL - EVENT CARDS TO DISPLAY:**\nYou will be showing the following ${topEvents.length} event cards to the user. Your response MUST mention and briefly describe ALL of these events:\n\n`;
+          topEvents.forEach((event, index) => {
+            const eventDate = new Date(event.actualDateTime_et || event.actualDateTime).toLocaleDateString();
+            eventCardsContext += `${index + 1}. ${event.ticker} - ${event.title} (${event.type}) on ${eventDate}\n   AI Insight: ${event.aiInsight}\n\n`;
+          });
+          eventCardsContext += `\nMake sure your response discusses ALL ${topEvents.length} events listed above. Do not omit any.`;
+        }
+        
+        // Generate event cards
+        for (const event of topEvents) {
+          const eventId = event.id || `${event.ticker}_${event.type}_${event.actualDateTime_et || event.actualDateTime}`;
+          eventData[eventId] = {
+            id: event.id || eventId,
+            ticker: event.ticker,
+            title: event.title,
+            type: event.type,
+            datetime: event.actualDateTime_et || event.actualDateTime,
+            aiInsight: event.aiInsight,
+            impact: event.impact
+          };
+          dataCards.push({
+            type: "event",
+            data: eventData[eventId]
+          });
+        }
+      } catch (error) {
+        console.error("Error generating event cards:", error);
+      }
+    }
+    
+    // STEP 5: GENERATE STOCK CARDS (biggest movers, specific stock mentions, etc.)
+    
+    // Detect if user is asking about biggest movers / watchlist movers
+    const isBiggestMoversQuery = /biggest\s+mover|top\s+mover|movers\s+in.*watchlist|watchlist.*mover/i.test(message);
+    if (isBiggestMoversQuery && selectedTickers && selectedTickers.length > 0) {
+      try {
+        const stockDataPromises = selectedTickers.map(async (ticker) => {
+          try {
+            const stockResult = await DataConnector.getStockData(ticker, 'current');
+            if (stockResult.success && stockResult.data.length > 0) {
+              return stockResult.data[0];
+            }
+          } catch (error) {
+            console.error(`Error fetching data for ${ticker}:`, error);
+          }
+          return null;
+        });
+        
+        const stocksData = (await Promise.all(stockDataPromises)).filter(s => s !== null);
+        
+        // Sort by absolute change percent to get biggest movers
+        stocksData.sort((a, b) => Math.abs(b.change_percent || 0) - Math.abs(a.change_percent || 0));
+        
+        // Take top 3-5 movers
+        const topMovers = stocksData.slice(0, Math.min(5, stocksData.length));
+        
+        // Fetch company names
+        const companyDataPromises = topMovers.map(async (quote) => {
+          try {
+            const { data, error } = await supabase
+              .from('company_information')
+              .select('name')
+              .eq('symbol', quote.symbol)
+              .limit(1)
+              .single();
+            
+            if (data) {
+              return { symbol: quote.symbol, name: data.name };
+            }
+          } catch (error) {
+            console.error(`Error fetching company name for ${quote.symbol}:`, error);
+          }
+          return { symbol: quote.symbol, name: quote.symbol };
+        });
+        
+        const companyNames = await Promise.all(companyDataPromises);
+        const companyNameMap = Object.fromEntries(companyNames.map(c => [c.symbol, c.name]));
+        
+        // Generate data cards for top movers
+        for (const quote of topMovers) {
+          dataCards.push({
+            type: "stock",
+            data: {
+              ticker: quote.symbol,
+              company: companyNameMap[quote.symbol] || quote.symbol,
+              price: quote.close,
+              change: quote.change,
+              changePercent: quote.change_percent,
+              chartData: [] // No chart for watchlist cards to keep it fast
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching watchlist movers:", error);
+      }
+    } else {
+      // If asking about a specific stock (TSLA, AAPL, etc) or how it traded, generate a stock card with intraday chart
+      const shouldShowIntradayChart = isTradingQuery || /today|intraday/i.test(message);
+      
+      // Check for ticker symbols (TSLA, AAPL) OR company names (Tesla, Apple, Microsoft, etc)
+      let stockMention = message.match(/\b([A-Z]{2,5})\b/);
+      let ticker = stockMention?.[1];
+      
+      // If no ticker found, search for company name in database
+      if (!ticker) {
+        try {
+          // Extract potential company name from message (look for capitalized words)
+          const potentialCompanyNames = message.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g) || [];
+          
+          console.log('Searching for company names:', potentialCompanyNames);
+          
+          for (const companyName of potentialCompanyNames) {
+            // Skip common words that aren't companies
+            const skipWords = ['How', 'Did', 'What', 'When', 'Where', 'Why', 'Who', 'The', 'Today', 'Yesterday'];
+            if (skipWords.includes(companyName)) {
+              console.log(`Skipping common word: ${companyName}`);
+              continue;
+            }
+            
+            // Query company_information table for matching name
+            const { data, error } = await supabase
+              .from('company_information')
+              .select('symbol, name')
+              .ilike('name', `%${companyName}%`)
+              .limit(1)
+              .single();
+            
+            console.log(`Company search for "${companyName}":`, data);
+            
+            if (data) {
+              ticker = data.symbol;
+              console.log(`Found ticker ${ticker} for company name: ${companyName}`);
+              break; // Found a match, stop searching
+            }
+          }
+        } catch (error) {
+          console.error('Error looking up company name:', error);
+        }
+      }
+      
+      console.log('Stock card logic - ticker:', ticker, 'shouldShowChart:', shouldShowIntradayChart);
+      
+      if (ticker && shouldShowIntradayChart) {
+        try {
+          // Fetch current price
+          console.log(`Fetching quote for ${ticker}`);
+          const stockResult = await DataConnector.getStockData(ticker, 'current');
+          
+          if (stockResult.success && stockResult.data.length > 0) {
+            const quote = stockResult.data[0];
+            
+            // Fetch company name
+            let companyName = ticker;
+            try {
+              const { data, error } = await supabase
+                .from('company_information')
+                .select('name')
+                .eq('symbol', ticker)
+                .limit(1)
+                .single();
+              
+              if (data) {
+                companyName = data.name;
+              }
+            } catch (error) {
+              console.error(`Error fetching company name for ${ticker}:`, error);
+            }
+            
+            // Check if intraday data exists
+            const intradayResult = await DataConnector.getStockData(ticker, 'intraday');
+            const hasIntradayData = intradayResult.success && intradayResult.data.length > 0;
+            const intradayCount = intradayResult.data?.length || 0;
+            
+            console.log(`Intraday data available for ${ticker}: ${intradayCount} points`);
+            console.log(`Pushing stock card for ${ticker} with${hasIntradayData ? '' : 'out'} intraday chart`);
+            
+            dataCards.push({
+              type: "stock",
+              data: {
+                ticker: quote.symbol,
+                company: companyName,
+                price: quote.close,
+                change: quote.change,
+                changePercent: quote.change_percent,
+                // Send metadata for frontend to fetch chart data
+                chartMetadata: hasIntradayData ? {
+                  available: true,
+                  count: intradayCount,
+                  date: new Date().toISOString().split('T')[0],
+                  // Frontend should fetch intraday data via separate API call
+                  needsFetch: true
+                } : null
+              }
+            });
+            
+            // Add stock card data to AI context
+            dataContext += `\n\n**STOCK CARD DATA FOR ${ticker}:**
+- Current Price: $${quote.close.toFixed(2)}
+- Change: ${quote.change >= 0 ? '+' : ''}$${quote.change.toFixed(2)} (${quote.change_percent >= 0 ? '+' : ''}${quote.change_percent.toFixed(2)}%)
+- Day High: $${quote.high?.toFixed(2) || 'N/A'}
+- Day Low: $${quote.low?.toFixed(2) || 'N/A'}
+- Previous Close: $${quote.previous_close?.toFixed(2) || 'N/A'}
+- Intraday Chart: ${hasIntradayData ? `${intradayCount} price points available` : 'No intraday data available'}
+
+**IMPORTANT: Use this exact price data in your response. Do not use any other price information.**`;
+          } else {
+            console.log(`No quote data found for ${ticker}`);
+          }
+        } catch (error) {
+          console.error("Error fetching stock data:", error);
+        }
+      }
+    }
+
+    // STEP 6: BUILD CONTEXT MESSAGE
     const contextMessage = selectedTickers.length > 0 
       ? `The user is tracking: ${selectedTickers.join(', ')}.`
       : '';
 
-    // STEP 5: PREPARE MESSAGES FOR OPENAI (like index.tsx)
+    // STEP 7: PREPARE MESSAGES FOR OPENAI (like index.tsx)
     const messages = [
       {
         role: "system",
         content: `You are Catalyst Copilot, an AI assistant for Catalyst mobile app.
 
+You have access to real-time stock data from Supabase including:
+- Current prices and price changes (finnhub_quote_snapshots table)
+- Intraday price data (intraday_prices table)
+- Historical daily prices (daily_prices table)
+- Market events like earnings, FDA approvals, product launches, legal, regulatory, investor day, etc. (event_data table)
+- Company information (company_information table)
+
+You also have access to MongoDB data including:
+- Institutional ownership data (who owns stocks, position changes, top holders)
+- Macro economic indicators (GDP, inflation, unemployment, trade data)
+- Government policy transcripts (White House briefings, Fed announcements, congressional hearings)
+- Market news and sentiment (global markets, economic trends, country-specific news)
+
+When asked about institutional ownership, reference:
+- Percentage of institutional ownership
+- Increased/decreased position amounts and percentages, and when (number of holders and shares)
+- Top institutional holders
+
+When asked about government policy or macro trends, reference:
+- Recent policy announcements and transcripts
+- Economic indicators by country
+- Market sentiment and news
+- Trade, tariff, and regulatory developments
+
+You have access to data for ALL publicly traded stocks, not just the user's watchlist.
+
+When answering questions:
+1. Be concise and data-driven - USE THE ACTUAL DATA PROVIDED
+2. Reference specific price movements and percentages FROM THE DATA
+3. Mention relevant upcoming events FROM THE DATA
+4. Use a professional but approachable tone
+5. NEVER use placeholder text like $XYZ or % XYZ - always use the real numbers provided
+6. When users ask about specific event types (e.g., "legal events", "FDA approvals", "earnings"), ONLY discuss events of that type. Do not mention other event types unless they are directly relevant to the question.
+7. **CRITICAL: When event cards are being generated for the user, you MUST mention and briefly describe ALL events that will be shown in the event cards. Do not pick and choose - list every single event. The user will see all the event cards, so your text response should reference all of them.**
+8. When institutional or macro data is available, integrate it naturally into your analysis.
+
 CRITICAL RULES:
 1. ONLY use data provided below - NEVER use your training data
 2. If no data is provided, say "I don't have that information in the database"
-3. Be concise - max 3-4 sentences
+3. Be concise - max 3-4 sentences unless discussing multiple event cards
 4. Always cite the data source (e.g., "According to the latest data...")
 5. Never make up quotes, statistics, or information
 
-${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : '\n\nNO DATA AVAILABLE - You must say you cannot find this information in the database.'}`
+${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : '\n\nNO DATA AVAILABLE - You must say you cannot find this information in the database.'}${eventCardsContext}`
       },
       ...conversationHistory || [],
       {
@@ -470,7 +1008,9 @@ ${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : '\n\nNO 
       }
     ];
 
-    // STEP 6: CALL OPENAI (NO FUNCTION CALLING - data already fetched)
+    console.log("Calling OpenAI API with", messages.length, "messages");
+
+    // STEP 8: CALL OPENAI (NO FUNCTION CALLING - data already fetched)
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini", // Cheaper and faster
       messages,
@@ -482,6 +1022,8 @@ ${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : '\n\nNO 
 
     res.json({
       response: assistantMessage.content,
+      dataCards,
+      eventData,
       timestamp: new Date().toISOString()
     });
 
