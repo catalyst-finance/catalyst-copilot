@@ -356,8 +356,16 @@ class DataConnector {
           summary.content = doc.content.substring(0, 500);
         }
         
-        // Add source if available
-        if (doc.source) summary.source = doc.source;
+        // Build source URLs
+        if (category === 'economic' && doc.url) {
+          // Build tradingeconomics.com URL from relative path
+          summary.source = `https://tradingeconomics.com${doc.url}`;
+        } else if (category === 'policy' && doc.url) {
+          // Use full URL from government_policy collection
+          summary.source = doc.url;
+        } else if (doc.source) {
+          summary.source = doc.source;
+        }
         
         return summary;
       });
@@ -446,17 +454,25 @@ app.post('/chat', async (req, res) => {
     // Extract speaker names from query for government_policy searches
     let speakerQuery = null;
     const speakerPatterns = [
-      /\b(hassett|kevin hassett)\b/i,
-      /\b(biden|joe biden|president biden)\b/i,
-      /\b(trump|donald trump|president trump)\b/i,
-      /\b(yellen|janet yellen|secretary yellen)\b/i,
-      /\b(powell|jerome powell|chairman powell)\b/i
+      /\b(hasse?tt?|kevin\s+hasse?tt?)\b/i,  // Handles Hassett, Hasset, Hassett, etc.
+      /\b(biden|joe\s+biden|president\s+biden)\b/i,
+      /\b(trump|donald\s+trump|president\s+trump)\b/i,
+      /\b(yellen|janet\s+yellen|secretary\s+yellen)\b/i,
+      /\b(powell|jerome\s+powell|chairman\s+powell|chair\s+powell)\b/i
     ];
     
     for (const pattern of speakerPatterns) {
       const match = message.match(pattern);
       if (match) {
-        speakerQuery = match[1];
+        // Normalize speaker name for database search
+        speakerQuery = match[1].toLowerCase().replace(/\s+/g, ' ').trim();
+        // Use standardized names for better matching
+        if (/hasse?tt?/i.test(speakerQuery)) speakerQuery = 'hassett';
+        else if (/biden/i.test(speakerQuery)) speakerQuery = 'biden';
+        else if (/trump/i.test(speakerQuery)) speakerQuery = 'trump';
+        else if (/yellen/i.test(speakerQuery)) speakerQuery = 'yellen';
+        else if (/powell/i.test(speakerQuery)) speakerQuery = 'powell';
+        
         console.log('Detected speaker query:', speakerQuery);
         break;
       }
@@ -499,7 +515,9 @@ Top Holders:`;
           }
           
           if (needsMacro) {
-            const category = lowerMessage.includes('policy') || lowerMessage.includes('transcript') || speakerQuery ? 'policy' : 
+            // If speaker is detected, ALWAYS use 'policy' category
+            const category = speakerQuery ? 'policy' : 
+                           lowerMessage.includes('policy') || lowerMessage.includes('transcript') ? 'policy' : 
                            lowerMessage.includes('news') ? 'news' : 'economic';
             
             const macroFilters = {};
@@ -507,12 +525,15 @@ Top Holders:`;
             if (dateFilter) macroFilters.date = dateFilter;
             if (category === 'policy') macroFilters.limit = 20; // More results for policy searches
             
+            console.log(`Fetching macro data: category=${category}, filters=`, macroFilters);
+            
             const macroResult = await DataConnector.getMacroData(category, macroFilters);
             if (macroResult.success && macroResult.data.length > 0) {
               dataContext += `\n\n${category.charAt(0).toUpperCase() + category.slice(1)} data${speakerQuery ? ` (${speakerQuery})` : ''}${dateFilter ? ` on ${dateFilter}` : ''}:`;
               macroResult.data.slice(0, 5).forEach((item, i) => {
                 dataContext += `\n${i + 1}. ${item.title || 'No title'}`;
                 if (item.date) dataContext += ` (${item.date})`;
+                if (item.source) dataContext += `\n   Source: ${item.source}`;
                 if (item.description) dataContext += `\n   ${item.description}`;
                 if (item.summary) dataContext += `\n   ${item.summary}`;
                 if (item.content) dataContext += `\n   ${item.content}`;
@@ -528,10 +549,11 @@ Top Holders:`;
       
       // If MongoDB data was required but none found, return error
       if (needsMongoData && !dataContext) {
-        return res.json({
+        console.log('MongoDB data required but none found. needsInstitutional:', needsInstitutional, 'needsMacro:', needsMacro);
+        return res.status(503).json({
           error: "Unable to fetch institutional ownership and market data. Please try again or ask about stock prices instead.",
           requiresMongoDBData: true
-        }, 503);
+        });
       }
     }
     
@@ -1085,7 +1107,8 @@ CRITICAL RULES:
 2. If no data is provided, say "I don't have that information in the database"
 3. Be concise - max 3-4 sentences unless discussing multiple event cards
 4. Always cite the data source (e.g., "According to the latest data...")
-5. Never make up quotes, statistics, or information
+5. When source URLs are provided, include them in your response as clickable references
+6. Never make up quotes, statistics, or information
 
 ${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : '\n\nNO DATA AVAILABLE - You must say you cannot find this information in the database.'}${eventCardsContext}`
       },
