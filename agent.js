@@ -607,197 +607,10 @@ Top Holders:`;
     }
 
     // STEP 3: GENERATE VISUAL CARDS (EVENT CARDS, STOCK CARDS)
-    // Use AI classification results instead of regex patterns
     const isEventQuery = queryIntent.intent === 'events' || queryIntent.dataNeeded.includes('events');
     const isTradingQuery = queryIntent.needsChart && queryIntent.timeframe === 'current';
-    
-    // Parse dates from the message (e.g., "11-13-2025", "November 13, 2025", "on 11/13/25")
-    let dateFilter = null;
-    const datePatterns = [
-      /\b(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})\b/, // MM-DD-YYYY or MM/DD/YYYY
-      /\b(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})\b/, // YYYY-MM-DD or YYYY/MM/DD
-      /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2}),?\s+(\d{4})\b/i // Month DD, YYYY
-    ];
-    
-    for (const pattern of datePatterns) {
-      const match = message.match(pattern);
-      if (match) {
-        try {
-          let dateStr;
-          if (pattern === datePatterns[0]) {
-            // MM-DD-YYYY format
-            dateStr = `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
-          } else if (pattern === datePatterns[1]) {
-            // YYYY-MM-DD format
-            dateStr = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
-          } else {
-            // Month name format
-            const monthMap = { january: '01', february: '02', march: '03', april: '04', may: '05', june: '06',
-                              july: '07', august: '08', september: '09', october: '10', november: '11', december: '12' };
-            const month = monthMap[match[1].toLowerCase()];
-            dateStr = `${match[3]}-${month}-${match[2].padStart(2, '0')}`;
-          }
-          dateFilter = dateStr;
-          console.log('Parsed date from message:', dateFilter);
-          break;
-        } catch (err) {
-          console.error('Error parsing date:', err);
-        }
-      }
-    }
-    
-    // Detect if MongoDB data is needed
-    const needsInstitutional = /institution|institutional|holder|ownership|who owns|top.*holder|position|holdings/i.test(message);
-    const needsMacro = /macro|economic|GDP|inflation|unemployment|policy|transcript|news|sentiment|trade|tariff|trump|biden|white house|fed|federal reserve|minerals|critical|china|russia|hassett|yellen|powell|discuss|said|speak|spoke|talk|statement/i.test(message);
-    const needsMongoData = needsInstitutional || needsMacro;
-    
-    // Extract speaker names from query for government_policy searches
-    let speakerQuery = null;
-    const speakerPatterns = [
-      /\b(hasse?tt?|kevin\s+hasse?tt?)\b/i,  // Handles Hassett, Hasset, Hassett, etc.
-      /\b(biden|joe\s+biden|president\s+biden)\b/i,
-      /\b(trump|donald\s+trump|president\s+trump)\b/i,
-      /\b(yellen|janet\s+yellen|secretary\s+yellen)\b/i,
-      /\b(powell|jerome\s+powell|chairman\s+powell|chair\s+powell)\b/i
-    ];
-    
-    for (const pattern of speakerPatterns) {
-      const match = message.match(pattern);
-      if (match) {
-        // Normalize speaker name for database search
-        speakerQuery = match[1].toLowerCase().replace(/\s+/g, ' ').trim();
-        // Use standardized names for better matching
-        if (/hasse?tt?/i.test(speakerQuery)) speakerQuery = 'hassett';
-        else if (/biden/i.test(speakerQuery)) speakerQuery = 'biden';
-        else if (/trump/i.test(speakerQuery)) speakerQuery = 'trump';
-        else if (/yellen/i.test(speakerQuery)) speakerQuery = 'yellen';
-        else if (/powell/i.test(speakerQuery)) speakerQuery = 'powell';
-        
-        console.log('Detected speaker query:', speakerQuery);
-        break;
-      }
-    }
-    
-    // Detect which tickers are mentioned (including company names)
-    const tickerMatches = message.match(/\b([A-Z]{2,5})\b/g) || [];
-    // Also check for Tesla -> TSLA mapping
-    let companyMapped = [];
-    if (/tesla/i.test(message)) companyMapped.push('TSLA');
-    if (/apple/i.test(message)) companyMapped.push('AAPL');
-    if (/microsoft/i.test(message)) companyMapped.push('MSFT');
-    if (/amazon/i.test(message)) companyMapped.push('AMZN');
-    if (/google|alphabet/i.test(message)) companyMapped.push('GOOGL');
-    if (/nvidia/i.test(message)) companyMapped.push('NVDA');
-    if (/meta|facebook/i.test(message)) companyMapped.push('META');
-    
-    const mentionedTickers = [...new Set([...tickerMatches, ...companyMapped, ...(selectedTickers || [])])];
-    
-    // STEP 2: FETCH MONGODB DATA IF NEEDED (with token budgeting)
-    if (needsMongoData && mentionedTickers.length > 0) {
-      for (const ticker of mentionedTickers.slice(0, 3)) { // Limit to 3 tickers max
-        try {
-          if (needsInstitutional) {
-            const instResult = await DataConnector.getInstitutionalData(ticker);
-            if (instResult.success && instResult.data.length > 0) {
-              const summary = instResult.data[0];
-              dataContext += `\n\n${ticker} Institutional Ownership (${summary.date}):
-- Total Ownership: ${summary.ownership.percentage}
-- Total Shares: ${summary.ownership.totalShares}
-- Number of Holders: ${summary.ownership.totalHolders}
-- Increased Positions: ${summary.activity.increased.holders} holders, ${summary.activity.increased.shares} shares
-- Decreased Positions: ${summary.activity.decreased.holders} holders, ${summary.activity.decreased.shares} shares
 
-Top Holders:`;
-              summary.topHolders.slice(0, 5).forEach((h, i) => {
-                dataContext += `\n${i + 1}. ${h.owner}: ${h.shares} shares (${h.change})`;
-              });
-            }
-          }
-          
-          if (needsMacro) {
-            // If speaker is detected, ALWAYS use 'policy' category
-            const category = speakerQuery ? 'policy' : 
-                           lowerMessage.includes('policy') || lowerMessage.includes('transcript') ? 'policy' : 
-                           lowerMessage.includes('news') ? 'news' : 'economic';
-            
-            const macroFilters = {};
-            if (speakerQuery) macroFilters.speaker = speakerQuery;
-            if (dateFilter) macroFilters.date = dateFilter;
-            if (category === 'policy') macroFilters.limit = 20; // More results for policy searches
-            
-            console.log(`Fetching macro data: category=${category}, filters=`, macroFilters);
-            
-            const macroResult = await DataConnector.getMacroData(category, macroFilters);
-            if (macroResult.success && macroResult.data.length > 0) {
-              dataContext += `\n\n${category.charAt(0).toUpperCase() + category.slice(1)} data${speakerQuery ? ` (${speakerQuery})` : ''}${dateFilter ? ` on ${dateFilter}` : ''}:`;
-              macroResult.data.slice(0, 5).forEach((item, i) => {
-                dataContext += `\n${i + 1}. ${item.title || 'No title'}`;
-                if (item.date) dataContext += ` (${item.date})`;
-                if (item.source) dataContext += `\n   Source: ${item.source}`;
-                if (item.description) dataContext += `\n   ${item.description}`;
-                if (item.summary) dataContext += `\n   ${item.summary}`;
-                if (item.content) dataContext += `\n   ${item.content}`;
-              });
-            } else {
-              console.log(`No ${category} data found for filters:`, macroFilters);
-            }
-          }
-        } catch (error) {
-          console.error(`Error fetching MongoDB data for ${ticker}:`, error);
-        }
-      }
-      
-      // If MongoDB data was required but none found, return error
-      if (needsMongoData && !dataContext) {
-        console.log('MongoDB data required but none found. needsInstitutional:', needsInstitutional, 'needsMacro:', needsMacro);
-        return res.status(503).json({
-          error: "Unable to fetch institutional ownership and market data. Please try again or ask about stock prices instead.",
-          requiresMongoDBData: true
-        });
-      }
-    }
-    
-    // STEP 3: FETCH SUPABASE DATA IF NEEDED
-    const needsStockData = /price|current|quote|trading|trade|traded|volume|open|close|high|low/i.test(message);
-    const needsEvents = /event|earnings|FDA|approval|upcoming|launch/i.test(message);
-    
-    if (needsStockData && mentionedTickers.length > 0) {
-      for (const ticker of mentionedTickers.slice(0, 2)) {
-        try {
-          const stockResult = await DataConnector.getStockData(ticker, 'current');
-          if (stockResult.success && stockResult.data.length > 0) {
-            const quote = stockResult.data[0];
-            dataContext += `\n\n${ticker} Current Price: $${quote.close?.toFixed(2)}`;
-            if (quote.change) dataContext += ` (${quote.change >= 0 ? '+' : ''}${quote.change?.toFixed(2)}, ${quote.change_percent?.toFixed(2)}%)`;
-            if (quote.open) dataContext += `\nOpen: $${quote.open?.toFixed(2)}`;
-            if (quote.high) dataContext += `, High: $${quote.high?.toFixed(2)}`;
-            if (quote.low) dataContext += `, Low: $${quote.low?.toFixed(2)}`;
-            if (quote.volume) dataContext += `\nVolume: ${quote.volume?.toLocaleString()}`;
-          }
-        } catch (error) {
-          console.error(`Error fetching stock data for ${ticker}:`, error);
-        }
-      }
-    }
-    
-    if (needsEvents && mentionedTickers.length > 0) {
-      for (const ticker of mentionedTickers.slice(0, 2)) {
-        try {
-          const eventsResult = await DataConnector.getEvents({ ticker, limit: 3 });
-          if (eventsResult.success && eventsResult.data.length > 0) {
-            dataContext += `\n\n${ticker} Recent Events:`;
-            eventsResult.data.forEach((e, i) => {
-              dataContext += `\n${i + 1}. ${e.type}: ${e.title}`;
-              if (e.aiInsight) dataContext += `\n   ${e.aiInsight.substring(0, 100)}...`;
-            });
-          }
-        } catch (error) {
-          console.error(`Error fetching events for ${ticker}:`, error);
-        }
-      }
-    }
-
-    // STEP 4: PRE-GENERATE EVENT CARDS (BEFORE AI CALL) - Like index.tsx
+    // STEP 4: PRE-GENERATE EVENT CARDS (BEFORE AI CALL)
     const dataCards = [];
     const eventData = {}; // Store event data by ID for inline rendering
     
@@ -1209,13 +1022,22 @@ Top Holders:`;
               console.error(`Error fetching company name for ${ticker}:`, error);
             }
             
-            // Check if intraday data exists
+            // Check if intraday data exists and format it for the frontend
             const intradayResult = await DataConnector.getStockData(ticker, 'intraday');
             const hasIntradayData = intradayResult.success && intradayResult.data.length > 0;
             const intradayCount = intradayResult.data?.length || 0;
             
             console.log(`Intraday data available for ${ticker}: ${intradayCount} points`);
             console.log(`Pushing stock card for ${ticker} with${hasIntradayData ? '' : 'out'} intraday chart`);
+            
+            // Format intraday data for frontend chart rendering
+            let chartData = null;
+            if (hasIntradayData) {
+              chartData = intradayResult.data.map(point => ({
+                timestamp: new Date(point.timestamp).getTime(),
+                price: point.close
+              }));
+            }
             
             dataCards.push({
               type: "stock",
@@ -1225,14 +1047,13 @@ Top Holders:`;
                 price: quote.close,
                 change: quote.change,
                 changePercent: quote.change_percent,
-                // Send metadata for frontend to fetch chart data
-                chartMetadata: hasIntradayData ? {
-                  available: true,
-                  count: intradayCount,
-                  date: new Date().toISOString().split('T')[0],
-                  // Frontend should fetch intraday data via separate API call
-                  needsFetch: true
-                } : null
+                // Send actual chart data instead of metadata
+                chartData: chartData,
+                // Include opening price for context
+                open: quote.open,
+                high: quote.high,
+                low: quote.low,
+                previousClose: quote.previous_close
               }
             });
             
