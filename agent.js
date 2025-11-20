@@ -308,111 +308,6 @@ class DataConnector {
   }
 }
 
-// AI Agent with function calling
-const tools = [
-  {
-    type: "function",
-    function: {
-      name: "get_stock_data",
-      description: "Get stock price data from Supabase",
-      parameters: {
-        type: "object",
-        properties: {
-          symbol: {
-            type: "string",
-            description: "Stock ticker symbol (e.g., AAPL, TSLA)"
-          },
-          dataType: {
-            type: "string",
-            enum: ["current", "intraday", "daily"],
-            description: "Type of data to fetch"
-          }
-        },
-        required: ["symbol"]
-      }
-    }
-  },
-  {
-    type: "function", 
-    function: {
-      name: "get_events",
-      description: "Get market events and earnings from Supabase",
-      parameters: {
-        type: "object",
-        properties: {
-          ticker: {
-            type: "string",
-            description: "Stock ticker to filter events for"
-          },
-          type: {
-            type: "array",
-            items: { type: "string" },
-            description: "Event types to filter (earnings, fda, merger, etc.)"
-          },
-          upcoming: {
-            type: "boolean",
-            description: "Whether to get upcoming events (true) or past events (false)"
-          },
-          limit: {
-            type: "number",
-            description: "Number of events to return"
-          }
-        }
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_institutional_data", 
-      description: "Get institutional ownership data from MongoDB",
-      parameters: {
-        type: "object",
-        properties: {
-          symbol: {
-            type: "string",
-            description: "Stock ticker symbol"
-          }
-        },
-        required: ["symbol"]
-      }
-    }
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_macro_data",
-      description: "Get macro economic data, policy info, or market news from MongoDB",
-      parameters: {
-        type: "object", 
-        properties: {
-          category: {
-            type: "string",
-            enum: ["economic", "policy", "news"],
-            description: "Type of macro data to fetch"
-          }
-        }
-      }
-    }
-  }
-];
-
-// Function execution handler
-async function executeFunction(name, args) {
-  switch (name) {
-    case 'get_stock_data':
-      return await DataConnector.getStockData(args.symbol, args.dataType);
-    case 'get_events':
-      return await DataConnector.getEvents(args);
-    case 'get_institutional_data':
-      return await DataConnector.getInstitutionalData(args.symbol);
-    case 'get_macro_data':
-      return await DataConnector.getMacroData(args.category);
-    default:
-      throw new Error(`Unknown function: ${name}`);
-  }
-}
-
 // Main AI chat endpoint
 app.post('/chat', async (req, res) => {
   try {
@@ -425,114 +320,141 @@ app.post('/chat', async (req, res) => {
     console.log('Processing message:', message);
     console.log('User portfolio:', selectedTickers);
 
-    // Build context about user's portfolio
-    const contextMessage = selectedTickers.length > 0 
-      ? `The user is currently tracking these stocks: ${selectedTickers.join(', ')}.`
-      : 'The user has not specified any stocks they are tracking.';
+    // STEP 1: DETECT QUERY TYPE AND FETCH DATA FIRST (like index.tsx pattern)
+    let dataContext = "";
+    const lowerMessage = message.toLowerCase();
+    
+    // Detect if MongoDB data is needed
+    const needsInstitutional = /institution|institutional|holder|ownership|who owns|top.*holder/i.test(message);
+    const needsMacro = /macro|economic|GDP|inflation|unemployment|policy|transcript|news|sentiment|trade|tariff/i.test(message);
+    const needsMongoData = needsInstitutional || needsMacro;
+    
+    // Detect which tickers are mentioned
+    const tickerMatches = message.match(/\b([A-Z]{2,5})\b/g) || [];
+    const mentionedTickers = [...new Set([...tickerMatches, ...(selectedTickers || [])])];
+    
+    // STEP 2: FETCH MONGODB DATA IF NEEDED (with token budgeting)
+    if (needsMongoData && mentionedTickers.length > 0) {
+      for (const ticker of mentionedTickers.slice(0, 3)) { // Limit to 3 tickers max
+        try {
+          if (needsInstitutional) {
+            const instResult = await DataConnector.getInstitutionalData(ticker);
+            if (instResult.success && instResult.data.length > 0) {
+              const summary = instResult.data[0];
+              dataContext += `\n\n${ticker} Institutional Ownership (${summary.date}):
+- Total Ownership: ${summary.ownership.percentage}
+- Total Shares: ${summary.ownership.totalShares}
+- Number of Holders: ${summary.ownership.totalHolders}
+- Increased Positions: ${summary.activity.increased.holders} holders, ${summary.activity.increased.shares} shares
+- Decreased Positions: ${summary.activity.decreased.holders} holders, ${summary.activity.decreased.shares} shares
 
-    // Prepare conversation for OpenAI
+Top Holders:`;
+              summary.topHolders.slice(0, 5).forEach((h, i) => {
+                dataContext += `\n${i + 1}. ${h.owner}: ${h.shares} shares (${h.change})`;
+              });
+            }
+          }
+          
+          if (needsMacro) {
+            const category = lowerMessage.includes('policy') ? 'policy' : 
+                           lowerMessage.includes('news') ? 'news' : 'economic';
+            const macroResult = await DataConnector.getMacroData(category);
+            if (macroResult.success && macroResult.data.length > 0) {
+              dataContext += `\n\nRecent ${category} data:`;
+              macroResult.data.slice(0, 3).forEach((item, i) => {
+                dataContext += `\n${i + 1}. ${item.title}`;
+                if (item.description) dataContext += `\n   ${item.description}`;
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error fetching MongoDB data for ${ticker}:`, error);
+        }
+      }
+      
+      // If MongoDB data was required but none found, return error
+      if (needsMongoData && !dataContext) {
+        return res.json({
+          error: "Unable to fetch institutional ownership and market data. Please try again or ask about stock prices instead.",
+          requiresMongoDBData: true
+        }, 503);
+      }
+    }
+    
+    // STEP 3: FETCH SUPABASE DATA IF NEEDED
+    const needsStockData = /price|current|quote|trading|volume/i.test(message);
+    const needsEvents = /event|earnings|FDA|approval|upcoming|launch/i.test(message);
+    
+    if (needsStockData && mentionedTickers.length > 0) {
+      for (const ticker of mentionedTickers.slice(0, 2)) {
+        try {
+          const stockResult = await DataConnector.getStockData(ticker, 'current');
+          if (stockResult.success && stockResult.data.length > 0) {
+            const quote = stockResult.data[0];
+            dataContext += `\n\n${ticker} Current Price: $${quote.close?.toFixed(2)}`;
+            if (quote.change) dataContext += ` (${quote.change >= 0 ? '+' : ''}${quote.change?.toFixed(2)}, ${quote.change_percent?.toFixed(2)}%)`;
+          }
+        } catch (error) {
+          console.error(`Error fetching stock data for ${ticker}:`, error);
+        }
+      }
+    }
+    
+    if (needsEvents && mentionedTickers.length > 0) {
+      for (const ticker of mentionedTickers.slice(0, 2)) {
+        try {
+          const eventsResult = await DataConnector.getEvents({ ticker, limit: 3 });
+          if (eventsResult.success && eventsResult.data.length > 0) {
+            dataContext += `\n\n${ticker} Recent Events:`;
+            eventsResult.data.forEach((e, i) => {
+              dataContext += `\n${i + 1}. ${e.type}: ${e.title}`;
+              if (e.aiInsight) dataContext += `\n   ${e.aiInsight.substring(0, 100)}...`;
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching events for ${ticker}:`, error);
+        }
+      }
+    }
+
+    // STEP 4: BUILD CONTEXT MESSAGE
+    const contextMessage = selectedTickers.length > 0 
+      ? `The user is tracking: ${selectedTickers.join(', ')}.`
+      : '';
+
+    // STEP 5: PREPARE MESSAGES FOR OPENAI (like index.tsx)
     const messages = [
       {
         role: "system",
-        content: `You are Catalyst Copilot, an advanced AI assistant for a financial investment app. You help users understand stocks, market events, and make informed investment decisions.
-
-You have access to multiple data sources through function calls:
-
-SUPABASE DATA (Stock & Events):
-- Current stock prices and quotes
-- Intraday trading data
-- Historical daily prices  
-- Market events (earnings, FDA approvals, mergers, conferences, etc.)
-- Company information
-
-MONGODB DATA (Institutional & Macro):
-- Institutional ownership data (who owns stocks, position changes)
-- Macro economic indicators (GDP, inflation, unemployment)
-- Government policy transcripts (Fed announcements, White House briefings)
-- Market news and sentiment analysis
-
-CAPABILITIES:
-- Answer questions about any publicly traded stock
-- Provide institutional ownership analysis
-- Explain market events and their potential impact
-- Discuss macro economic trends and policy implications
-- Analyze trading patterns and price movements
+        content: `You are Catalyst Copilot, an AI assistant for Catalyst mobile app.
 
 GUIDELINES:
-1. Always use function calls to get real data - never make up numbers
-2. Be concise but comprehensive in your analysis
-3. Reference specific data points with exact numbers and dates
-4. Explain complex financial concepts in accessible terms
-5. When discussing events, mention both the event details and AI insights about impact
-6. For institutional data, highlight ownership percentages and recent changes
-7. Connect macro trends to their potential market implications
+1. Be concise - max 3-4 sentences
+2. Use the EXACT data provided below
+3. Never make up numbers or dates
+4. Reference specific data points
 
-${contextMessage}`
+${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : ''}`
       },
-      ...conversationHistory,
+      ...conversationHistory || [],
       {
         role: "user", 
         content: message
       }
     ];
 
-    // Call OpenAI with function calling
+    // STEP 6: CALL OPENAI (NO FUNCTION CALLING - data already fetched)
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini", // Cheaper and faster
       messages,
-      tools,
-      tool_choice: "auto",
       temperature: 0.7,
-      max_tokens: 1500
+      max_tokens: 1000 // Strict 1000 token budget for response
     });
 
-    let assistantMessage = completion.choices[0].message;
-    const functionCalls = assistantMessage.tool_calls || [];
-
-    // Execute function calls
-    if (functionCalls.length > 0) {
-      const functionResults = [];
-      
-      for (const call of functionCalls) {
-        try {
-          const args = JSON.parse(call.function.arguments);
-          const result = await executeFunction(call.function.name, args);
-          
-          functionResults.push({
-            tool_call_id: call.id,
-            role: "tool",
-            content: JSON.stringify(result)
-          });
-        } catch (error) {
-          functionResults.push({
-            tool_call_id: call.id, 
-            role: "tool",
-            content: JSON.stringify({ 
-              success: false, 
-              error: error.message 
-            })
-          });
-        }
-      }
-
-      // Get final response with function results
-      const finalCompletion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          ...messages,
-          assistantMessage,
-          ...functionResults
-        ],
-        temperature: 0.7,
-        max_tokens: 1500
-      });
-
-      assistantMessage = finalCompletion.choices[0].message;
-    }
+    const assistantMessage = completion.choices[0].message;
 
     res.json({
       response: assistantMessage.content,
-      functionCalls: functionCalls.length,
       timestamp: new Date().toISOString()
     });
 
