@@ -329,7 +329,17 @@ class DataConnector {
       }
       
       if (filters.textSearch) {
-        query.$text = { $search: filters.textSearch };
+        // Search across multiple text fields using regex
+        const searchRegex = { $regex: filters.textSearch, $options: 'i' };
+        query.$or = [
+          { text: searchRegex },
+          { description: searchRegex },
+          { title: searchRegex },
+          { country: searchRegex },
+          { author: searchRegex },
+          { category: searchRegex },
+          { content: searchRegex }
+        ];
       }
       
       // Limit to 10 recent items and only return essential fields
@@ -460,7 +470,6 @@ Return ONLY the JSON object, no explanation.`;
 
     // STEP 2: FETCH DATA BASED ON AI CLASSIFICATION
     let dataContext = "";
-    const lowerMessage = message.toLowerCase();
     
     // Determine which tickers to query based on AI classification
     let tickersToQuery = [];
@@ -526,6 +535,21 @@ Top Holders:`;
       }
       if (category === 'policy') macroFilters.limit = 20;
       
+      // Extract keywords from message for text search (e.g., "Brazil", "South Korea", "batteries", "tariffs")
+      // This helps find relevant content beyond just speaker/date filters
+      const commonWords = new Set(['what', 'when', 'where', 'how', 'did', 'does', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but', 'about', 'happened', 'happen', 'say', 'said', 'discuss', 'discussed', 'talk', 'talked', 'stock', 'market', 'last', 'week', 'month', 'year', 'today', 'yesterday', 'recently', 'press', 'with', 'trump', 'biden', 'hassett', 'yellen', 'powell']);
+      const words = message.toLowerCase().split(/\s+/).filter(word => 
+        word.length > 3 && 
+        !commonWords.has(word) && 
+        !selectedTickers.some(t => word === t.toLowerCase())
+      );
+      
+      // If we have meaningful keywords, add them as a text search
+      // Example: "What did Trump say about South Korea and batteries?" → textSearch: "south korea batteries"
+      if (words.length > 0) {
+        macroFilters.textSearch = words.join(' ');
+      }
+      
       console.log(`Fetching ${category} data with filters:`, macroFilters);
       
       try {
@@ -551,68 +575,11 @@ Top Holders:`;
       }
     }
     
-    // FETCH SUPABASE STOCK DATA
-    if (queryIntent.dataNeeded.includes('stock_prices') && tickersToQuery.length > 0) {
-      for (const ticker of tickersToQuery.slice(0, 3)) {
-        try {
-          const stockResult = await DataConnector.getStockData(ticker, 'current');
-          if (stockResult.success && stockResult.data.length > 0) {
-            const quote = stockResult.data[0];
-            dataContext += `\n\n${ticker} Current Price: $${quote.close?.toFixed(2)}`;
-            if (quote.change) dataContext += ` (${quote.change >= 0 ? '+' : ''}${quote.change?.toFixed(2)}, ${quote.change_percent?.toFixed(2)}%)`;
-            if (quote.open) dataContext += `\nOpen: $${quote.open?.toFixed(2)}`;
-            if (quote.high) dataContext += `, High: $${quote.high?.toFixed(2)}`;
-            if (quote.low) dataContext += `, Low: $${quote.low?.toFixed(2)}`;
-            if (quote.volume) dataContext += `\nVolume: ${quote.volume?.toLocaleString()}`;
-          }
-        } catch (error) {
-          console.error(`Error fetching stock data for ${ticker}:`, error);
-        }
-      }
-    }
+    // Stock prices will be fetched during card generation (STEP 5) to avoid duplication
     
-    // FETCH EVENTS DATA
-    if (queryIntent.dataNeeded.includes('events') && tickersToQuery.length > 0) {
-      for (const ticker of tickersToQuery.slice(0, 3)) {
-        try {
-          const eventsQuery = {
-            ticker,
-            title: { $ne: null },
-            aiInsight: { $ne: null }
-          };
-          
-          if (queryIntent.eventTypes && queryIntent.eventTypes.length > 0) {
-            eventsQuery.type = { $in: queryIntent.eventTypes };
-          }
-          
-          if (queryIntent.timeframe === 'upcoming') {
-            eventsQuery.actualDateTime_et = { $gte: new Date().toISOString() };
-          }
-          
-          const eventsResult = await DataConnector.getEvents({ 
-            query: eventsQuery,
-            limit: 5,
-            sort: queryIntent.timeframe === 'upcoming' ? { actualDateTime_et: 1 } : { actualDateTime_et: -1 }
-          });
-          
-          if (eventsResult.success && eventsResult.data.length > 0) {
-            dataContext += `\n\n${ticker} Events:`;
-            eventsResult.data.forEach((e, i) => {
-              dataContext += `\n${i + 1}. ${e.type}: ${e.title}`;
-              if (e.aiInsight) dataContext += `\n   ${e.aiInsight.substring(0, 100)}...`;
-            });
-          }
-        } catch (error) {
-          console.error(`Error fetching events for ${ticker}:`, error);
-        }
-      }
-    }
+    // Events will be fetched during card generation (STEP 4) to avoid duplication
 
-    // STEP 3: GENERATE VISUAL CARDS (EVENT CARDS, STOCK CARDS)
-    const isEventQuery = queryIntent.intent === 'events' || queryIntent.dataNeeded.includes('events');
-    const isTradingQuery = queryIntent.needsChart && queryIntent.timeframe === 'current';
-
-    // STEP 4: PRE-GENERATE EVENT CARDS (BEFORE AI CALL)
+    // STEP 3: PRE-GENERATE EVENT CARDS (BEFORE AI CALL)
     const dataCards = [];
     const eventData = {}; // Store event data by ID for inline rendering
     
@@ -621,53 +588,25 @@ Top Holders:`;
       msg.role === 'user' && /event|earnings|FDA|approval|launch|announcement|legal|regulatory/i.test(msg.content)
     );
     
-    const shouldFetchEvents = isEventQuery || hasEventContext;
+    const shouldFetchEvents = queryIntent.dataNeeded.includes('events') || hasEventContext;
     
     // Variable to store event card details for AI context
     let eventCardsContext = "";
     
     // Generate event cards if user is asking about events - DO THIS BEFORE AI CALL
     if (shouldFetchEvents) {
-      const isUpcomingQuery = /coming up|upcoming|next|future|will|2026|2027/i.test(message);
+      const isUpcomingQuery = queryIntent.timeframe === 'upcoming';
       const today = new Date().toISOString();
       
-      // Detect specific event types from the user's query
-      const eventTypeKeywords = {
-        'product': ['product', 'launch'],
-        'earnings': ['earnings', 'earning'],
-        'fda': ['fda', 'approval', 'drug'],
-        'merger': ['merger', 'acquisition', 'M&A'],
-        'conference': ['conference', 'summit'],
-        'investor_day': ['investor day', 'analyst day'],
-        'partnership': ['partnership', 'partner', 'collaboration'],
-        'regulatory': ['regulatory', 'regulation', 'compliance', 'antitrust'],
-        'guidance_update': ['guidance'],
-        'capital_markets': ['capital', 'offering', 'IPO'],
-        'legal': ['legal', 'lawsuit', 'litigation', 'settlement'],
-        'commerce_event': ['commerce', 'retail'],
-        'corporate': ['corporate'],
-        'pricing': ['pricing', 'price change'],
-        'defense_contract': ['defense', 'contract']
-      };
+      // Use AI-detected event types instead of regex keyword matching
+      const requestedEventTypes = queryIntent.eventTypes || [];
+      console.log('AI-detected event types:', requestedEventTypes);
       
-      // Find which event types the user is asking about
-      const requestedEventTypes = [];
-      for (const [eventType, keywords] of Object.entries(eventTypeKeywords)) {
-        for (const keyword of keywords) {
-          if (lowerMessage.includes(keyword)) {
-            requestedEventTypes.push(eventType);
-            break; // Only add each event type once
-          }
-        }
-      }
-      console.log('Detected event types from query:', requestedEventTypes);
+      // Use AI classification scope instead of regex detection
+      const isFocusOnlyQuery = queryIntent.scope === 'focus_stocks';
+      const isOutsideFocusQuery = queryIntent.scope === 'outside_focus';
       
-      // Detect user intent about stock scope
-      const isFocusOnlyQuery = /my.*focus|my.*watchlist|my.*stock|focus.*stock|watchlist.*stock/i.test(message) && 
-                                !/outside|beyond|other|different|not.*in|excluding/i.test(message);
-      const isOutsideFocusQuery = /outside.*focus|beyond.*focus|other.*stock|different.*stock|not.*in.*focus|not.*focus|non-focus|excluding.*focus|outside.*watchlist|beyond.*watchlist/i.test(message);
-      
-      console.log('Query intent - Focus only:', isFocusOnlyQuery, 'Outside focus:', isOutsideFocusQuery);
+      console.log('AI-classified scope - Focus only:', isFocusOnlyQuery, 'Outside focus:', isOutsideFocusQuery);
       
       // Determine which tickers to fetch events for
       let tickersForEvents = [];
@@ -886,10 +825,10 @@ Top Holders:`;
       }
     }
     
-    // STEP 5: GENERATE STOCK CARDS (biggest movers, specific stock mentions, etc.)
+    // STEP 4: GENERATE STOCK CARDS (biggest movers, specific stock mentions, etc.)
     
-    // Detect if user is asking about biggest movers / watchlist movers
-    const isBiggestMoversQuery = /biggest\s+mover|top\s+mover|movers\s+in.*watchlist|watchlist.*mover/i.test(message);
+    // Use AI intent to detect movers query
+    const isBiggestMoversQuery = queryIntent.intent === 'stock_price' && queryIntent.scope === 'focus_stocks' && /mover/i.test(message);
     if (isBiggestMoversQuery && selectedTickers && selectedTickers.length > 0) {
       try {
         const stockDataPromises = selectedTickers.map(async (ticker) => {
@@ -952,51 +891,11 @@ Top Holders:`;
         console.error("Error fetching watchlist movers:", error);
       }
     } else {
-      // If asking about a specific stock (TSLA, AAPL, etc) or how it traded, generate a stock card with intraday chart
-      const shouldShowIntradayChart = isTradingQuery || /today|intraday/i.test(message);
+      // Use AI-detected tickers instead of regex parsing
+      const shouldShowIntradayChart = queryIntent.needsChart;
+      const ticker = queryIntent.tickers && queryIntent.tickers.length > 0 ? queryIntent.tickers[0] : null;
       
-      // Check for ticker symbols (TSLA, AAPL) OR company names (Tesla, Apple, Microsoft, etc)
-      let stockMention = message.match(/\b([A-Z]{2,5})\b/);
-      let ticker = stockMention?.[1];
-      
-      // If no ticker found, search for company name in database
-      if (!ticker) {
-        try {
-          // Extract potential company name from message (look for capitalized words)
-          const potentialCompanyNames = message.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g) || [];
-          
-          console.log('Searching for company names:', potentialCompanyNames);
-          
-          for (const companyName of potentialCompanyNames) {
-            // Skip common words that aren't companies
-            const skipWords = ['How', 'Did', 'What', 'When', 'Where', 'Why', 'Who', 'The', 'Today', 'Yesterday'];
-            if (skipWords.includes(companyName)) {
-              console.log(`Skipping common word: ${companyName}`);
-              continue;
-            }
-            
-            // Query company_information table for matching name
-            const { data, error } = await supabase
-              .from('company_information')
-              .select('symbol, name')
-              .ilike('name', `%${companyName}%`)
-              .limit(1)
-              .single();
-            
-            console.log(`Company search for "${companyName}":`, data);
-            
-            if (data) {
-              ticker = data.symbol;
-              console.log(`Found ticker ${ticker} for company name: ${companyName}`);
-              break; // Found a match, stop searching
-            }
-          }
-        } catch (error) {
-          console.error('Error looking up company name:', error);
-        }
-      }
-      
-      console.log('Stock card logic - ticker:', ticker, 'shouldShowChart:', shouldShowIntradayChart);
+      console.log('Stock card logic - AI detected ticker:', ticker, 'needsChart:', shouldShowIntradayChart);
       
       if (ticker && shouldShowIntradayChart) {
         try {
@@ -1036,8 +935,9 @@ Top Holders:`;
             let chartData = null;
             if (hasIntradayData) {
               chartData = intradayResult.data.map(point => ({
-                timestamp: new Date(point.timestamp).getTime(),
-                price: point.close
+                timestamp: new Date(point.timestamp_et).getTime(),
+                price: point.close,
+                volume: point.volume || 0
               }));
             }
             
@@ -1078,12 +978,12 @@ Top Holders:`;
       }
     }
 
-    // STEP 6: BUILD CONTEXT MESSAGE
+    // STEP 5: BUILD CONTEXT MESSAGE
     const contextMessage = selectedTickers.length > 0 
       ? `The user is tracking: ${selectedTickers.join(', ')}.`
       : '';
 
-    // STEP 7: PREPARE MESSAGES FOR OPENAI (like index.tsx)
+    // STEP 6: PREPARE MESSAGES FOR OPENAI
     const messages = [
       {
         role: "system",
@@ -1144,7 +1044,7 @@ ${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : '\n\nNO 
 
     console.log("Calling OpenAI API with", messages.length, "messages");
 
-    // STEP 8: CALL OPENAI (NO FUNCTION CALLING - data already fetched)
+    // STEP 7: CALL OPENAI
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini", // Cheaper and faster
       messages,
