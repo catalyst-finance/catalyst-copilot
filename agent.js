@@ -175,11 +175,24 @@ class DataConnector {
       
       const data = await collection.find({
         ticker: symbol.toUpperCase()
-      }).sort({ date: -1 }).limit(10).toArray();
+      }).sort({ date: -1 }).limit(1).toArray();
+      
+      // If data exists, summarize it to reduce token usage
+      const summarized = data.map(doc => ({
+        ticker: doc.ticker,
+        date: doc.date,
+        topHolders: doc.holders?.slice(0, 10).map(h => ({
+          name: h.name,
+          shares: h.shares,
+          percentage: h.percentage
+        })) || [],
+        totalInstitutionalOwnership: doc.totalInstitutionalOwnership,
+        institutionalCount: doc.holders?.length || 0
+      }));
       
       return {
         success: true,
-        data: data || [],
+        data: summarized,
         source: 'mongodb',
         type: 'institutional'
       };
