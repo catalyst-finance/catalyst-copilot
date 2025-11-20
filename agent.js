@@ -290,7 +290,7 @@ class DataConnector {
     }
   }
   
-  static async getMacroData(category = 'general') {
+  static async getMacroData(category = 'general', filters = {}) {
     try {
       await connectMongo();
       const db = mongoClient.db('raw_data');
@@ -311,10 +311,32 @@ class DataConnector {
           collection = db.collection('macro_economics');
       }
       
+      // Apply filters for speaker, date, or text search
+      if (filters.speaker) {
+        query.$or = [
+          { speaker: { $regex: filters.speaker, $options: 'i' } },
+          { title: { $regex: filters.speaker, $options: 'i' } },
+          { content: { $regex: filters.speaker, $options: 'i' } }
+        ];
+      }
+      
+      if (filters.date) {
+        // Support date or date range filtering
+        if (filters.date.$gte || filters.date.$lte) {
+          query.date = filters.date;
+        } else {
+          query.date = filters.date;
+        }
+      }
+      
+      if (filters.textSearch) {
+        query.$text = { $search: filters.textSearch };
+      }
+      
       // Limit to 10 recent items and only return essential fields
       const data = await collection.find(query)
         .sort({ inserted_at: -1 })
-        .limit(10)
+        .limit(filters.limit || 10)
         .toArray();
       
       // Summarize data to reduce token usage
@@ -377,13 +399,68 @@ app.post('/chat', async (req, res) => {
     
     const isTradingQuery = /trade|traded|trading.*today|today.*trad/i.test(message);
     const isHistoricalQuery = /yesterday|last\s+(day|week|month)|previous|past|historic/i.test(message);
-    const isEventQuery = /event|earnings|FDA|approval|launch|announcement|coming up|upcoming|legal|regulatory/i.test(message);
+    const isEventQuery = /event|earnings|FDA|approval|launch|announcement|coming up|upcoming|legal|regulatory|conference|investor day|product.*launch/i.test(message) && 
+                         !/discuss|said|speak|spoke|talk|transcript|announce|statement|policy|hassett|biden|trump|white house|fed.*said/i.test(message);
     const isPriceQuery = /price|trade|trading|open|close|high|low|volume/i.test(message);
+    
+    // Parse dates from the message (e.g., "11-13-2025", "November 13, 2025", "on 11/13/25")
+    let dateFilter = null;
+    const datePatterns = [
+      /\b(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})\b/, // MM-DD-YYYY or MM/DD/YYYY
+      /\b(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})\b/, // YYYY-MM-DD or YYYY/MM/DD
+      /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2}),?\s+(\d{4})\b/i // Month DD, YYYY
+    ];
+    
+    for (const pattern of datePatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        try {
+          let dateStr;
+          if (pattern === datePatterns[0]) {
+            // MM-DD-YYYY format
+            dateStr = `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+          } else if (pattern === datePatterns[1]) {
+            // YYYY-MM-DD format
+            dateStr = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+          } else {
+            // Month name format
+            const monthMap = { january: '01', february: '02', march: '03', april: '04', may: '05', june: '06',
+                              july: '07', august: '08', september: '09', october: '10', november: '11', december: '12' };
+            const month = monthMap[match[1].toLowerCase()];
+            dateStr = `${match[3]}-${month}-${match[2].padStart(2, '0')}`;
+          }
+          dateFilter = dateStr;
+          console.log('Parsed date from message:', dateFilter);
+          break;
+        } catch (err) {
+          console.error('Error parsing date:', err);
+        }
+      }
+    }
     
     // Detect if MongoDB data is needed
     const needsInstitutional = /institution|institutional|holder|ownership|who owns|top.*holder|position|holdings/i.test(message);
-    const needsMacro = /macro|economic|GDP|inflation|unemployment|policy|transcript|news|sentiment|trade|tariff|trump|biden|white house|fed|federal reserve|minerals|critical|china|russia/i.test(message);
+    const needsMacro = /macro|economic|GDP|inflation|unemployment|policy|transcript|news|sentiment|trade|tariff|trump|biden|white house|fed|federal reserve|minerals|critical|china|russia|hassett|yellen|powell|discuss|said|speak|spoke|talk|statement/i.test(message);
     const needsMongoData = needsInstitutional || needsMacro;
+    
+    // Extract speaker names from query for government_policy searches
+    let speakerQuery = null;
+    const speakerPatterns = [
+      /\b(hassett|kevin hassett)\b/i,
+      /\b(biden|joe biden|president biden)\b/i,
+      /\b(trump|donald trump|president trump)\b/i,
+      /\b(yellen|janet yellen|secretary yellen)\b/i,
+      /\b(powell|jerome powell|chairman powell)\b/i
+    ];
+    
+    for (const pattern of speakerPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        speakerQuery = match[1];
+        console.log('Detected speaker query:', speakerQuery);
+        break;
+      }
+    }
     
     // Detect which tickers are mentioned (including company names)
     const tickerMatches = message.match(/\b([A-Z]{2,5})\b/g) || [];
@@ -422,15 +499,26 @@ Top Holders:`;
           }
           
           if (needsMacro) {
-            const category = lowerMessage.includes('policy') ? 'policy' : 
+            const category = lowerMessage.includes('policy') || lowerMessage.includes('transcript') || speakerQuery ? 'policy' : 
                            lowerMessage.includes('news') ? 'news' : 'economic';
-            const macroResult = await DataConnector.getMacroData(category);
+            
+            const macroFilters = {};
+            if (speakerQuery) macroFilters.speaker = speakerQuery;
+            if (dateFilter) macroFilters.date = dateFilter;
+            if (category === 'policy') macroFilters.limit = 20; // More results for policy searches
+            
+            const macroResult = await DataConnector.getMacroData(category, macroFilters);
             if (macroResult.success && macroResult.data.length > 0) {
-              dataContext += `\n\nRecent ${category} data:`;
-              macroResult.data.slice(0, 3).forEach((item, i) => {
-                dataContext += `\n${i + 1}. ${item.title}`;
+              dataContext += `\n\n${category.charAt(0).toUpperCase() + category.slice(1)} data${speakerQuery ? ` (${speakerQuery})` : ''}${dateFilter ? ` on ${dateFilter}` : ''}:`;
+              macroResult.data.slice(0, 5).forEach((item, i) => {
+                dataContext += `\n${i + 1}. ${item.title || 'No title'}`;
+                if (item.date) dataContext += ` (${item.date})`;
                 if (item.description) dataContext += `\n   ${item.description}`;
+                if (item.summary) dataContext += `\n   ${item.summary}`;
+                if (item.content) dataContext += `\n   ${item.content}`;
               });
+            } else {
+              console.log(`No ${category} data found for filters:`, macroFilters);
             }
           }
         } catch (error) {
