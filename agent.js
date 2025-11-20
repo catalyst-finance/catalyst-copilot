@@ -435,9 +435,11 @@ app.post('/chat', async (req, res) => {
   "speaker": "hassett" | "biden" | "trump" | "yellen" | "powell" | null,  // For government policy queries
   "eventTypes": ["earnings", "fda", "product", "merger", "legal", "regulatory"],  // Specific event types requested
   "scope": "focus_stocks" | "outside_focus" | "all_stocks" | "specific_tickers",
-  "needsChart": true | false,  // Does user want to see price charts?
+  "needsChart": true | false,  // Set to true if user asks about intraday trading, today's price action, or wants to see price movement
   "dataNeeded": ["stock_prices", "events", "institutional", "macro", "policy", "news"]  // What data sources to query
 }
+
+IMPORTANT: Set needsChart=true when user asks "How did [stock] trade today?" or similar intraday questions.
 
 IMPORTANT: Today's date is ${currentDate}. When user says "last week", calculate the date range from 7 days ago to today.
 
@@ -548,9 +550,9 @@ Top Holders:`;
       
       // Extract keywords from message for text search (e.g., "Brazil", "South Korea", "batteries", "tariffs")
       // This helps find relevant content beyond just speaker/date filters
-      const commonWords = new Set(['what', 'when', 'where', 'how', 'did', 'does', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but', 'about', 'happened', 'happen', 'say', 'said', 'discuss', 'discussed', 'talk', 'talked', 'stock', 'market', 'last', 'week', 'month', 'year', 'today', 'yesterday', 'recently', 'press', 'with', 'trump', 'biden', 'hassett', 'yellen', 'powell']);
+      const commonWords = new Set(['what', 'when', 'where', 'how', 'did', 'does', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but', 'about', 'happened', 'happen', 'say', 'said', 'discuss', 'discussed', 'talk', 'talked', 'stock', 'market', 'markets', 'last', 'week', 'weeks', 'month', 'months', 'year', 'years', 'today', 'yesterday', 'recently', 'current', 'currently', 'press', 'with', 'from', 'that', 'this', 'have', 'were', 'been', 'trump', 'biden', 'hassett', 'yellen', 'powell']);
       const words = message.toLowerCase()
-        .replace(/[^a-z0-9\s]/g, ' ')  // Remove punctuation
+        .replace(/[^a-z\s]/g, ' ')  // Remove all non-letter characters except spaces
         .split(/\s+/)
         .filter(word => 
           word.length > 3 && 
@@ -911,7 +913,8 @@ Top Holders:`;
       
       console.log('Stock card logic - AI detected ticker:', ticker, 'needsChart:', shouldShowIntradayChart);
       
-      if (ticker && shouldShowIntradayChart) {
+      // Fetch stock data if ticker is mentioned and user is asking about stock prices
+      if (ticker && (shouldShowIntradayChart || queryIntent.intent === 'stock_price')) {
         try {
           // Fetch current price
           console.log(`Fetching quote for ${ticker}`);
@@ -950,7 +953,7 @@ Top Holders:`;
             if (hasIntradayData) {
               chartData = intradayResult.data.map(point => ({
                 timestamp: new Date(point.timestamp_et).getTime(),
-                price: point.close,
+                price: point.price || point.close,  // intraday_prices uses 'price', aggregated tables use 'close'
                 volume: point.volume || 0
               }));
             }
