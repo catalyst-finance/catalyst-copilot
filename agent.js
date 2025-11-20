@@ -403,6 +403,7 @@ app.post('/chat', async (req, res) => {
 
     // STEP 1: AI-POWERED QUERY CLASSIFICATION
     // Use AI to understand user intent instead of complex regex patterns
+    const currentDate = new Date().toISOString().split('T')[0];
     const classificationPrompt = `You are a query classifier for a financial data API. Analyze the user's question and return a JSON object with the following structure:
 
 {
@@ -417,6 +418,8 @@ app.post('/chat', async (req, res) => {
   "needsChart": true | false,  // Does user want to see price charts?
   "dataNeeded": ["stock_prices", "events", "institutional", "macro", "policy", "news"]  // What data sources to query
 }
+
+IMPORTANT: Today's date is ${currentDate}. When user says "last week", calculate the date range from 7 days ago to today.
 
 User's portfolio: ${selectedTickers.join(', ') || 'none'}
 User's question: "${message}"
@@ -513,7 +516,15 @@ Top Holders:`;
       
       const macroFilters = {};
       if (queryIntent.speaker) macroFilters.speaker = queryIntent.speaker;
-      if (queryIntent.date) macroFilters.date = queryIntent.date;
+      if (queryIntent.date) {
+        macroFilters.date = queryIntent.date;
+      } else if (queryIntent.dateRange) {
+        // Use date range for "last week", "last month" type queries
+        macroFilters.date = {
+          $gte: queryIntent.dateRange.start,
+          $lte: queryIntent.dateRange.end
+        };
+      }
       if (category === 'policy') macroFilters.limit = 20;
       
       console.log(`Fetching ${category} data with filters:`, macroFilters);
@@ -596,12 +607,9 @@ Top Holders:`;
     }
 
     // STEP 3: GENERATE VISUAL CARDS (EVENT CARDS, STOCK CARDS)
-    
-    const isTradingQuery = /trade|traded|trading.*today|today.*trad/i.test(message);
-    const isHistoricalQuery = /yesterday|last\s+(day|week|month)|previous|past|historic/i.test(message);
-    const isEventQuery = /event|earnings|FDA|approval|launch|announcement|coming up|upcoming|legal|regulatory|conference|investor day|product.*launch/i.test(message) && 
-                         !/discuss|said|speak|spoke|talk|transcript|announce|statement|policy|hassett|biden|trump|white house|fed.*said/i.test(message);
-    const isPriceQuery = /price|trade|trading|open|close|high|low|volume/i.test(message);
+    // Use AI classification results instead of regex patterns
+    const isEventQuery = queryIntent.intent === 'events' || queryIntent.dataNeeded.includes('events');
+    const isTradingQuery = queryIntent.needsChart && queryIntent.timeframe === 'current';
     
     // Parse dates from the message (e.g., "11-13-2025", "November 13, 2025", "on 11/13/25")
     let dateFilter = null;
