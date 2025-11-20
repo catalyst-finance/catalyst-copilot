@@ -173,26 +173,58 @@ class DataConnector {
       const db = mongoClient.db('raw_data');
       const collection = db.collection('institutional_ownership');
       
+      // Get only the most recent record
       const data = await collection.find({
         ticker: symbol.toUpperCase()
       }).sort({ date: -1 }).limit(1).toArray();
       
-      // If data exists, summarize it to reduce token usage
-      const summarized = data.map(doc => ({
+      if (!data || data.length === 0) {
+        return {
+          success: true,
+          data: [],
+          message: 'No institutional data available',
+          source: 'mongodb',
+          type: 'institutional'
+        };
+      }
+      
+      const doc = data[0];
+      
+      // Extract and summarize key information with strict token budgeting
+      const summary = {
         ticker: doc.ticker,
         date: doc.date,
-        topHolders: doc.holders?.slice(0, 10).map(h => ({
-          name: h.name,
-          shares: h.shares,
-          percentage: h.percentage
-        })) || [],
-        totalInstitutionalOwnership: doc.totalInstitutionalOwnership,
-        institutionalCount: doc.holders?.length || 0
-      }));
+        ownership: {
+          percentage: doc.institutional_ownership?.value || 'N/A',
+          totalShares: doc.institutional_ownership?.total_institutional_shares?.shares || 'N/A',
+          totalHolders: doc.institutional_ownership?.total_institutional_shares?.holders || 'N/A'
+        },
+        activity: {
+          increased: {
+            holders: doc.institutional_ownership?.increased_positions?.holders || '0',
+            shares: doc.institutional_ownership?.increased_positions?.shares || '0'
+          },
+          decreased: {
+            holders: doc.institutional_ownership?.decreased_positions?.holders || '0',
+            shares: doc.institutional_ownership?.decreased_positions?.shares || '0'
+          },
+          held: {
+            holders: doc.institutional_ownership?.held_positions?.holders || '0',
+            shares: doc.institutional_ownership?.held_positions?.shares || '0'
+          }
+        },
+        // Only top 10 institutional holders to limit tokens
+        topHolders: (doc.institutional_holdings?.holders || []).slice(0, 10).map(holder => ({
+          owner: holder.owner,
+          shares: holder.shares,
+          marketValue: holder.marketValue,
+          change: holder.percent
+        }))
+      };
       
       return {
         success: true,
-        data: summarized,
+        data: [summary],
         source: 'mongodb',
         type: 'institutional'
       };
@@ -228,14 +260,39 @@ class DataConnector {
           collection = db.collection('macro_economics');
       }
       
+      // Limit to 10 recent items and only return essential fields
       const data = await collection.find(query)
         .sort({ inserted_at: -1 })
-        .limit(20)
+        .limit(10)
         .toArray();
+      
+      // Summarize data to reduce token usage
+      const summarized = data.map(doc => {
+        // Extract only key fields, limit long text fields
+        const summary = {
+          date: doc.date || doc.inserted_at,
+          title: doc.title || doc.headline || 'No title'
+        };
+        
+        // Add description/summary but limit length
+        if (doc.description) {
+          summary.description = doc.description.substring(0, 500);
+        } else if (doc.summary) {
+          summary.summary = doc.summary.substring(0, 500);
+        } else if (doc.content) {
+          summary.content = doc.content.substring(0, 500);
+        }
+        
+        // Add source if available
+        if (doc.source) summary.source = doc.source;
+        
+        return summary;
+      });
       
       return {
         success: true,
-        data: data || [],
+        data: summarized,
+        count: summarized.length,
         source: 'mongodb',
         type: `macro_${category}`
       };
