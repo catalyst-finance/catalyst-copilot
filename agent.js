@@ -311,12 +311,37 @@ class DataConnector {
       }
       
       // Apply filters for speaker, date, or text search
+      const andConditions = [];
+      
       if (filters.speaker) {
-        query.$or = [
-          { speaker: { $regex: filters.speaker, $options: 'i' } },
-          { title: { $regex: filters.speaker, $options: 'i' } },
-          { content: { $regex: filters.speaker, $options: 'i' } }
-        ];
+        andConditions.push({
+          $or: [
+            { speaker: { $regex: filters.speaker, $options: 'i' } },
+            { title: { $regex: filters.speaker, $options: 'i' } },
+            { content: { $regex: filters.speaker, $options: 'i' } },
+            { text: { $regex: filters.speaker, $options: 'i' } }
+          ]
+        });
+      }
+      
+      if (filters.textSearch) {
+        // Search across multiple text fields using regex
+        const searchRegex = { $regex: filters.textSearch, $options: 'i' };
+        andConditions.push({
+          $or: [
+            { text: searchRegex },
+            { description: searchRegex },
+            { title: searchRegex },
+            { country: searchRegex },
+            { author: searchRegex },
+            { category: searchRegex },
+            { content: searchRegex }
+          ]
+        });
+      }
+      
+      if (andConditions.length > 0) {
+        query.$and = andConditions;
       }
       
       if (filters.date) {
@@ -326,20 +351,6 @@ class DataConnector {
         } else {
           query.date = filters.date;
         }
-      }
-      
-      if (filters.textSearch) {
-        // Search across multiple text fields using regex
-        const searchRegex = { $regex: filters.textSearch, $options: 'i' };
-        query.$or = [
-          { text: searchRegex },
-          { description: searchRegex },
-          { title: searchRegex },
-          { country: searchRegex },
-          { author: searchRegex },
-          { category: searchRegex },
-          { content: searchRegex }
-        ];
       }
       
       // Limit to 10 recent items and only return essential fields
@@ -538,11 +549,14 @@ Top Holders:`;
       // Extract keywords from message for text search (e.g., "Brazil", "South Korea", "batteries", "tariffs")
       // This helps find relevant content beyond just speaker/date filters
       const commonWords = new Set(['what', 'when', 'where', 'how', 'did', 'does', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but', 'about', 'happened', 'happen', 'say', 'said', 'discuss', 'discussed', 'talk', 'talked', 'stock', 'market', 'last', 'week', 'month', 'year', 'today', 'yesterday', 'recently', 'press', 'with', 'trump', 'biden', 'hassett', 'yellen', 'powell']);
-      const words = message.toLowerCase().split(/\s+/).filter(word => 
-        word.length > 3 && 
-        !commonWords.has(word) && 
-        !selectedTickers.some(t => word === t.toLowerCase())
-      );
+      const words = message.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')  // Remove punctuation
+        .split(/\s+/)
+        .filter(word => 
+          word.length > 3 && 
+          !commonWords.has(word) && 
+          !selectedTickers.some(t => word === t.toLowerCase())
+        );
       
       // If we have meaningful keywords, add them as a text search
       // Example: "What did Trump say about South Korea and batteries?" → textSearch: "south korea batteries"
