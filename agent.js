@@ -337,13 +337,23 @@ app.post('/chat', async (req, res) => {
     const lowerMessage = message.toLowerCase();
     
     // Detect if MongoDB data is needed
-    const needsInstitutional = /institution|institutional|holder|ownership|who owns|top.*holder/i.test(message);
-    const needsMacro = /macro|economic|GDP|inflation|unemployment|policy|transcript|news|sentiment|trade|tariff/i.test(message);
+    const needsInstitutional = /institution|institutional|holder|ownership|who owns|top.*holder|position|holdings/i.test(message);
+    const needsMacro = /macro|economic|GDP|inflation|unemployment|policy|transcript|news|sentiment|trade|tariff|trump|biden|white house|fed|federal reserve|minerals|critical|china|russia/i.test(message);
     const needsMongoData = needsInstitutional || needsMacro;
     
-    // Detect which tickers are mentioned
+    // Detect which tickers are mentioned (including company names)
     const tickerMatches = message.match(/\b([A-Z]{2,5})\b/g) || [];
-    const mentionedTickers = [...new Set([...tickerMatches, ...(selectedTickers || [])])];
+    // Also check for Tesla -> TSLA mapping
+    let companyMapped = [];
+    if (/tesla/i.test(message)) companyMapped.push('TSLA');
+    if (/apple/i.test(message)) companyMapped.push('AAPL');
+    if (/microsoft/i.test(message)) companyMapped.push('MSFT');
+    if (/amazon/i.test(message)) companyMapped.push('AMZN');
+    if (/google|alphabet/i.test(message)) companyMapped.push('GOOGL');
+    if (/nvidia/i.test(message)) companyMapped.push('NVDA');
+    if (/meta|facebook/i.test(message)) companyMapped.push('META');
+    
+    const mentionedTickers = [...new Set([...tickerMatches, ...companyMapped, ...(selectedTickers || [])])];
     
     // STEP 2: FETCH MONGODB DATA IF NEEDED (with token budgeting)
     if (needsMongoData && mentionedTickers.length > 0) {
@@ -394,7 +404,7 @@ Top Holders:`;
     }
     
     // STEP 3: FETCH SUPABASE DATA IF NEEDED
-    const needsStockData = /price|current|quote|trading|volume/i.test(message);
+    const needsStockData = /price|current|quote|trading|trade|traded|volume|open|close|high|low/i.test(message);
     const needsEvents = /event|earnings|FDA|approval|upcoming|launch/i.test(message);
     
     if (needsStockData && mentionedTickers.length > 0) {
@@ -405,6 +415,10 @@ Top Holders:`;
             const quote = stockResult.data[0];
             dataContext += `\n\n${ticker} Current Price: $${quote.close?.toFixed(2)}`;
             if (quote.change) dataContext += ` (${quote.change >= 0 ? '+' : ''}${quote.change?.toFixed(2)}, ${quote.change_percent?.toFixed(2)}%)`;
+            if (quote.open) dataContext += `\nOpen: $${quote.open?.toFixed(2)}`;
+            if (quote.high) dataContext += `, High: $${quote.high?.toFixed(2)}`;
+            if (quote.low) dataContext += `, Low: $${quote.low?.toFixed(2)}`;
+            if (quote.volume) dataContext += `\nVolume: ${quote.volume?.toLocaleString()}`;
           }
         } catch (error) {
           console.error(`Error fetching stock data for ${ticker}:`, error);
@@ -440,13 +454,14 @@ Top Holders:`;
         role: "system",
         content: `You are Catalyst Copilot, an AI assistant for Catalyst mobile app.
 
-GUIDELINES:
-1. Be concise - max 3-4 sentences
-2. Use the EXACT data provided below
-3. Never make up numbers or dates
-4. Reference specific data points
+CRITICAL RULES:
+1. ONLY use data provided below - NEVER use your training data
+2. If no data is provided, say "I don't have that information in the database"
+3. Be concise - max 3-4 sentences
+4. Always cite the data source (e.g., "According to the latest data...")
+5. Never make up quotes, statistics, or information
 
-${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : ''}`
+${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : '\n\nNO DATA AVAILABLE - You must say you cannot find this information in the database.'}`
       },
       ...conversationHistory || [],
       {
