@@ -345,34 +345,43 @@ class DataConnector {
       }
       
       if (filters.date) {
-        // Support date or date range filtering
         // MongoDB date field contains datetime strings like "2025-11-14T21:22:56.16"
-        // So we need to match the date portion using regex
+        // Use simple string prefix matching with $gte and $lt since ISO format is lexicographically sortable
         if (filters.date.$gte || filters.date.$lte) {
-          // Date range query - match dates between start and end
+          // Date range query - convert to proper string comparison
           const dateConditions = [];
+          
           if (filters.date.$gte) {
-            // Match dates >= start date (e.g., "2025-10-20" matches "2025-10-20T..." and later)
-            dateConditions.push({ date: { $gte: filters.date.$gte } });
+            // Convert "2025-10-20" to "2025-10-20T00:00:00" for comparison
+            const startDateTime = filters.date.$gte + "T00:00:00";
+            dateConditions.push({ date: { $gte: startDateTime } });
           }
+          
           if (filters.date.$lte) {
-            // Match dates <= end date + 1 day (e.g., "2025-11-20" matches up to "2025-11-21T00:00:00")
+            // Convert "2025-11-20" to "2025-11-21T00:00:00" for exclusive end
             const endDate = new Date(filters.date.$lte);
             endDate.setDate(endDate.getDate() + 1);
-            const endDateStr = endDate.toISOString().split('T')[0];
-            dateConditions.push({ date: { $lt: endDateStr } });
+            const endDateTime = endDate.toISOString().split('T')[0] + "T00:00:00";
+            dateConditions.push({ date: { $lt: endDateTime } });
           }
+          
           if (dateConditions.length > 0) {
-            if (!query.$and) query.$and = [];
-            query.$and.push(...dateConditions);
+            andConditions.push({ $and: dateConditions });
           }
         } else {
-          // Exact date match - match any datetime on that date
+          // Exact date match
           const dateStr = filters.date;
-          const nextDay = new Date(dateStr);
-          nextDay.setDate(nextDay.getDate() + 1);
-          const nextDayStr = nextDay.toISOString().split('T')[0];
-          query.date = { $gte: dateStr, $lt: nextDayStr };
+          const startDateTime = dateStr + "T00:00:00";
+          const endDate = new Date(dateStr);
+          endDate.setDate(endDate.getDate() + 1);
+          const endDateTime = endDate.toISOString().split('T')[0] + "T00:00:00";
+          
+          andConditions.push({
+            date: {
+              $gte: startDateTime,
+              $lt: endDateTime
+            }
+          });
         }
       }
       
@@ -974,11 +983,27 @@ Top Holders:`;
             // Format intraday data for frontend chart rendering
             let chartData = null;
             if (hasIntradayData) {
-              chartData = intradayResult.data.map(point => ({
-                timestamp: new Date(point.timestamp_et || point.timestamp).getTime(),  // Use timestamp_et (ET timezone)
-                price: point.price || point.close,  // intraday_prices uses 'price', aggregated tables use 'close'
-                volume: point.volume || 0
-              }));
+              chartData = intradayResult.data.map(point => {
+                // Convert timestamp_et (which is already in ET) to a proper Date object
+                // If timestamp_et is already a Unix timestamp, use it directly
+                // If it's a date string, parse it properly
+                let timestamp;
+                const tsValue = point.timestamp_et || point.timestamp;
+                
+                if (typeof tsValue === 'number') {
+                  // If it's already a Unix timestamp, use it
+                  timestamp = tsValue;
+                } else {
+                  // If it's a date string, parse it and convert to Unix timestamp
+                  timestamp = new Date(tsValue).getTime();
+                }
+                
+                return {
+                  timestamp: timestamp,
+                  price: point.price || point.close,  // intraday_prices uses 'price', aggregated tables use 'close'
+                  volume: point.volume || 0
+                };
+              });
             }
             
             dataCards.push({
