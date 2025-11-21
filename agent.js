@@ -123,7 +123,7 @@ class DataConnector {
           console.log(`Querying intraday_prices for ${symbol} on ${dateStr}`);
           
           // Fetch FULL day (00:00:00 to 23:59:59) to ensure we get all available data
-          // Use limit=100 for reasonable response size in chat context
+          // Use limit=5000 to capture entire trading day of high-frequency data
           query = supabase
             .from('intraday_prices')
             .select('timestamp_et, price, volume')
@@ -131,7 +131,7 @@ class DataConnector {
             .gte('timestamp_et', `${dateStr}T00:00:00`)
             .lte('timestamp_et', `${dateStr}T23:59:59`)
             .order('timestamp_et', { ascending: true })
-            .limit(100);
+            .limit(5000);
           break;
           
         case 'daily':
