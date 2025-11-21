@@ -486,10 +486,11 @@ class DataConnector {
         }
       }
       
-      // Limit to 10 recent items and only return essential fields
+      // Limit to 30 recent items for comprehensive policy coverage (10 for other categories)
+      const defaultLimit = category === 'policy' ? 30 : 10;
       const data = await collection.find(query)
         .sort({ inserted_at: -1 })
-        .limit(filters.limit || 10)
+        .limit(filters.limit || defaultLimit)
         .toArray();
       
       console.log(`MongoDB query for ${category}:`, JSON.stringify(query, null, 2));
@@ -507,7 +508,7 @@ class DataConnector {
           if (doc.url) summary.source = doc.url;
           if (doc.participants) summary.participants = doc.participants.join(', ');
           
-          // Extract key quotes from turns (limit to 3 most relevant)
+          // Extract key quotes from turns (limit to 8 most relevant for comprehensive coverage)
           if (doc.turns && doc.turns.length > 0) {
             // For policy documents, extract turns that contain the search terms
             let relevantTurns = doc.turns;
@@ -515,11 +516,17 @@ class DataConnector {
             // If there's a textSearch, find turns containing those terms
             if (filters.textSearch) {
               const searchTerms = filters.textSearch.toLowerCase().split(/\s+/);
-              relevantTurns = doc.turns.filter(turn => {
+              
+              // Score turns by how many search terms they contain
+              const scoredTurns = doc.turns.map(turn => {
                 const turnText = turn.text.toLowerCase();
-                // Check if turn contains ANY of the search terms
-                return searchTerms.some(term => turnText.includes(term));
-              });
+                const score = searchTerms.filter(term => turnText.includes(term)).length;
+                return { turn, score };
+              }).filter(item => item.score > 0);
+              
+              // Sort by score (most relevant first)
+              scoredTurns.sort((a, b) => b.score - a.score);
+              relevantTurns = scoredTurns.map(item => item.turn);
             }
             
             // If speaker filter is specified and it's not Trump, filter by speaker
@@ -530,12 +537,16 @@ class DataConnector {
               );
             }
             
-            // Take first 3 relevant turns
-            relevantTurns = relevantTurns.slice(0, 3);
+            // Take first 8 relevant turns for comprehensive coverage
+            relevantTurns = relevantTurns.slice(0, 8);
             
-            summary.quotes = relevantTurns.map(turn => 
-              `${turn.speaker}: ${turn.text.substring(0, 300)}...`
-            );
+            // Include FULL text (up to 1000 chars) instead of truncating at 300
+            summary.quotes = relevantTurns.map(turn => {
+              const fullText = turn.text.length > 1000 
+                ? turn.text.substring(0, 1000) + '...' 
+                : turn.text;
+              return `${turn.speaker}: ${fullText}`;
+            });
           }
         } else {
           // macro_economics schema
@@ -718,7 +729,7 @@ Top Holders:`;
           $lte: queryIntent.dateRange.end
         };
       }
-      if (category === 'policy') macroFilters.limit = 20;
+      if (category === 'policy') macroFilters.limit = 50;
       
       // Extract keywords from message for text search (e.g., "Brazil", "South Korea", "batteries", "tariffs")
       // This helps find relevant content beyond just speaker/date filters
@@ -744,21 +755,24 @@ Top Holders:`;
         const macroResult = await DataConnector.getMacroData(category, macroFilters);
         if (macroResult.success && macroResult.data.length > 0) {
           dataContext += `\n\n${category.charAt(0).toUpperCase() + category.slice(1)} data${queryIntent.speaker ? ` (${queryIntent.speaker})` : ''}${queryIntent.date ? ` on ${queryIntent.date}` : ''}:`;
-          macroResult.data.slice(0, 5).forEach((item, i) => {
-            dataContext += `\n${i + 1}. ${item.title || 'No title'}`;
+          dataContext += `\n\nFound ${macroResult.data.length} relevant ${category} documents. Showing top 10:\n`;
+          macroResult.data.slice(0, 10).forEach((item, i) => {
+            dataContext += `\n━━━ DOCUMENT ${i + 1} ━━━`;
+            dataContext += `\n${item.title || 'No title'}`;
             if (item.date) dataContext += ` (${item.date})`;
-            if (item.source) dataContext += `\n   Source: ${item.source}`;
-            if (item.participants) dataContext += `\n   Participants: ${item.participants}`;
-            if (item.description) dataContext += `\n   ${item.description}`;
-            if (item.summary) dataContext += `\n   ${item.summary}`;
-            if (item.content) dataContext += `\n   ${item.content}`;
+            if (item.source) dataContext += `\n📄 Source: ${item.source}`;
+            if (item.participants) dataContext += `\n👥 Participants: ${item.participants}`;
+            if (item.description) dataContext += `\n\n📝 ${item.description}`;
+            if (item.summary) dataContext += `\n\n📝 ${item.summary}`;
+            if (item.content) dataContext += `\n\n📝 ${item.content}`;
             // Add quotes for policy documents
             if (item.quotes && item.quotes.length > 0) {
-              dataContext += `\n   Key Quotes:`;
-              item.quotes.forEach(quote => {
-                dataContext += `\n   - ${quote}`;
+              dataContext += `\n\n💬 KEY QUOTES FROM THIS BRIEFING:`;
+              item.quotes.forEach((quote, qIdx) => {
+                dataContext += `\n\n   Quote ${qIdx + 1}: ${quote}`;
               });
             }
+            dataContext += `\n`;
           });
         } else {
           console.log(`No ${category} data found`);
