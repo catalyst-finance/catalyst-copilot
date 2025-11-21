@@ -385,12 +385,22 @@ class DataConnector {
         }
         
         if (filters.textSearch) {
-          andConditions.push({
-            $or: [
-              { title: { $regex: filters.textSearch, $options: 'i' } },
-              { 'turns.text': { $regex: filters.textSearch, $options: 'i' } }
-            ]
-          });
+          // Split multi-word searches and search for each word separately
+          // This allows "south korea" to match documents containing both words
+          const searchTerms = filters.textSearch.toLowerCase().split(/\s+/).filter(term => 
+            term.length > 2 && !['the', 'and', 'for', 'with', 'from', 'about'].includes(term)
+          );
+          
+          if (searchTerms.length > 0) {
+            // Create regex pattern that matches all terms (can be in any order)
+            const searchPattern = searchTerms.map(term => `(?=.*${term})`).join('');
+            andConditions.push({
+              $or: [
+                { title: { $regex: searchPattern, $options: 'si' } },
+                { 'turns.text': { $regex: searchPattern, $options: 'si' } }
+              ]
+            });
+          }
         }
       } else {
         // For economic and news: use macro_economics collection
@@ -398,15 +408,24 @@ class DataConnector {
         
         // For macro_economics: search in title, description, country, author, category
         if (filters.textSearch) {
-          andConditions.push({
-            $or: [
-              { title: { $regex: filters.textSearch, $options: 'i' } },
-              { description: { $regex: filters.textSearch, $options: 'i' } },
-              { country: { $regex: filters.textSearch, $options: 'i' } },
-              { author: { $regex: filters.textSearch, $options: 'i' } },
-              { category: { $regex: filters.textSearch, $options: 'i' } }
-            ]
-          });
+          // Split multi-word searches and search for each word separately
+          const searchTerms = filters.textSearch.toLowerCase().split(/\s+/).filter(term => 
+            term.length > 2 && !['the', 'and', 'for', 'with', 'from', 'about'].includes(term)
+          );
+          
+          if (searchTerms.length > 0) {
+            // Create regex pattern that matches all terms (can be in any order)
+            const searchPattern = searchTerms.map(term => `(?=.*${term})`).join('');
+            andConditions.push({
+              $or: [
+                { title: { $regex: searchPattern, $options: 'si' } },
+                { description: { $regex: searchPattern, $options: 'si' } },
+                { country: { $regex: searchPattern, $options: 'si' } },
+                { author: { $regex: searchPattern, $options: 'si' } },
+                { category: { $regex: searchPattern, $options: 'si' } }
+              ]
+            });
+          }
         }
       }
       
