@@ -70,6 +70,33 @@ class DataConnector {
   // Supabase connector methods
   static async getStockData(symbol, dataType = 'current') {
     try {
+      // HARDCODED SUPABASE SCHEMAS:
+      //
+      // finnhub_quote_snapshots (current quotes):
+      //   - symbol, timestamp, timestamp_et, market_date
+      //   - close, change, change_percent, high, low, open, previous_close, volume
+      //
+      // intraday_prices (tick-by-tick):
+      //   - symbol, timestamp, timestamp_et
+      //   - price, volume
+      //   - Most granular, use for detailed intraday charts
+      //
+      // one_minute_prices (1-min bars):
+      //   - symbol, timestamp, timestamp_et
+      //   - open, high, low, close, volume
+      //
+      // five_minute_prices (5-min bars):
+      //   - symbol, timestamp, timestamp_et
+      //   - open, high, low, close, volume
+      //
+      // hourly_prices (hourly bars):
+      //   - symbol, timestamp, timestamp_et  
+      //   - open, high, low, close, volume
+      //
+      // daily_prices (daily bars):
+      //   - symbol, date, date_et
+      //   - open, high, low, close, volume
+      
       let query;
       
       switch (dataType) {
@@ -83,13 +110,22 @@ class DataConnector {
           break;
           
         case 'intraday':
-          const today = new Date().toISOString().split('T')[0];
+          // Use intraday_prices for tick-by-tick data
+          // Query using timestamp_et (already in ET timezone)
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, '0');
+          const day = String(today.getDate()).padStart(2, '0');
+          const todayStr = `${year}-${month}-${day}`;
+          
+          console.log(`Querying intraday_prices for ${symbol} on ${todayStr}`);
+          
           query = supabase
             .from('intraday_prices')
-            .select('*')
+            .select('timestamp_et, price, volume')
             .eq('symbol', symbol)
-            .gte('timestamp_et', `${today}T09:30:00`)
-            .lte('timestamp_et', `${today}T23:59:59`)
+            .gte('timestamp_et', `${todayStr}T09:30:00`)
+            .lte('timestamp_et', `${todayStr}T23:59:59`)
             .order('timestamp_et', { ascending: true });
           break;
           
@@ -1038,23 +1074,33 @@ Top Holders:`;
             const hasIntradayData = intradayResult.success && intradayResult.data.length > 0;
             const intradayCount = intradayResult.data?.length || 0;
             
-            console.log(`Intraday data available for ${ticker}: ${intradayCount} points`);
+            console.log(`Intraday query for ${ticker}: ${hasIntradayData ? 'SUCCESS' : 'FAILED'}`);
+            console.log(`Intraday data points for ${ticker}: ${intradayCount}`);
+            if (intradayCount > 0) {
+              console.log(`First data point:`, JSON.stringify(intradayResult.data[0]));
+              console.log(`Last data point:`, JSON.stringify(intradayResult.data[intradayCount - 1]));
+            }
+            
             console.log(`Pushing stock card for ${ticker} with${hasIntradayData ? '' : 'out'} intraday chart`);
             
             // Format intraday data for frontend chart rendering
             let chartData = null;
             if (hasIntradayData) {
               chartData = intradayResult.data.map(point => {
-                // timestamp_et is stored as a Unix timestamp in milliseconds (already correct format)
-                // Just extract it directly - no conversion needed
-                const timestamp = point.timestamp_et || point.timestamp;
+                // timestamp_et from intraday_prices is already in ET timezone as a timestamp string
+                // Convert to Unix milliseconds for chart
+                const timestamp = new Date(point.timestamp_et).getTime();
                 
                 return {
                   timestamp: timestamp,
-                  price: point.price || point.close,  // intraday_prices uses 'price', aggregated tables use 'close'
+                  price: point.price,  // intraday_prices uses 'price' field
                   volume: point.volume || 0
                 };
               });
+              
+              console.log(`Chart data prepared: ${chartData.length} points`);
+              console.log(`First chart point timestamp: ${chartData[0].timestamp} (${new Date(chartData[0].timestamp).toISOString()})`);
+              console.log(`Last chart point timestamp: ${chartData[chartData.length - 1].timestamp} (${new Date(chartData[chartData.length - 1].timestamp).toISOString()})`);
             }
             
             dataCards.push({
