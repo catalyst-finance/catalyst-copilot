@@ -294,48 +294,53 @@ class DataConnector {
       await connectMongo();
       const db = mongoClient.db('raw_data');
       
-      let collection, query = {};
-      
-      switch (category) {
-        case 'economic':
-          collection = db.collection('macro_economics');
-          break;
-        case 'policy':
-          collection = db.collection('government_policy');
-          break;
-        case 'news':
-          collection = db.collection('market_news');
-          break;
-        default:
-          collection = db.collection('macro_economics');
-      }
+      // All macro/policy/news data is in macro_economics collection
+      // We filter by category field instead of using separate collections
+      const collection = db.collection('macro_economics');
+      const query = {};
       
       // Apply filters for speaker, date, or text search
       const andConditions = [];
       
-      if (filters.speaker) {
-        andConditions.push({
-          $or: [
-            { speaker: { $regex: filters.speaker, $options: 'i' } },
+      // For policy queries, search in title/description for policy-related keywords
+      // MongoDB doesn't have separate government_policy collection
+      if (category === 'policy' || filters.speaker) {
+        // Search for policy-related content or specific speakers
+        const policySearchTerms = [];
+        
+        if (filters.speaker) {
+          // Search for the speaker name in title, description, or content
+          policySearchTerms.push(
             { title: { $regex: filters.speaker, $options: 'i' } },
-            { content: { $regex: filters.speaker, $options: 'i' } },
-            { text: { $regex: filters.speaker, $options: 'i' } }
-          ]
-        });
+            { description: { $regex: filters.speaker, $options: 'i' } },
+            { author: { $regex: filters.speaker, $options: 'i' } }
+          );
+        }
+        
+        // If we're looking for policy but don't have specific speaker
+        if (category === 'policy' && policySearchTerms.length === 0) {
+          // Look for policy-related categories or content
+          policySearchTerms.push(
+            { category: { $regex: 'government|policy|federal|white house|congress', $options: 'i' } },
+            { title: { $regex: 'government|policy|federal|white house|congress', $options: 'i' } }
+          );
+        }
+        
+        if (policySearchTerms.length > 0) {
+          andConditions.push({ $or: policySearchTerms });
+        }
       }
       
       if (filters.textSearch) {
-        // Search across multiple text fields using regex
+        // Search across text fields that actually exist in macro_economics collection
         const searchRegex = { $regex: filters.textSearch, $options: 'i' };
         andConditions.push({
           $or: [
-            { text: searchRegex },
-            { description: searchRegex },
             { title: searchRegex },
+            { description: searchRegex },
             { country: searchRegex },
             { author: searchRegex },
-            { category: searchRegex },
-            { content: searchRegex }
+            { category: searchRegex }
           ]
         });
       }
@@ -516,15 +521,22 @@ Return ONLY the JSON object, no explanation.`;
     let dataContext = "";
     
     // Determine which tickers to query based on AI classification
+    // ONLY populate tickers for stock-related queries (not for macro/policy/news)
     let tickersToQuery = [];
-    if (queryIntent.scope === 'focus_stocks' && selectedTickers.length > 0) {
-      tickersToQuery = selectedTickers;
-    } else if (queryIntent.scope === 'specific_tickers' && queryIntent.tickers.length > 0) {
-      tickersToQuery = queryIntent.tickers;
-    } else if (queryIntent.tickers.length > 0) {
-      tickersToQuery = queryIntent.tickers;
-    } else if (selectedTickers.length > 0) {
-      tickersToQuery = selectedTickers;
+    const isStockQuery = queryIntent.dataNeeded.includes('stock_prices') || 
+                         queryIntent.dataNeeded.includes('institutional') || 
+                         queryIntent.dataNeeded.includes('events');
+    
+    if (isStockQuery) {
+      if (queryIntent.scope === 'focus_stocks' && selectedTickers.length > 0) {
+        tickersToQuery = selectedTickers;
+      } else if (queryIntent.scope === 'specific_tickers' && queryIntent.tickers.length > 0) {
+        tickersToQuery = queryIntent.tickers;
+      } else if (queryIntent.tickers.length > 0) {
+        tickersToQuery = queryIntent.tickers;
+      } else if (selectedTickers.length > 0) {
+        tickersToQuery = selectedTickers;
+      }
     }
     
     console.log('Tickers to query:', tickersToQuery);
