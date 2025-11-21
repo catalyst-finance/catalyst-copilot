@@ -1964,6 +1964,20 @@ Top Holders:`;
         const companyNames = await Promise.all(companyDataPromises);
         const companyNameMap = Object.fromEntries(companyNames.map(c => [c.symbol, c.name]));
         
+        // Add movers data to context for AI
+        if (topMovers.length > 0) {
+          dataContext += `\n\n=== WATCHLIST BIGGEST MOVERS (TOP ${topMovers.length}) ===\n`;
+          for (const quote of topMovers) {
+            const company = companyNameMap[quote.symbol] || quote.symbol;
+            dataContext += `\n${quote.symbol} (${company}):\n`;
+            dataContext += `- Current Price: $${quote.close?.toFixed(2) || 'N/A'}\n`;
+            dataContext += `- Change: $${quote.change?.toFixed(2) || 'N/A'} (${quote.change_percent?.toFixed(2) || 'N/A'}%)\n`;
+            dataContext += `- Day High: $${quote.high?.toFixed(2) || 'N/A'}\n`;
+            dataContext += `- Day Low: $${quote.low?.toFixed(2) || 'N/A'}\n`;
+            dataContext += `- Volume: ${quote.volume ? quote.volume.toLocaleString() + ' shares' : 'N/A'}\n`;
+          }
+        }
+        
         // Generate data cards for top movers
         for (const quote of topMovers) {
           dataCards.push({
