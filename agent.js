@@ -1138,20 +1138,17 @@ Top Holders:`;
             let chartData = null;
             if (hasIntradayData) {
               chartData = intradayResult.data.map(point => {
-                // timestamp_et from intraday_prices is already in ET timezone as a timestamp string
-                // Convert to Unix milliseconds for chart
-                const timestamp = new Date(point.timestamp_et).getTime();
-                
+                // Keep timestamp_et in original format: "2025-11-20 19:05:43.543+00"
                 return {
-                  timestamp: timestamp,
+                  timestamp_et: point.timestamp_et,
                   price: point.price,  // intraday_prices uses 'price' field
                   volume: point.volume || 0
                 };
               });
               
               console.log(`Chart data prepared: ${chartData.length} points`);
-              console.log(`First chart point timestamp: ${chartData[0].timestamp} (${new Date(chartData[0].timestamp).toISOString()})`);
-              console.log(`Last chart point timestamp: ${chartData[chartData.length - 1].timestamp} (${new Date(chartData[chartData.length - 1].timestamp).toISOString()})`);
+              console.log(`First chart point timestamp_et: ${chartData[0].timestamp_et}`);
+              console.log(`Last chart point timestamp_et: ${chartData[chartData.length - 1].timestamp_et}`);
             }
             
             dataCards.push({
