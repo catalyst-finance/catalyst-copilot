@@ -349,12 +349,12 @@ class DataConnector {
         // Use simple string prefix matching with $gte and $lt since ISO format is lexicographically sortable
         if (filters.date.$gte || filters.date.$lte) {
           // Date range query - convert to proper string comparison
-          const dateConditions = [];
+          // Add each date condition directly to andConditions (not nested in another $and)
           
           if (filters.date.$gte) {
             // Convert "2025-10-20" to "2025-10-20T00:00:00" for comparison
             const startDateTime = filters.date.$gte + "T00:00:00";
-            dateConditions.push({ date: { $gte: startDateTime } });
+            andConditions.push({ date: { $gte: startDateTime } });
           }
           
           if (filters.date.$lte) {
@@ -362,11 +362,7 @@ class DataConnector {
             const endDate = new Date(filters.date.$lte);
             endDate.setDate(endDate.getDate() + 1);
             const endDateTime = endDate.toISOString().split('T')[0] + "T00:00:00";
-            dateConditions.push({ date: { $lt: endDateTime } });
-          }
-          
-          if (dateConditions.length > 0) {
-            andConditions.push({ $and: dateConditions });
+            andConditions.push({ date: { $lt: endDateTime } });
           }
         } else {
           // Exact date match
@@ -390,6 +386,9 @@ class DataConnector {
         .sort({ inserted_at: -1 })
         .limit(filters.limit || 10)
         .toArray();
+      
+      console.log(`MongoDB query for ${category}:`, JSON.stringify(query, null, 2));
+      console.log(`MongoDB results: ${data.length} documents found`);
       
       // Summarize data to reduce token usage
       const summarized = data.map(doc => {
@@ -984,19 +983,9 @@ Top Holders:`;
             let chartData = null;
             if (hasIntradayData) {
               chartData = intradayResult.data.map(point => {
-                // Convert timestamp_et (which is already in ET) to a proper Date object
-                // If timestamp_et is already a Unix timestamp, use it directly
-                // If it's a date string, parse it properly
-                let timestamp;
-                const tsValue = point.timestamp_et || point.timestamp;
-                
-                if (typeof tsValue === 'number') {
-                  // If it's already a Unix timestamp, use it
-                  timestamp = tsValue;
-                } else {
-                  // If it's a date string, parse it and convert to Unix timestamp
-                  timestamp = new Date(tsValue).getTime();
-                }
+                // timestamp_et is stored as a Unix timestamp in milliseconds (already correct format)
+                // Just extract it directly - no conversion needed
+                const timestamp = point.timestamp_et || point.timestamp;
                 
                 return {
                   timestamp: timestamp,
