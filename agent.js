@@ -322,14 +322,30 @@ class DataConnector {
         collection = db.collection('government_policy');
         
         // For policy: search in title, participants, and turn text
+        // IMPORTANT: government_policy schema has:
+        //   - participants: array of strings ["Kevin Hassett", "Question"]
+        //   - turns: array of { speaker: "Kevin Hassett", text: "..." }
+        // When searching for "trump", we need to find Trump administration officials
+        // like Kevin Hassett speaking at Trump White House briefings
+        
         if (filters.speaker) {
-          andConditions.push({
-            $or: [
-              { title: { $regex: filters.speaker, $options: 'i' } },
-              { participants: { $regex: filters.speaker, $options: 'i' } },
-              { 'turns.speaker': { $regex: filters.speaker, $options: 'i' } }
-            ]
-          });
+          // For Trump queries: match Trump directly OR Trump administration context
+          if (filters.speaker.toLowerCase() === 'trump') {
+            andConditions.push({
+              $or: [
+                { title: { $regex: 'trump', $options: 'i' } },
+                { participants: { $elemMatch: { $regex: 'hassett|trump', $options: 'i' } } }
+              ]
+            });
+          } else {
+            // For other speakers: search normally
+            andConditions.push({
+              $or: [
+                { title: { $regex: filters.speaker, $options: 'i' } },
+                { participants: { $regex: filters.speaker, $options: 'i' } }
+              ]
+            });
+          }
         }
         
         if (filters.textSearch) {
@@ -627,7 +643,7 @@ Top Holders:`;
       
       // Extract keywords from message for text search (e.g., "Brazil", "South Korea", "batteries", "tariffs")
       // This helps find relevant content beyond just speaker/date filters
-      const commonWords = new Set(['what', 'when', 'where', 'how', 'did', 'does', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but', 'about', 'happened', 'happen', 'say', 'said', 'discuss', 'discussed', 'talk', 'talked', 'stock', 'market', 'markets', 'last', 'week', 'weeks', 'month', 'months', 'year', 'years', 'today', 'yesterday', 'recently', 'current', 'currently', 'press', 'with', 'from', 'that', 'this', 'have', 'were', 'been', 'trump', 'biden', 'hassett', 'yellen', 'powell']);
+      const commonWords = new Set(['what', 'when', 'where', 'how', 'did', 'does', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but', 'about', 'happened', 'happen', 'say', 'said', 'discuss', 'discussed', 'talk', 'talked', 'stock', 'market', 'markets', 'last', 'week', 'weeks', 'month', 'months', 'year', 'years', 'today', 'yesterday', 'recently', 'current', 'currently', 'press', 'with', 'from', 'that', 'this', 'have', 'were', 'been', 'trump', 'biden', 'hassett', 'yellen', 'powell', 'past', 'future', 'ago']);
       const words = message.toLowerCase()
         .replace(/[^a-z\s]/g, ' ')  // Remove all non-letter characters except spaces
         .split(/\s+/)
