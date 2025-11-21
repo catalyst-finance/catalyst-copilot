@@ -112,21 +112,26 @@ class DataConnector {
         case 'intraday':
           // Use intraday_prices for tick-by-tick data
           // Query using timestamp_et (already in ET timezone)
-          const today = new Date();
-          const year = today.getFullYear();
-          const month = String(today.getMonth() + 1).padStart(2, '0');
-          const day = String(today.getDate()).padStart(2, '0');
-          const todayStr = `${year}-${month}-${day}`;
+          // Use Eastern Time (UTC-5) for market hours
+          const targetDate = new Date();
+          const etOffset = -5 * 60; // Eastern Time offset in minutes
+          const etDate = new Date(targetDate.getTime() + (etOffset + targetDate.getTimezoneOffset()) * 60000);
           
-          console.log(`Querying intraday_prices for ${symbol} on ${todayStr}`);
+          // Format as YYYY-MM-DD for timestamp_et column
+          const dateStr = etDate.toISOString().split('T')[0];
           
+          console.log(`Querying intraday_prices for ${symbol} on ${dateStr}`);
+          
+          // Fetch FULL day (00:00:00 to 23:59:59) to ensure we get all available data
+          // Use limit=100 for reasonable response size in chat context
           query = supabase
             .from('intraday_prices')
             .select('timestamp_et, price, volume')
             .eq('symbol', symbol)
-            .gte('timestamp_et', `${todayStr}T09:30:00`)
-            .lte('timestamp_et', `${todayStr}T23:59:59`)
-            .order('timestamp_et', { ascending: true });
+            .gte('timestamp_et', `${dateStr}T00:00:00`)
+            .lte('timestamp_et', `${dateStr}T23:59:59`)
+            .order('timestamp_et', { ascending: true })
+            .limit(100);
           break;
           
         case 'daily':
