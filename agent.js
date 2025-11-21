@@ -330,6 +330,73 @@ class DataConnector {
     }
   }
   
+  static async getVolumeData(symbol, timeframe = 'current') {
+    try {
+      let query;
+      let volumeData = { totalVolume: 0, volumeProfile: [] };
+      
+      switch (timeframe) {
+        case 'intraday':
+        case 'today':
+          // Aggregate volume from intraday_prices for complete intraday picture
+          const targetDate = new Date();
+          const etOffset = -5 * 60;
+          const etDate = new Date(targetDate.getTime() + (etOffset + targetDate.getTimezoneOffset()) * 60000);
+          const dateStr = etDate.toISOString().split('T')[0];
+          
+          query = supabase
+            .from('intraday_prices')
+            .select('timestamp_et, volume')
+            .eq('symbol', symbol)
+            .gte('timestamp_et', `${dateStr}T00:00:00`)
+            .lte('timestamp_et', `${dateStr}T23:59:59`)
+            .order('timestamp_et', { ascending: true });
+          
+          const { data: intradayData, error: intradayError } = await query;
+          if (intradayError) throw intradayError;
+          
+          if (intradayData && intradayData.length > 0) {
+            volumeData.totalVolume = intradayData.reduce((sum, point) => sum + (point.volume || 0), 0);
+            volumeData.volumeProfile = intradayData;
+            volumeData.dataPoints = intradayData.length;
+          }
+          break;
+          
+        case 'current':
+          // Get from finnhub_quote_snapshots for daily summary
+          query = supabase
+            .from('finnhub_quote_snapshots')
+            .select('volume')
+            .eq('symbol', symbol)
+            .order('timestamp', { ascending: false })
+            .limit(1);
+          
+          const { data: currentData, error: currentError } = await query;
+          if (currentError) throw currentError;
+          
+          if (currentData && currentData.length > 0) {
+            volumeData.totalVolume = currentData[0].volume || 0;
+          }
+          break;
+      }
+      
+      return {
+        success: true,
+        data: volumeData,
+        source: 'supabase',
+        type: 'volume'
+      };
+    } catch (error) {
+      console.error(`Error fetching volume data for ${symbol}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        source: 'supabase',
+        type: 'volume'
+      };
+    }
+  }
+  
   static async getMacroData(category = 'general', filters = {}) {
     try {
       await connectMongo();
@@ -1110,6 +1177,9 @@ Top Holders:`;
       // Fetch stock data if ticker is mentioned and user is asking about stock prices
       if (ticker && (shouldShowIntradayChart || queryIntent.intent === 'stock_price')) {
         try {
+          // Detect if user is specifically asking about volume
+          const isVolumeQuery = /volume|traded|trading.*shares|shares.*traded/i.test(message);
+          
           // Fetch current price
           console.log(`Fetching quote for ${ticker}`);
           const stockResult = await DataConnector.getStockData(ticker, 'current');
@@ -1169,7 +1239,8 @@ Top Holders:`;
                 open: quote.open,
                 high: quote.high,
                 low: quote.low,
-                previousClose: quote.previous_close
+                previousClose: quote.previous_close,
+                volume: quote.volume
               }
             });
             
@@ -1179,8 +1250,28 @@ Top Holders:`;
 - Change: ${quote.change >= 0 ? '+' : ''}$${quote.change.toFixed(2)} (${quote.change_percent >= 0 ? '+' : ''}${quote.change_percent.toFixed(2)}%)
 - Day High: $${quote.high?.toFixed(2) || 'N/A'}
 - Day Low: $${quote.low?.toFixed(2) || 'N/A'}
-- Previous Close: $${quote.previous_close?.toFixed(2) || 'N/A'}
-- Intraday Chart: Available in Supabase table 'intraday_prices' for date ${dateStr}
+- Previous Close: $${quote.previous_close?.toFixed(2) || 'N/A'}`;
+            
+            // If user is asking about volume, fetch detailed volume data
+            if (isVolumeQuery) {
+              console.log(`Volume query detected - fetching detailed intraday volume for ${ticker}`);
+              const volumeResult = await DataConnector.getVolumeData(ticker, 'intraday');
+              
+              if (volumeResult.success && volumeResult.data.totalVolume > 0) {
+                dataContext += `\n- Trading Volume (Real-time Intraday): ${volumeResult.data.totalVolume.toLocaleString()} shares`;
+                dataContext += `\n- Volume Data Points: ${volumeResult.data.dataPoints || 0} tick-by-tick records from intraday_prices table`;
+                dataContext += `\n- Volume Source: Aggregated from intraday_prices (most granular, tick-by-tick data)`;
+              } else {
+                // Fallback to daily volume if intraday not available
+                dataContext += `\n- Trading Volume (Daily Snapshot): ${quote.volume ? quote.volume.toLocaleString() + ' shares' : 'N/A'}`;
+                dataContext += `\n- Volume Source: finnhub_quote_snapshots (end-of-day summary)`;
+              }
+            } else {
+              // Regular price query - just show daily volume
+              dataContext += `\n- Trading Volume: ${quote.volume ? quote.volume.toLocaleString() + ' shares' : 'N/A'}`;
+            }
+            
+            dataContext += `\n- Intraday Chart: Available in Supabase table 'intraday_prices' for date ${dateStr}
 
 **IMPORTANT: Use this exact price data in your response. Do not use any other price information.**`;
           } else {
@@ -1223,35 +1314,41 @@ DATA SOURCES AT YOUR DISPOSAL:
    B. CURRENT STOCK QUOTES (finnhub_quote_snapshots)
       • symbol, timestamp, timestamp_et, market_date
       • close, change, change_percent, open, high, low
-      • previous_close, volume
+      • previous_close, volume (daily trading volume in shares)
       • source, ingested_at
+      • USE: Current price, daily OHLC, percent change, trading volume
    
    C. INTRADAY PRICES (intraday_prices) - Tick-by-tick data
       • symbol, timestamp, timestamp_et
-      • price, volume
+      • price, volume (per-tick trading volume)
       • source, ingested_at
       • USE: Detailed intraday chart rendering, minute-by-minute price action
+      • VOLUME USE: Real-time intraday volume tracking, aggregate for total daily volume
    
    D. ONE MINUTE BARS (one_minute_prices)
       • symbol, timestamp, timestamp_et
-      • open, high, low, close, volume
+      • open, high, low, close, volume (1-min aggregated volume)
       • source, created_at
+      • VOLUME USE: Minute-by-minute volume analysis, identify volume spikes
    
    E. FIVE MINUTE BARS (five_minute_prices)
       • symbol, timestamp, timestamp_et
-      • open, high, low, close, volume
+      • open, high, low, close, volume (5-min aggregated volume)
       • source, created_at
+      • VOLUME USE: Short-term volume trends, institutional block trades
    
    F. HOURLY BARS (hourly_prices)
       • symbol, timestamp, timestamp_et
-      • open, high, low, close, volume
+      • open, high, low, close, volume (hourly aggregated volume)
       • source, created_at
+      • VOLUME USE: Intraday volume distribution, compare morning vs afternoon volume
    
    G. DAILY PRICES (daily_prices)
       • symbol, date, date_et
-      • open, high, low, close, volume
+      • open, high, low, close, volume (full day volume)
       • source, created_at, updated_at
       • USE: Historical trend analysis, multi-day/week/month charts
+      • VOLUME USE: Day-over-day volume comparison, identify high-volume days
    
    H. MARKET EVENTS (event_data)
       • PrimaryID, type, title, company, ticker, sector
@@ -1328,6 +1425,15 @@ DATA INTERPRETATION RULES:
 • Event Timing: Mention days until upcoming catalysts
 • Price Context: Compare current price to 52-week high/low when relevant
 • Policy Impact: Connect government decisions to specific stocks/sectors affected
+• Trading Volume - Multiple Sources Available:
+  - Real-time intraday: intraday_prices.volume (tick-by-tick, most accurate for ongoing trading)
+  - 1-minute bars: one_minute_prices.volume (minute-by-minute granularity)
+  - 5-minute bars: five_minute_prices.volume (short-term trends)
+  - Hourly bars: hourly_prices.volume (morning vs afternoon comparison)
+  - Daily summary: finnhub_quote_snapshots.volume (end-of-day total)
+  - Historical daily: daily_prices.volume (day-over-day comparison)
+  - When user asks about "today's volume" or "current trading volume", use intraday_prices aggregated volume
+  - When user asks about "volume compared to yesterday", use daily_prices for historical comparison
 
 CRITICAL CONSTRAINTS:
 1. ONLY use data provided in Supabase and MongoDB - NEVER use training knowledge for facts/numbers
