@@ -509,15 +509,29 @@ class DataConnector {
           
           // Extract key quotes from turns (limit to 3 most relevant)
           if (doc.turns && doc.turns.length > 0) {
-            const relevantTurns = doc.turns
-              .filter(turn => {
-                // Filter for speaker we're looking for (if specified)
-                if (filters.speaker) {
-                  return turn.speaker.toLowerCase().includes(filters.speaker.toLowerCase());
-                }
-                return true;
-              })
-              .slice(0, 3);
+            // For policy documents, extract turns that contain the search terms
+            let relevantTurns = doc.turns;
+            
+            // If there's a textSearch, find turns containing those terms
+            if (filters.textSearch) {
+              const searchTerms = filters.textSearch.toLowerCase().split(/\s+/);
+              relevantTurns = doc.turns.filter(turn => {
+                const turnText = turn.text.toLowerCase();
+                // Check if turn contains ANY of the search terms
+                return searchTerms.some(term => turnText.includes(term));
+              });
+            }
+            
+            // If speaker filter is specified and it's not Trump, filter by speaker
+            // (Skip speaker filter for Trump since he doesn't speak in these transcripts)
+            if (filters.speaker && filters.speaker.toLowerCase() !== 'trump') {
+              relevantTurns = relevantTurns.filter(turn => 
+                turn.speaker.toLowerCase().includes(filters.speaker.toLowerCase())
+              );
+            }
+            
+            // Take first 3 relevant turns
+            relevantTurns = relevantTurns.slice(0, 3);
             
             summary.quotes = relevantTurns.map(turn => 
               `${turn.speaker}: ${turn.text.substring(0, 300)}...`
@@ -734,9 +748,17 @@ Top Holders:`;
             dataContext += `\n${i + 1}. ${item.title || 'No title'}`;
             if (item.date) dataContext += ` (${item.date})`;
             if (item.source) dataContext += `\n   Source: ${item.source}`;
+            if (item.participants) dataContext += `\n   Participants: ${item.participants}`;
             if (item.description) dataContext += `\n   ${item.description}`;
             if (item.summary) dataContext += `\n   ${item.summary}`;
             if (item.content) dataContext += `\n   ${item.content}`;
+            // Add quotes for policy documents
+            if (item.quotes && item.quotes.length > 0) {
+              dataContext += `\n   Key Quotes:`;
+              item.quotes.forEach(quote => {
+                dataContext += `\n   - ${quote}`;
+              });
+            }
           });
         } else {
           console.log(`No ${category} data found`);
