@@ -294,55 +294,68 @@ class DataConnector {
       await connectMongo();
       const db = mongoClient.db('raw_data');
       
-      // All macro/policy/news data is in macro_economics collection
-      // We filter by category field instead of using separate collections
-      const collection = db.collection('macro_economics');
-      const query = {};
+      // HARDCODED SCHEMAS:
+      // macro_economics collection:
+      //   - date (string): "2025-11-14T21:22:56.16"
+      //   - title (string): "Ibovespa Closes Near Record High"
+      //   - description (string): Long text content
+      //   - url (string): "/brazil/stock-market"
+      //   - author (string): "Felipe Alarcon"
+      //   - country (string): "Brazil"
+      //   - category (string): "Stock Market"
+      //   - importance (number): 1
+      //   - inserted_at (date object)
+      //
+      // government_policy collection:
+      //   - date (string): "2025-11-13" (just date, no time)
+      //   - url (string): Full URL to transcript
+      //   - title (string): "Press Briefing: Kevin Hassett Speaks..."
+      //   - participants (array): ["Kevin Hassett", "Question"]
+      //   - turns (array): [{ speaker: "Question", text: "..." }]
       
-      // Apply filters for speaker, date, or text search
+      let collection;
+      const query = {};
       const andConditions = [];
       
-      // For policy queries, search in title/description for policy-related keywords
-      // MongoDB doesn't have separate government_policy collection
-      if (category === 'policy' || filters.speaker) {
-        // Search for policy-related content or specific speakers
-        const policySearchTerms = [];
+      // Choose collection based on category
+      if (category === 'policy') {
+        collection = db.collection('government_policy');
         
+        // For policy: search in title, participants, and turn text
         if (filters.speaker) {
-          // Search for the speaker name in title, description, or content
-          policySearchTerms.push(
-            { title: { $regex: filters.speaker, $options: 'i' } },
-            { description: { $regex: filters.speaker, $options: 'i' } },
-            { author: { $regex: filters.speaker, $options: 'i' } }
-          );
+          andConditions.push({
+            $or: [
+              { title: { $regex: filters.speaker, $options: 'i' } },
+              { participants: { $regex: filters.speaker, $options: 'i' } },
+              { 'turns.speaker': { $regex: filters.speaker, $options: 'i' } }
+            ]
+          });
         }
         
-        // If we're looking for policy but don't have specific speaker
-        if (category === 'policy' && policySearchTerms.length === 0) {
-          // Look for policy-related categories or content
-          policySearchTerms.push(
-            { category: { $regex: 'government|policy|federal|white house|congress', $options: 'i' } },
-            { title: { $regex: 'government|policy|federal|white house|congress', $options: 'i' } }
-          );
+        if (filters.textSearch) {
+          andConditions.push({
+            $or: [
+              { title: { $regex: filters.textSearch, $options: 'i' } },
+              { 'turns.text': { $regex: filters.textSearch, $options: 'i' } }
+            ]
+          });
         }
+      } else {
+        // For economic and news: use macro_economics collection
+        collection = db.collection('macro_economics');
         
-        if (policySearchTerms.length > 0) {
-          andConditions.push({ $or: policySearchTerms });
+        // For macro_economics: search in title, description, country, author, category
+        if (filters.textSearch) {
+          andConditions.push({
+            $or: [
+              { title: { $regex: filters.textSearch, $options: 'i' } },
+              { description: { $regex: filters.textSearch, $options: 'i' } },
+              { country: { $regex: filters.textSearch, $options: 'i' } },
+              { author: { $regex: filters.textSearch, $options: 'i' } },
+              { category: { $regex: filters.textSearch, $options: 'i' } }
+            ]
+          });
         }
-      }
-      
-      if (filters.textSearch) {
-        // Search across text fields that actually exist in macro_economics collection
-        const searchRegex = { $regex: filters.textSearch, $options: 'i' };
-        andConditions.push({
-          $or: [
-            { title: searchRegex },
-            { description: searchRegex },
-            { country: searchRegex },
-            { author: searchRegex },
-            { category: searchRegex }
-          ]
-        });
       }
       
       if (andConditions.length > 0) {
@@ -350,39 +363,45 @@ class DataConnector {
       }
       
       if (filters.date) {
-        // MongoDB date field contains datetime strings like "2025-11-14T21:22:56.16"
-        // Use simple string prefix matching with $gte and $lt since ISO format is lexicographically sortable
-        if (filters.date.$gte || filters.date.$lte) {
-          // Date range query - convert to proper string comparison
-          // Add each date condition directly to andConditions (not nested in another $and)
-          
-          if (filters.date.$gte) {
-            // Convert "2025-10-20" to "2025-10-20T00:00:00" for comparison
-            const startDateTime = filters.date.$gte + "T00:00:00";
-            andConditions.push({ date: { $gte: startDateTime } });
-          }
-          
-          if (filters.date.$lte) {
-            // Convert "2025-11-20" to "2025-11-21T00:00:00" for exclusive end
-            const endDate = new Date(filters.date.$lte);
-            endDate.setDate(endDate.getDate() + 1);
-            const endDateTime = endDate.toISOString().split('T')[0] + "T00:00:00";
-            andConditions.push({ date: { $lt: endDateTime } });
+        // Handle date filtering based on collection schema
+        if (category === 'policy') {
+          // government_policy: date is simple "2025-11-13" format
+          if (filters.date.$gte || filters.date.$lte) {
+            if (filters.date.$gte) {
+              andConditions.push({ date: { $gte: filters.date.$gte } });
+            }
+            if (filters.date.$lte) {
+              andConditions.push({ date: { $lte: filters.date.$lte } });
+            }
+          } else {
+            andConditions.push({ date: filters.date });
           }
         } else {
-          // Exact date match
-          const dateStr = filters.date;
-          const startDateTime = dateStr + "T00:00:00";
-          const endDate = new Date(dateStr);
-          endDate.setDate(endDate.getDate() + 1);
-          const endDateTime = endDate.toISOString().split('T')[0] + "T00:00:00";
-          
-          andConditions.push({
-            date: {
-              $gte: startDateTime,
-              $lt: endDateTime
+          // macro_economics: date is "2025-11-14T21:22:56.16" format
+          if (filters.date.$gte || filters.date.$lte) {
+            if (filters.date.$gte) {
+              const startDateTime = filters.date.$gte + "T00:00:00";
+              andConditions.push({ date: { $gte: startDateTime } });
             }
-          });
+            if (filters.date.$lte) {
+              const endDate = new Date(filters.date.$lte);
+              endDate.setDate(endDate.getDate() + 1);
+              const endDateTime = endDate.toISOString().split('T')[0] + "T00:00:00";
+              andConditions.push({ date: { $lt: endDateTime } });
+            }
+          } else {
+            const dateStr = filters.date;
+            const startDateTime = dateStr + "T00:00:00";
+            const endDate = new Date(dateStr);
+            endDate.setDate(endDate.getDate() + 1);
+            const endDateTime = endDate.toISOString().split('T')[0] + "T00:00:00";
+            andConditions.push({
+              date: {
+                $gte: startDateTime,
+                $lt: endDateTime
+              }
+            });
+          }
         }
       }
       
@@ -395,32 +414,47 @@ class DataConnector {
       console.log(`MongoDB query for ${category}:`, JSON.stringify(query, null, 2));
       console.log(`MongoDB results: ${data.length} documents found`);
       
-      // Summarize data to reduce token usage
+      // Summarize data to reduce token usage - handle different schemas
       const summarized = data.map(doc => {
-        // Extract only key fields, limit long text fields
         const summary = {
           date: doc.date || doc.inserted_at,
-          title: doc.title || doc.headline || 'No title'
+          title: doc.title || 'No title'
         };
         
-        // Add description/summary but limit length
-        if (doc.description) {
-          summary.description = doc.description.substring(0, 500);
-        } else if (doc.summary) {
-          summary.summary = doc.summary.substring(0, 500);
-        } else if (doc.content) {
-          summary.content = doc.content.substring(0, 500);
-        }
-        
-        // Build source URLs
-        if (category === 'economic' && doc.url) {
+        if (category === 'policy') {
+          // government_policy schema
+          if (doc.url) summary.source = doc.url;
+          if (doc.participants) summary.participants = doc.participants.join(', ');
+          
+          // Extract key quotes from turns (limit to 3 most relevant)
+          if (doc.turns && doc.turns.length > 0) {
+            const relevantTurns = doc.turns
+              .filter(turn => {
+                // Filter for speaker we're looking for (if specified)
+                if (filters.speaker) {
+                  return turn.speaker.toLowerCase().includes(filters.speaker.toLowerCase());
+                }
+                return true;
+              })
+              .slice(0, 3);
+            
+            summary.quotes = relevantTurns.map(turn => 
+              `${turn.speaker}: ${turn.text.substring(0, 300)}...`
+            );
+          }
+        } else {
+          // macro_economics schema
+          if (doc.description) {
+            summary.description = doc.description.substring(0, 500);
+          }
+          if (doc.country) summary.country = doc.country;
+          if (doc.author) summary.author = doc.author;
+          if (doc.category) summary.category = doc.category;
+          
           // Build tradingeconomics.com URL from relative path
-          summary.source = `https://tradingeconomics.com${doc.url}`;
-        } else if (category === 'policy' && doc.url) {
-          // Use full URL from government_policy collection
-          summary.source = doc.url;
-        } else if (doc.source) {
-          summary.source = doc.source;
+          if (doc.url) {
+            summary.source = `https://tradingeconomics.com${doc.url}`;
+          }
         }
         
         return summary;
