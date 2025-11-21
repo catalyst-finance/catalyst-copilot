@@ -3,6 +3,9 @@ const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { createClient } = require('@supabase/supabase-js');
 const OpenAI = require('openai');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -652,17 +655,839 @@ class DataConnector {
   }
 }
 
-// Main AI chat endpoint
-app.post('/chat', async (req, res) => {
+// Helper functions for conversation management
+class ConversationManager {
+  // Estimate token count (rough approximation: 1 token ≈ 4 characters)
+  static estimateTokens(text) {
+    return Math.ceil(text.length / 4);
+  }
+  
+  // Load conversation history with smart pruning to fit token budget
+  static async loadConversationContext(conversationId, maxTokens = 4000) {
+    try {
+      const { data: messages, error } = await supabase
+        .from('messages')
+        .select('role, content, created_at')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(30); // Last 30 messages
+      
+      if (error) throw error;
+      if (!messages || messages.length === 0) return [];
+      
+      // Reverse to chronological order
+      messages.reverse();
+      
+      // Prune to fit token budget (keep most recent)
+      let totalTokens = 0;
+      const prunedMessages = [];
+      
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msgTokens = this.estimateTokens(messages[i].content);
+        if (totalTokens + msgTokens > maxTokens) break;
+        prunedMessages.unshift(messages[i]);
+        totalTokens += msgTokens;
+      }
+      
+      return prunedMessages;
+    } catch (error) {
+      console.error('Error loading conversation context:', error);
+      return [];
+    }
+  }
+  
+  // Generate conversation title from first user message
+  static generateTitle(firstMessage) {
+    const title = firstMessage.substring(0, 50);
+    return firstMessage.length > 50 ? title + '...' : title;
+  }
+}
+
+// Authentication helpers
+class AuthManager {
+  static JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+  static JWT_EXPIRES_IN = '7d';
+  static REFRESH_TOKEN_EXPIRES_IN = '30d';
+  
+  // Hash password
+  static async hashPassword(password) {
+    return bcrypt.hash(password, 10);
+  }
+  
+  // Verify password
+  static async verifyPassword(password, hash) {
+    return bcrypt.compare(password, hash);
+  }
+  
+  // Generate JWT token
+  static generateToken(userId, email) {
+    return jwt.sign(
+      { userId, email },
+      this.JWT_SECRET,
+      { expiresIn: this.JWT_EXPIRES_IN }
+    );
+  }
+  
+  // Generate refresh token
+  static generateRefreshToken() {
+    return crypto.randomBytes(64).toString('hex');
+  }
+  
+  // Verify JWT token
+  static verifyToken(token) {
+    try {
+      return jwt.verify(token, this.JWT_SECRET);
+    } catch (error) {
+      return null;
+    }
+  }
+  
+  // Generate random token for email verification / password reset
+  static generateRandomToken() {
+    return crypto.randomBytes(32).toString('hex');
+  }
+}
+
+// Authentication middleware
+const authenticateToken = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  const decoded = AuthManager.verifyToken(token);
+  if (!decoded) {
+    return res.status(403).json({ error: 'Invalid or expired token' });
+  }
+  
+  // Verify session exists and is not expired
+  const { data: session } = await supabase
+    .from('user_sessions')
+    .select('*')
+    .eq('token', token)
+    .eq('user_id', decoded.userId)
+    .gt('expires_at', new Date().toISOString())
+    .single();
+  
+  if (!session) {
+    return res.status(403).json({ error: 'Session expired or invalid' });
+  }
+  
+  // Update last activity
+  await supabase
+    .from('user_sessions')
+    .update({ last_activity_at: new Date().toISOString() })
+    .eq('id', session.id);
+  
+  req.user = { userId: decoded.userId, email: decoded.email };
+  next();
+};
+
+// Optional authentication (doesn't fail if no token)
+const optionalAuth = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (token) {
+    const decoded = AuthManager.verifyToken(token);
+    if (decoded) {
+      req.user = { userId: decoded.userId, email: decoded.email };
+    }
+  }
+  
+  next();
+};
+
+// ============================================
+// AUTHENTICATION ENDPOINTS
+// ============================================
+
+// Register new user
+app.post('/auth/register', async (req, res) => {
   try {
-    const { message, conversationHistory = [], selectedTickers = [] } = req.body;
+    const { email, password, fullName } = req.body;
+    
+    // Validation
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+    
+    // Check if user exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .single();
+    
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+    
+    // Hash password
+    const passwordHash = await AuthManager.hashPassword(password);
+    
+    // Create user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .insert([{
+        email: email.toLowerCase(),
+        password_hash: passwordHash,
+        full_name: fullName || null
+      }])
+      .select()
+      .single();
+    
+    if (userError) throw userError;
+    
+    // Generate email verification token
+    const verificationToken = AuthManager.generateRandomToken();
+    await supabase
+      .from('email_verification_tokens')
+      .insert([{
+        user_id: user.id,
+        token: verificationToken,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+      }]);
+    
+    // Generate JWT and session
+    const jwtToken = AuthManager.generateToken(user.id, user.email);
+    const refreshToken = AuthManager.generateRefreshToken();
+    
+    await supabase
+      .from('user_sessions')
+      .insert([{
+        user_id: user.id,
+        token: jwtToken,
+        refresh_token: refreshToken,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent'],
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
+      }]);
+    
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        emailVerified: user.email_verified
+      },
+      token: jwtToken,
+      refreshToken,
+      verificationToken // In production, send this via email instead
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
+// Login
+app.post('/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    
+    // Get user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase())
+      .single();
+    
+    if (userError || !user) {
+      // Record failed login attempt
+      await supabase.rpc('record_failed_login', { 
+        p_email: email.toLowerCase(), 
+        p_ip_address: req.ip 
+      });
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    
+    // Check if account is locked
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      return res.status(423).json({ 
+        error: 'Account temporarily locked due to failed login attempts',
+        lockedUntil: user.locked_until
+      });
+    }
+    
+    // Check if account is active
+    if (!user.is_active) {
+      return res.status(403).json({ error: 'Account is deactivated' });
+    }
+    
+    // Verify password
+    const isValidPassword = await AuthManager.verifyPassword(password, user.password_hash);
+    
+    if (!isValidPassword) {
+      // Record failed login attempt
+      await supabase.rpc('record_failed_login', { 
+        p_email: email.toLowerCase(), 
+        p_ip_address: req.ip 
+      });
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    
+    // Record successful login
+    await supabase.rpc('record_user_login', {
+      p_user_id: user.id,
+      p_ip_address: req.ip,
+      p_user_agent: req.headers['user-agent']
+    });
+    
+    // Generate JWT and session
+    const jwtToken = AuthManager.generateToken(user.id, user.email);
+    const refreshToken = AuthManager.generateRefreshToken();
+    
+    await supabase
+      .from('user_sessions')
+      .insert([{
+        user_id: user.id,
+        token: jwtToken,
+        refresh_token: refreshToken,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent'],
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      }]);
+    
+    // Get user profile
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+    
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        avatarUrl: user.avatar_url,
+        emailVerified: user.email_verified,
+        isPremium: user.is_premium,
+        profile: profile || {}
+      },
+      token: jwtToken,
+      refreshToken
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+// Logout
+app.post('/auth/logout', authenticateToken, async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    // Delete session
+    await supabase
+      .from('user_sessions')
+      .delete()
+      .eq('token', token);
+    
+    // Create audit log
+    await supabase
+      .from('audit_logs')
+      .insert([{
+        user_id: req.user.userId,
+        action: 'logout',
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      }]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Failed to logout' });
+  }
+});
+
+// Verify email
+app.post('/auth/verify-email', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Verification token is required' });
+    }
+    
+    // Get token
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('email_verification_tokens')
+      .select('*')
+      .eq('token', token)
+      .gt('expires_at', new Date().toISOString())
+      .single();
+    
+    if (tokenError || !tokenData) {
+      return res.status(400).json({ error: 'Invalid or expired verification token' });
+    }
+    
+    // Update user
+    await supabase
+      .from('users')
+      .update({ 
+        email_verified: true,
+        email_verified_at: new Date().toISOString()
+      })
+      .eq('id', tokenData.user_id);
+    
+    // Delete used token
+    await supabase
+      .from('email_verification_tokens')
+      .delete()
+      .eq('id', tokenData.id);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({ error: 'Failed to verify email' });
+  }
+});
+
+// Request password reset
+app.post('/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Get user (don't reveal if user exists)
+    const { data: user } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .single();
+    
+    if (user) {
+      // Generate reset token
+      const resetToken = AuthManager.generateRandomToken();
+      
+      await supabase
+        .from('password_reset_tokens')
+        .insert([{
+          user_id: user.id,
+          token: resetToken,
+          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour
+        }]);
+      
+      // In production, send this via email
+      console.log('Password reset token:', resetToken);
+    }
+    
+    // Always return success (don't reveal if user exists)
+    res.json({ 
+      success: true,
+      message: 'If the email exists, a password reset link has been sent'
+    });
+  } catch (error) {
+    console.error('Password reset request error:', error);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+// Reset password
+app.post('/auth/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+    
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+    
+    // Get token
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('password_reset_tokens')
+      .select('*')
+      .eq('token', token)
+      .gt('expires_at', new Date().toISOString())
+      .is('used_at', null)
+      .single();
+    
+    if (tokenError || !tokenData) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+    
+    // Hash new password
+    const passwordHash = await AuthManager.hashPassword(newPassword);
+    
+    // Update user password
+    await supabase
+      .from('users')
+      .update({ password_hash: passwordHash })
+      .eq('id', tokenData.user_id);
+    
+    // Mark token as used
+    await supabase
+      .from('password_reset_tokens')
+      .update({ used_at: new Date().toISOString() })
+      .eq('id', tokenData.id);
+    
+    // Invalidate all user sessions
+    await supabase
+      .from('user_sessions')
+      .delete()
+      .eq('user_id', tokenData.user_id);
+    
+    // Create audit log
+    await supabase
+      .from('audit_logs')
+      .insert([{
+        user_id: tokenData.user_id,
+        action: 'password_reset',
+        ip_address: req.ip
+      }]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+// Get current user profile
+app.get('/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const { data: user, error: userError } = await supabase
+      .from('user_details')
+      .select('*')
+      .eq('id', req.user.userId)
+      .single();
+    
+    if (userError) throw userError;
+    
+    res.json({ user });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Failed to get user data' });
+  }
+});
+
+// Update user profile
+app.patch('/auth/profile', authenticateToken, async (req, res) => {
+  try {
+    const { fullName, avatarUrl, notificationPreferences, riskTolerance, investmentGoals, preferredSectors } = req.body;
+    
+    // Update users table if fullName or avatarUrl provided
+    if (fullName !== undefined || avatarUrl !== undefined) {
+      const updates = {};
+      if (fullName !== undefined) updates.full_name = fullName;
+      if (avatarUrl !== undefined) updates.avatar_url = avatarUrl;
+      
+      await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', req.user.userId);
+    }
+    
+    // Update user_profiles table
+    const profileUpdates = {};
+    if (notificationPreferences !== undefined) profileUpdates.notification_preferences = notificationPreferences;
+    if (riskTolerance !== undefined) profileUpdates.risk_tolerance = riskTolerance;
+    if (investmentGoals !== undefined) profileUpdates.investment_goals = investmentGoals;
+    if (preferredSectors !== undefined) profileUpdates.preferred_sectors = preferredSectors;
+    
+    if (Object.keys(profileUpdates).length > 0) {
+      await supabase
+        .from('user_profiles')
+        .update(profileUpdates)
+        .eq('user_id', req.user.userId);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// ============================================
+// USER WATCHLIST ENDPOINTS
+// ============================================
+
+// Get user's watchlists
+app.get('/watchlists', authenticateToken, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_watchlists')
+      .select('*')
+      .eq('user_id', req.user.userId)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    res.json({ watchlists: data || [] });
+  } catch (error) {
+    console.error('Get watchlists error:', error);
+    res.status(500).json({ error: 'Failed to get watchlists' });
+  }
+});
+
+// Create watchlist
+app.post('/watchlists', authenticateToken, async (req, res) => {
+  try {
+    const { name, description, tickers, isDefault } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Watchlist name is required' });
+    }
+    
+    const { data, error } = await supabase
+      .from('user_watchlists')
+      .insert([{
+        user_id: req.user.userId,
+        name,
+        description: description || null,
+        tickers: tickers || [],
+        is_default: isDefault || false
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    res.json({ watchlist: data });
+  } catch (error) {
+    console.error('Create watchlist error:', error);
+    res.status(500).json({ error: 'Failed to create watchlist' });
+  }
+});
+
+// Update watchlist
+app.patch('/watchlists/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, tickers, isDefault } = req.body;
+    
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (tickers !== undefined) updates.tickers = tickers;
+    if (isDefault !== undefined) updates.is_default = isDefault;
+    
+    const { data, error } = await supabase
+      .from('user_watchlists')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', req.user.userId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    res.json({ watchlist: data });
+  } catch (error) {
+    console.error('Update watchlist error:', error);
+    res.status(500).json({ error: 'Failed to update watchlist' });
+  }
+});
+
+// Delete watchlist
+app.delete('/watchlists/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { error } = await supabase
+      .from('user_watchlists')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', req.user.userId);
+    
+    if (error) throw error;
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete watchlist error:', error);
+    res.status(500).json({ error: 'Failed to delete watchlist' });
+  }
+});
+
+// Conversation management endpoints
+
+// Create new conversation
+app.post('/conversations', authenticateToken, async (req, res) => {
+  try {
+    const { metadata = {} } = req.body;
+    
+    const { data, error } = await supabase
+      .from('conversations')
+      .insert([{
+        user_id: req.user.userId, // Get from JWT token
+        metadata: metadata
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    res.json({ conversation: data });
+  } catch (error) {
+    console.error('Error creating conversation:', error);
+    res.status(500).json({ error: 'Failed to create conversation' });
+  }
+});
+
+// Get user's conversations
+app.get('/conversations', authenticateToken, async (req, res) => {
+  try {
+    const { limit = 20, offset = 0 } = req.query;
+    
+    const { data, error } = await supabase
+      .from('conversation_summaries')
+      .select('*')
+      .eq('user_id', req.user.userId) // Get from JWT token
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    
+    if (error) throw error;
+    
+    res.json({ conversations: data || [] });
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
+  }
+});
+
+// Get messages for a conversation
+app.get('/conversations/:id/messages', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50 } = req.query;
+    
+    // Verify user owns this conversation
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('user_id')
+      .eq('id', id)
+      .single();
+    
+    if (!conversation || conversation.user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', id)
+      .order('created_at', { ascending: true })
+      .limit(limit);
+    
+    if (error) throw error;
+    
+    res.json({ messages: data || [] });
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Submit feedback for a message
+app.post('/messages/:id/feedback', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { feedback, reason } = req.body;
+    
+    if (!feedback || !['like', 'dislike'].includes(feedback)) {
+      return res.status(400).json({ error: 'Valid feedback (like/dislike) is required' });
+    }
+    
+    // Verify user owns the conversation this message belongs to
+    const { data: message } = await supabase
+      .from('messages')
+      .select('conversation_id')
+      .eq('id', id)
+      .single();
+    
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+    
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('user_id')
+      .eq('id', message.conversation_id)
+      .single();
+    
+    if (!conversation || conversation.user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const { error } = await supabase
+      .from('messages')
+      .update({ 
+        feedback, 
+        feedback_reason: reason || null 
+      })
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    res.status(500).json({ error: 'Failed to submit feedback' });
+  }
+});
+
+// Main AI chat endpoint
+app.post('/chat', optionalAuth, async (req, res) => {
+  try {
+    const { 
+      message, 
+      conversationId = null, 
+      conversationHistory = [], // Fallback to in-memory history if no conversationId
+      selectedTickers = [] 
+    } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
+    const userId = req.user?.userId || null; // Get from JWT token if authenticated
+
     console.log('Processing message:', message);
+    console.log('User ID:', userId);
+    console.log('Conversation ID:', conversationId);
     console.log('User portfolio:', selectedTickers);
+    
+    // Verify conversation ownership if conversationId provided
+    if (conversationId && userId) {
+      const { data: conversation } = await supabase
+        .from('conversations')
+        .select('user_id')
+        .eq('id', conversationId)
+        .single();
+      
+      if (!conversation || conversation.user_id !== userId) {
+        return res.status(403).json({ error: 'Access denied to this conversation' });
+      }
+    }
+    
+    // Load conversation history from database if conversationId provided
+    let loadedHistory = conversationHistory;
+    if (conversationId) {
+      loadedHistory = await ConversationManager.loadConversationContext(conversationId, 4000);
+      console.log(`Loaded ${loadedHistory.length} messages from conversation ${conversationId}`);
+    }
 
     // STEP 1: AI-POWERED QUERY CLASSIFICATION
     // Use AI to understand user intent instead of complex regex patterns
@@ -1445,7 +2270,7 @@ CRITICAL CONSTRAINTS:
 
 ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${eventCardsContext}`
       },
-      ...conversationHistory || [],
+      ...loadedHistory || [],
       {
         role: "user", 
         content: message
@@ -1463,11 +2288,76 @@ ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dat
     });
 
     const assistantMessage = completion.choices[0].message;
+    
+    // Save messages to database if conversationId provided
+    let finalConversationId = conversationId;
+    let newConversation = null;
+    
+    if (userId) {
+      try {
+        // Create new conversation if needed
+        if (!conversationId) {
+          const { data: conv, error: convError } = await supabase
+            .from('conversations')
+            .insert([{
+              user_id: userId,
+              title: ConversationManager.generateTitle(message),
+              metadata: { selectedTickers }
+            }])
+            .select()
+            .single();
+          
+          if (convError) throw convError;
+          finalConversationId = conv.id;
+          newConversation = conv;
+          console.log('Created new conversation:', finalConversationId);
+        }
+        
+        // Save user message and assistant response
+        const messagesToSave = [
+          {
+            conversation_id: finalConversationId,
+            role: 'user',
+            content: message,
+            token_count: ConversationManager.estimateTokens(message),
+            metadata: { 
+              query_intent: queryIntent,
+              tickers_queried: tickersToQuery,
+              data_sources: queryIntent.dataNeeded
+            }
+          },
+          {
+            conversation_id: finalConversationId,
+            role: 'assistant',
+            content: assistantMessage.content,
+            data_cards: dataCards.length > 0 ? dataCards : null,
+            token_count: completion.usage?.total_tokens || ConversationManager.estimateTokens(assistantMessage.content),
+            metadata: {
+              model: completion.model,
+              finish_reason: completion.choices[0].finish_reason
+            }
+          }
+        ];
+        
+        const { error: msgError } = await supabase
+          .from('messages')
+          .insert(messagesToSave);
+        
+        if (msgError) throw msgError;
+        console.log('Saved messages to conversation:', finalConversationId);
+        
+      } catch (error) {
+        console.error('Error saving conversation:', error);
+        // Don't fail the request if saving fails - user still gets response
+      }
+    }
 
     res.json({
       response: assistantMessage.content,
       dataCards,
       eventData,
+      conversationId: finalConversationId,
+      newConversation: newConversation,
       timestamp: new Date().toISOString()
     });
 
