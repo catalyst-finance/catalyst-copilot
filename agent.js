@@ -156,7 +156,6 @@ class DataConnector {
       return {
         success: true,
         data: data || [],
-        source: 'supabase',
         type: dataType
       };
     } catch (error) {
@@ -164,7 +163,6 @@ class DataConnector {
       return {
         success: false,
         error: error.message,
-        source: 'supabase',
         type: dataType
       };
     }
@@ -246,7 +244,6 @@ class DataConnector {
       return {
         success: true,
         data: data || [],
-        source: 'supabase',
         type: 'events'
       };
     } catch (error) {
@@ -254,7 +251,6 @@ class DataConnector {
       return {
         success: false,
         error: error.message,
-        source: 'supabase',
         type: 'events'
       };
     }
@@ -277,7 +273,6 @@ class DataConnector {
           success: true,
           data: [],
           message: 'No institutional data available',
-          source: 'mongodb',
           type: 'institutional'
         };
       }
@@ -319,7 +314,6 @@ class DataConnector {
       return {
         success: true,
         data: [summary],
-        source: 'mongodb',
         type: 'institutional'
       };
     } catch (error) {
@@ -327,7 +321,6 @@ class DataConnector {
       return {
         success: false,
         error: error.message,
-        source: 'mongodb',
         type: 'institutional'
       };
     }
@@ -386,7 +379,6 @@ class DataConnector {
       return {
         success: true,
         data: volumeData,
-        source: 'supabase',
         type: 'volume'
       };
     } catch (error) {
@@ -394,7 +386,6 @@ class DataConnector {
       return {
         success: false,
         error: error.message,
-        source: 'supabase',
         type: 'volume'
       };
     }
@@ -640,7 +631,6 @@ class DataConnector {
         success: true,
         data: summarized,
         count: summarized.length,
-        source: 'mongodb',
         type: `macro_${category}`
       };
     } catch (error) {
@@ -648,7 +638,6 @@ class DataConnector {
       return {
         success: false,
         error: error.message,
-        source: 'mongodb',
         type: `macro_${category}`
       };
     }
@@ -2084,19 +2073,17 @@ Top Holders:`;
               
               if (volumeResult.success && volumeResult.data.totalVolume > 0) {
                 dataContext += `\n- Trading Volume (Real-time Intraday): ${volumeResult.data.totalVolume.toLocaleString()} shares`;
-                dataContext += `\n- Volume Data Points: ${volumeResult.data.dataPoints || 0} tick-by-tick records from intraday_prices table`;
-                dataContext += `\n- Volume Source: Aggregated from intraday_prices (most granular, tick-by-tick data)`;
+                dataContext += `\n- Volume Data Points: ${volumeResult.data.dataPoints || 0} tick-by-tick records`;
               } else {
                 // Fallback to daily volume if intraday not available
-                dataContext += `\n- Trading Volume (Daily Snapshot): ${quote.volume ? quote.volume.toLocaleString() + ' shares' : 'N/A'}`;
-                dataContext += `\n- Volume Source: finnhub_quote_snapshots (end-of-day summary)`;
+                dataContext += `\n- Trading Volume (Daily): ${quote.volume ? quote.volume.toLocaleString() + ' shares' : 'N/A'}`;
               }
             } else {
               // Regular price query - just show daily volume
               dataContext += `\n- Trading Volume: ${quote.volume ? quote.volume.toLocaleString() + ' shares' : 'N/A'}`;
             }
             
-            dataContext += `\n- Intraday Chart: Available in Supabase table 'intraday_prices' for date ${dateStr}
+            dataContext += `\n- Intraday Chart: Available for date ${dateStr}
 
 **IMPORTANT: Use this exact price data in your response. Do not use any other price information.**`;
           } else {
