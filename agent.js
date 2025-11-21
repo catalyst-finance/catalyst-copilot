@@ -1120,36 +1120,26 @@ Top Holders:`;
               console.error(`Error fetching company name for ${ticker}:`, error);
             }
             
-            // Check if intraday data exists and format it for the frontend
-            const intradayResult = await DataConnector.getStockData(ticker, 'intraday');
-            const hasIntradayData = intradayResult.success && intradayResult.data.length > 0;
-            const intradayCount = intradayResult.data?.length || 0;
+            // Instead of fetching all intraday data, just provide metadata for frontend to query
+            // Frontend will use /intraday/:symbol endpoint to fetch actual data
+            const targetDate = new Date();
+            const etOffset = -5 * 60; // Eastern Time offset in minutes
+            const etDate = new Date(targetDate.getTime() + (etOffset + targetDate.getTimezoneOffset()) * 60000);
+            const dateStr = etDate.toISOString().split('T')[0];
             
-            console.log(`Intraday query for ${ticker}: ${hasIntradayData ? 'SUCCESS' : 'FAILED'}`);
-            console.log(`Intraday data points for ${ticker}: ${intradayCount}`);
-            if (intradayCount > 0) {
-              console.log(`First data point:`, JSON.stringify(intradayResult.data[0]));
-              console.log(`Last data point:`, JSON.stringify(intradayResult.data[intradayCount - 1]));
-            }
+            console.log(`Preparing chart reference for ${ticker} on ${dateStr}`);
             
-            console.log(`Pushing stock card for ${ticker} with${hasIntradayData ? '' : 'out'} intraday chart`);
-            
-            // Format intraday data for frontend chart rendering
-            let chartData = null;
-            if (hasIntradayData) {
-              chartData = intradayResult.data.map(point => {
-                // Keep timestamp_et in original format: "2025-11-20 19:05:43.543+00"
-                return {
-                  timestamp_et: point.timestamp_et,
-                  price: point.price,  // intraday_prices uses 'price' field
-                  volume: point.volume || 0
-                };
-              });
-              
-              console.log(`Chart data prepared: ${chartData.length} points`);
-              console.log(`First chart point timestamp_et: ${chartData[0].timestamp_et}`);
-              console.log(`Last chart point timestamp_et: ${chartData[chartData.length - 1].timestamp_et}`);
-            }
+            // Return chart reference instead of full data array
+            const chartReference = {
+              table: 'intraday_prices',
+              symbol: ticker,
+              dateRange: {
+                start: `${dateStr}T00:00:00`,
+                end: `${dateStr}T23:59:59`
+              },
+              columns: ['timestamp_et', 'price', 'volume'],
+              orderBy: 'timestamp_et.asc'
+            };
             
             dataCards.push({
               type: "stock",
@@ -1159,8 +1149,8 @@ Top Holders:`;
                 price: quote.close,
                 change: quote.change,
                 changePercent: quote.change_percent,
-                // Send actual chart data instead of metadata
-                chartData: chartData,
+                // Send Supabase table reference for frontend to query
+                chartReference: chartReference,
                 // Include opening price for context
                 open: quote.open,
                 high: quote.high,
@@ -1176,7 +1166,7 @@ Top Holders:`;
 - Day High: $${quote.high?.toFixed(2) || 'N/A'}
 - Day Low: $${quote.low?.toFixed(2) || 'N/A'}
 - Previous Close: $${quote.previous_close?.toFixed(2) || 'N/A'}
-- Intraday Chart: ${hasIntradayData ? `${intradayCount} price points available` : 'No intraday data available'}
+- Intraday Chart: Available in Supabase table 'intraday_prices' for date ${dateStr}
 
 **IMPORTANT: Use this exact price data in your response. Do not use any other price information.**`;
           } else {
@@ -1208,17 +1198,87 @@ ROLE & EXPERTISE:
 DATA SOURCES AT YOUR DISPOSAL:
 
 1. SUPABASE (Real-time Market Data):
-   • Stock Quotes: Current prices, daily OHLC, volume (finnhub_quote_snapshots)
-   • Intraday Trading: Tick-by-tick price data for detailed chart analysis (intraday_prices)
-   • Historical Prices: Daily bars for trend analysis (daily_prices)
-   • Market Events: Earnings, FDA decisions, product launches, legal actions, regulatory filings (event_data)
-   • Company Fundamentals: Names, sectors, descriptions (company_information)
+
+   A. COMPANY INFORMATION (company_information)
+      • symbol, name, description, logo, weburl
+      • city, state, country, currency, exchange
+      • gsector, gind, gsubind, finnhubIndustry
+      • marketCapitalization, shareOutstanding, employeeTotal
+      • ipo, ipo_et, ingested_at, ingested_at_et
+   
+   B. CURRENT STOCK QUOTES (finnhub_quote_snapshots)
+      • symbol, timestamp, timestamp_et, market_date
+      • close, change, change_percent, open, high, low
+      • previous_close, volume
+      • source, ingested_at
+   
+   C. INTRADAY PRICES (intraday_prices) - Tick-by-tick data
+      • symbol, timestamp, timestamp_et
+      • price, volume
+      • source, ingested_at
+      • USE: Detailed intraday chart rendering, minute-by-minute price action
+   
+   D. ONE MINUTE BARS (one_minute_prices)
+      • symbol, timestamp, timestamp_et
+      • open, high, low, close, volume
+      • source, created_at
+   
+   E. FIVE MINUTE BARS (five_minute_prices)
+      • symbol, timestamp, timestamp_et
+      • open, high, low, close, volume
+      • source, created_at
+   
+   F. HOURLY BARS (hourly_prices)
+      • symbol, timestamp, timestamp_et
+      • open, high, low, close, volume
+      • source, created_at
+   
+   G. DAILY PRICES (daily_prices)
+      • symbol, date, date_et
+      • open, high, low, close, volume
+      • source, created_at, updated_at
+      • USE: Historical trend analysis, multi-day/week/month charts
+   
+   H. MARKET EVENTS (event_data)
+      • PrimaryID, type, title, company, ticker, sector
+      • actualDateTime, actualDateTime_et, time
+      • impactRating, confidence, aiInsight
+      • created_on, created_on_et, updated_on, updated_on_et
+      • EVENT TYPES: earnings, fda, product, merger, legal, regulatory, investor_day, partnership, etc.
+   
+   I. CURRENT QUOTES VIEW (stock_quote_now) - Single latest quote per symbol
+      • symbol, timestamp, timestamp_et
+      • close, volume
+      • source, ingested_at
+   
+   J. WATCHLIST (watchlist)
+      • symbol, is_active
 
 2. MONGODB (Historical Context):
-   • Institutional Ownership: Quarterly 13F filings showing smart money flows
-   • Government Policy: White House briefings, Fed transcripts, Congressional hearings
-   • Macro Economics: GDP, inflation, unemployment, trade data by country
-   • Market News: Global sentiment, sector trends, country-specific developments
+   
+   A. INSTITUTIONAL OWNERSHIP (institutional_ownership collection)
+      • ticker, date
+      • institutional_ownership.value (percentage)
+      • institutional_ownership.total_institutional_shares (shares, holders)
+      • institutional_ownership.increased_positions (shares, holders)
+      • institutional_ownership.decreased_positions (shares, holders)
+      • institutional_ownership.held_positions (shares, holders)
+      • institutional_holdings.holders[] (owner, shares, marketValue, percent)
+      • USE: Smart money flow analysis, position changes, top holder identification
+   
+   B. GOVERNMENT POLICY (government_policy collection)
+      • date, url, title
+      • participants[] (array of speaker names)
+      • turns[] (speaker, text)
+      • inserted_at
+      • USE: Policy transcript search, speaker quotes, administration priorities
+   
+   C. MACRO ECONOMICS (macro_economics collection)
+      • date, title, description, url
+      • author, country, category
+      • importance (1-3 scale)
+      • inserted_at
+      • USE: Economic indicator analysis, country-specific trends, market sentiment
 
 ANALYSIS FRAMEWORK:
 When analyzing a stock, always consider these four pillars:
@@ -1256,7 +1316,7 @@ DATA INTERPRETATION RULES:
 • Policy Impact: Connect government decisions to specific stocks/sectors affected
 
 CRITICAL CONSTRAINTS:
-1. ONLY use data provided below - NEVER use training knowledge for facts/numbers
+1. ONLY use data provided in Supabase and MongoDB - NEVER use training knowledge for facts/numbers
 2. If no data exists, explicitly state: "I don't have that information in the database"
 3. Never use placeholder text like "$XYZ" or "X%" - always use real numbers from data
 4. When source URLs are provided, include them as clickable references
