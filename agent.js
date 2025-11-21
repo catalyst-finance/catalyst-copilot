@@ -390,21 +390,23 @@ class DataConnector {
         }
         
         if (filters.textSearch) {
-          // Split multi-word searches and search for each word separately
-          // This allows "south korea" to match documents containing both words
+          // Split multi-word searches into individual terms
           const searchTerms = filters.textSearch.toLowerCase().split(/\s+/).filter(term => 
             term.length > 2 && !['the', 'and', 'for', 'with', 'from', 'about'].includes(term)
           );
           
           if (searchTerms.length > 0) {
-            // Create regex pattern that matches all terms (can be in any order)
-            const searchPattern = searchTerms.map(term => `(?=.*${term})`).join('');
-            andConditions.push({
+            // For each term, create an $or condition across title and turns.text
+            // Then combine all terms with $and to require ALL terms to be present
+            const termConditions = searchTerms.map(term => ({
               $or: [
-                { title: { $regex: searchPattern, $options: 'si' } },
-                { 'turns.text': { $regex: searchPattern, $options: 'si' } }
+                { title: { $regex: term, $options: 'i' } },
+                { 'turns.text': { $regex: term, $options: 'i' } }
               ]
-            });
+            }));
+            
+            // Add all term conditions to the main AND array
+            andConditions.push(...termConditions);
           }
         }
       } else {
@@ -413,23 +415,26 @@ class DataConnector {
         
         // For macro_economics: search in title, description, country, author, category
         if (filters.textSearch) {
-          // Split multi-word searches and search for each word separately
+          // Split multi-word searches into individual terms
           const searchTerms = filters.textSearch.toLowerCase().split(/\s+/).filter(term => 
             term.length > 2 && !['the', 'and', 'for', 'with', 'from', 'about'].includes(term)
           );
           
           if (searchTerms.length > 0) {
-            // Create regex pattern that matches all terms (can be in any order)
-            const searchPattern = searchTerms.map(term => `(?=.*${term})`).join('');
-            andConditions.push({
+            // For each term, create an $or condition across all searchable fields
+            // Then combine all terms with $and to require ALL terms to be present
+            const termConditions = searchTerms.map(term => ({
               $or: [
-                { title: { $regex: searchPattern, $options: 'si' } },
-                { description: { $regex: searchPattern, $options: 'si' } },
-                { country: { $regex: searchPattern, $options: 'si' } },
-                { author: { $regex: searchPattern, $options: 'si' } },
-                { category: { $regex: searchPattern, $options: 'si' } }
+                { title: { $regex: term, $options: 'i' } },
+                { description: { $regex: term, $options: 'i' } },
+                { country: { $regex: term, $options: 'i' } },
+                { author: { $regex: term, $options: 'i' } },
+                { category: { $regex: term, $options: 'i' } }
               ]
-            });
+            }));
+            
+            // Add all term conditions to the main AND array
+            andConditions.push(...termConditions);
           }
         }
       }
