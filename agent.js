@@ -619,7 +619,7 @@ Return ONLY the JSON object, no explanation.`;
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: classificationPrompt }],
         temperature: 0.1,  // Low temperature for consistent classification
-        max_tokens: 300
+        max_tokens: 5000
       });
       
       const classificationText = classificationResponse.choices[0].message.content.trim();
@@ -1262,7 +1262,7 @@ ${contextMessage}${dataContext ? '\n\nDATA PROVIDED:\n' + dataContext : '\n\nNO 
       model: "gpt-4o-mini", // Cheaper and faster
       messages,
       temperature: 0.7,
-      max_tokens: 1000 // Strict 1000 token budget for response
+      max_tokens: 5000 // Increased token budget for detailed responses
     });
 
     const assistantMessage = completion.choices[0].message;
