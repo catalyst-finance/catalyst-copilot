@@ -2008,14 +2008,48 @@ Top Holders:`;
           // Detect if user is specifically asking about volume
           const isVolumeQuery = /volume|traded|trading.*shares|shares.*traded/i.test(message);
           
-          // Fetch current price
+          // STEP 1: Determine which price table to use based on time range
+          let priceTable = 'intraday_prices'; // Default for today
+          let chartTimeframe = 'intraday';
+          
+          if (queryIntent.dateRange) {
+            const startDate = new Date(queryIntent.dateRange.start);
+            const endDate = new Date(queryIntent.dateRange.end);
+            const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+            
+            console.log(`Date range detected: ${daysDiff} days (${queryIntent.dateRange.start} to ${queryIntent.dateRange.end})`);
+            
+            // Smart table selection based on time range:
+            // 1 day: intraday_prices (tick data)
+            // 2-7 days: one_minute_prices (1-min bars)
+            // 8-30 days: hourly_prices (hourly bars)
+            // 30+ days: daily_prices (daily bars)
+            
+            if (daysDiff <= 1) {
+              priceTable = 'intraday_prices';
+              chartTimeframe = 'intraday';
+            } else if (daysDiff <= 7) {
+              priceTable = 'one_minute_prices';
+              chartTimeframe = '1week';
+            } else if (daysDiff <= 30) {
+              priceTable = 'hourly_prices';
+              chartTimeframe = '1month';
+            } else {
+              priceTable = 'daily_prices';
+              chartTimeframe = 'daily';
+            }
+            
+            console.log(`Selected price table: ${priceTable} (timeframe: ${chartTimeframe})`);
+          }
+          
+          // STEP 2: Fetch current price
           console.log(`Fetching quote for ${ticker}`);
           const stockResult = await DataConnector.getStockData(ticker, 'current');
           
           if (stockResult.success && stockResult.data.length > 0) {
             const quote = stockResult.data[0];
             
-            // Fetch company name
+            // STEP 3: Fetch company name
             let companyName = ticker;
             try {
               const { data, error } = await supabase
@@ -2032,27 +2066,102 @@ Top Holders:`;
               console.error(`Error fetching company name for ${ticker}:`, error);
             }
             
-            // Instead of fetching all intraday data, just provide metadata for frontend to query
-            // Frontend will use /intraday/:symbol endpoint to fetch actual data
-            const targetDate = new Date();
-            const etOffset = -5 * 60; // Eastern Time offset in minutes
-            const etDate = new Date(targetDate.getTime() + (etOffset + targetDate.getTimezoneOffset()) * 60000);
-            const dateStr = etDate.toISOString().split('T')[0];
+            // STEP 4: Fetch price history from appropriate table
+            let priceHistory = [];
+            let chartReference = null;
             
-            console.log(`Preparing chart reference for ${ticker} on ${dateStr}`);
+            if (priceTable === 'daily_prices') {
+              // Use daily_prices for long-term charts (month or longer)
+              const startDate = queryIntent.dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+              const endDate = queryIntent.dateRange?.end || new Date().toISOString().split('T')[0];
+              
+              console.log(`Fetching daily prices for ${ticker} from ${startDate} to ${endDate}`);
+              
+              const { data: dailyData, error: dailyError } = await supabase
+                .from('daily_prices')
+                .select('date, open, high, low, close, volume')
+                .eq('symbol', ticker)
+                .gte('date', startDate)
+                .lte('date', endDate)
+                .order('date', { ascending: true });
+              
+              if (dailyError) {
+                console.error('Error fetching daily prices:', dailyError);
+              } else if (dailyData && dailyData.length > 0) {
+                priceHistory = dailyData.map(row => ({
+                  timestamp: row.date,
+                  open: row.open,
+                  high: row.high,
+                  low: row.low,
+                  close: row.close,
+                  volume: row.volume
+                }));
+                console.log(`Fetched ${priceHistory.length} daily price bars for ${ticker}`);
+              }
+            } else if (priceTable === 'hourly_prices') {
+              // Use hourly_prices for 1-4 week charts
+              const startTime = queryIntent.dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+              const endTime = queryIntent.dateRange?.end || new Date().toISOString();
+              
+              console.log(`Fetching hourly prices for ${ticker} from ${startTime} to ${endTime}`);
+              
+              const { data: hourlyData, error: hourlyError } = await supabase
+                .from('hourly_prices')
+                .select('timestamp, open, high, low, close, volume')
+                .eq('symbol', ticker)
+                .gte('timestamp', startTime)
+                .lte('timestamp', endTime)
+                .order('timestamp', { ascending: true });
+              
+              if (hourlyError) {
+                console.error('Error fetching hourly prices:', hourlyError);
+              } else if (hourlyData && hourlyData.length > 0) {
+                priceHistory = hourlyData;
+                console.log(`Fetched ${priceHistory.length} hourly price bars for ${ticker}`);
+              }
+            } else if (priceTable === 'one_minute_prices') {
+              // Use one_minute_prices for week-long charts
+              const startTime = queryIntent.dateRange?.start || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+              const endTime = queryIntent.dateRange?.end || new Date().toISOString();
+              
+              console.log(`Fetching 1-minute prices for ${ticker} from ${startTime} to ${endTime}`);
+              
+              const { data: minuteData, error: minuteError } = await supabase
+                .from('one_minute_prices')
+                .select('timestamp, open, high, low, close, volume')
+                .eq('symbol', ticker)
+                .gte('timestamp', startTime)
+                .lte('timestamp', endTime)
+                .order('timestamp', { ascending: true });
+              
+              if (minuteError) {
+                console.error('Error fetching 1-minute prices:', minuteError);
+              } else if (minuteData && minuteData.length > 0) {
+                priceHistory = minuteData;
+                console.log(`Fetched ${priceHistory.length} 1-minute price bars for ${ticker}`);
+              }
+            } else {
+              // Use intraday_prices for today's chart - provide reference for frontend
+              const targetDate = new Date();
+              const etOffset = -5 * 60; // Eastern Time offset in minutes
+              const etDate = new Date(targetDate.getTime() + (etOffset + targetDate.getTimezoneOffset()) * 60000);
+              const dateStr = etDate.toISOString().split('T')[0];
+              
+              console.log(`Preparing intraday chart reference for ${ticker} on ${dateStr}`);
+              
+              chartReference = {
+                table: 'intraday_prices',
+                symbol: ticker,
+                dateRange: {
+                  start: `${dateStr}T00:00:00`,
+                  end: `${dateStr}T23:59:59`
+                },
+                columns: ['timestamp_et', 'price', 'volume'],
+                orderBy: 'timestamp_et.asc'
+              };
+            }
             
-            // Return chart reference instead of full data array
-            const chartReference = {
-              table: 'intraday_prices',
-              symbol: ticker,
-              dateRange: {
-                start: `${dateStr}T00:00:00`,
-                end: `${dateStr}T23:59:59`
-              },
-              columns: ['timestamp_et', 'price', 'volume'],
-              orderBy: 'timestamp_et.asc'
-            };
-            
+            // STEP 5: Build data card
             dataCards.push({
               type: "stock",
               data: {
@@ -2061,14 +2170,16 @@ Top Holders:`;
                 price: quote.close,
                 change: quote.change,
                 changePercent: quote.change_percent,
-                // Send Supabase table reference for frontend to query
-                chartReference: chartReference,
-                // Include opening price for context
                 open: quote.open,
                 high: quote.high,
                 low: quote.low,
                 previousClose: quote.previous_close,
-                volume: quote.volume
+                volume: quote.volume,
+                // Include either chartReference (for intraday) or priceHistory (for historical)
+                chartReference: chartReference,
+                chartData: priceHistory.length > 0 ? priceHistory : null,
+                chartTimeframe: chartTimeframe,
+                priceTable: priceTable
               }
             });
             
@@ -2079,6 +2190,14 @@ Top Holders:`;
 - Day High: $${quote.high?.toFixed(2) || 'N/A'}
 - Day Low: $${quote.low?.toFixed(2) || 'N/A'}
 - Previous Close: $${quote.previous_close?.toFixed(2) || 'N/A'}`;
+            
+            if (priceHistory.length > 0) {
+              const oldestPrice = priceHistory[0].close;
+              const newestPrice = priceHistory[priceHistory.length - 1].close;
+              const periodChange = ((newestPrice - oldestPrice) / oldestPrice * 100).toFixed(2);
+              dataContext += `\n- Chart Period: ${priceHistory.length} data points from ${priceTable}`;
+              dataContext += `\n- Period Performance: ${periodChange >= 0 ? '+' : ''}${periodChange}%`;
+            }
             
             // If user is asking about volume, fetch detailed volume data
             if (isVolumeQuery) {
@@ -2097,9 +2216,9 @@ Top Holders:`;
               dataContext += `\n- Trading Volume: ${quote.volume ? quote.volume.toLocaleString() + ' shares' : 'N/A'}`;
             }
             
-            dataContext += `\n- Intraday Chart: Available for date ${dateStr}
-
-**IMPORTANT: Use this exact price data in your response. Do not use any other price information.**`;
+            dataContext += `\n\n**IMPORTANT: Use this exact price data in your response. Do not use any other price information.**`;
+            
+            console.log(`Generated stock card for ${ticker} using ${priceTable} (${priceHistory.length} data points)`);
           } else {
             console.log(`No quote data found for ${ticker}`);
           }
