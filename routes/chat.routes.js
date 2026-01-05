@@ -309,12 +309,61 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
             try {
               const secResult = await DataConnector.getSecFilings(ticker, formTypes, dateRange, needsDeepAnalysis ? 50 : 10);
               if (secResult.success && secResult.data.length > 0) {
-                // Process SEC filings...
-                dataContext += `\n\n${ticker} SEC Filings (${secResult.data.length} found):\n`;
-                secResult.data.slice(0, 5).forEach((filing, i) => {
-                  const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
-                  dataContext += `${i + 1}. ${filing.form_type} (${date}): ${filing.url}\n`;
-                });
+                const substantiveTypes = ['10-K', '10-Q', '8-K', 'S-1', '10-K/A', '10-Q/A', '8-K/A', 'DEF 14A', '424B'];
+                const substantiveFilings = secResult.data.filter(f => substantiveTypes.some(t => f.form_type?.includes(t)));
+                
+                dataContext += `\n\n${ticker} SEC Filings Analysis:\n`;
+                
+                if (needsDeepAnalysis && substantiveFilings.length > 0) {
+                  const filingsToAnalyze = substantiveFilings.slice(0, 3);
+                  
+                  for (let i = 0; i < filingsToAnalyze.length; i++) {
+                    const filing = filingsToAnalyze[i];
+                    const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+                    
+                    dataContext += `${i + 1}. ${filing.form_type} filed on ${date}\n`;
+                    dataContext += `   URL: ${filing.url}\n`;
+                    
+                    if (filing.url) {
+                      sendThinking('retrieving', `Fetching ${filing.form_type} filing content from SEC.gov...`);
+                      const contentResult = await DataConnector.fetchSecFilingContent(
+                        filing.url, 
+                        uniqueKeywords, 
+                        25000
+                      );
+                      
+                      if (contentResult.success && contentResult.content) {
+                        dataContext += `\n   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
+                        
+                        if (contentResult.images && contentResult.images.length > 0) {
+                          sendThinking('retrieving', `Extracting images and charts from ${filing.form_type}...`);
+                          
+                          contentResult.images.slice(0, 5).forEach((img, idx) => {
+                            dataCards.push({
+                              type: 'image',
+                              data: {
+                                id: `sec-image-${ticker}-${filing.accession_number || i}-${idx}`,
+                                ticker: ticker,
+                                source: 'sec_filing',
+                                title: img.alt || 'Chart/Diagram from SEC Filing',
+                                imageUrl: img.url,
+                                context: img.context || null,
+                                filingType: filing.form_type,
+                                filingDate: date,
+                                filingUrl: filing.url
+                              }
+                            });
+                          });
+                        }
+                      }
+                    }
+                  }
+                } else {
+                  secResult.data.slice(0, 5).forEach((filing, i) => {
+                    const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+                    dataContext += `${i + 1}. ${filing.form_type} (${date}): ${filing.url}\n`;
+                  });
+                }
               }
             } catch (error) {
               console.error(`Error fetching SEC filings for ${ticker}:`, error);
@@ -1215,11 +1264,13 @@ RESPONSE GUIDELINES:
 
 **CITATION FORMAT** (CRITICAL - ALWAYS CITE SOURCES):
 • After EVERY factual claim, add inline citations using this EXACT format: \`[Source Name]\`
-• Place citations immediately after the sentence or claim they support
+• Place citations immediately after the sentence or claim they support - INLINE, not at the end
+• DO NOT create a "Sources:" section at the bottom - all citations must be inline within the text
 • Use specific source names from the data provided (e.g., "Mind Medicine 10-Q", "MNMD 8-K", "SEC Filing", "Institutional Data")
 • For SEC filings: Use format \`[TICKER Form Type - Date]\` (e.g., \`[MNMD 10-Q - Nov 6, 2025]\`)
 • Multiple claims from same source need only one citation at the end of that paragraph
 • Example: "The company reported $15M in cash reserves and three Phase 3 trials underway \`[MNMD 10-Q - Nov 6, 2025]\`. Their pipeline focuses on GAD treatment with MM120 ODT \`[MNMD 8-K - Oct 31, 2025]\`."
+• NEVER use numbered citations like [1], [2], [3] - always use descriptive inline badges
 
 INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 
