@@ -654,7 +654,7 @@ class DataConnector {
       
       // Fetch the HTML/XML content
       const response = await axios.get(url, {
-        timeout: 10000, // 10 second timeout
+        timeout: 15000, // 15 second timeout
         headers: {
           'User-Agent': 'Catalyst Copilot Financial Analysis Tool contact@catalyst.finance'
         }
@@ -664,6 +664,35 @@ class DataConnector {
       
       // Parse HTML and extract text content
       const $ = cheerio.load(html);
+      
+      // Extract image URLs from the filing (charts, tables, diagrams)
+      const imageUrls = [];
+      const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
+      
+      $('img').each((i, el) => {
+        let src = $(el).attr('src');
+        if (src) {
+          // Convert relative URLs to absolute
+          if (!src.startsWith('http')) {
+            src = baseUrl + src;
+          }
+          // Filter out tiny images (likely icons) and keep substantive ones
+          const alt = $(el).attr('alt') || '';
+          const width = parseInt($(el).attr('width')) || 0;
+          const height = parseInt($(el).attr('height')) || 0;
+          
+          // Keep images that are likely charts/tables (larger images or with meaningful alt text)
+          if (width > 200 || height > 100 || alt.length > 5 || src.includes('img')) {
+            imageUrls.push({
+              url: src,
+              alt: alt,
+              context: $(el).parent().text().substring(0, 100).trim()
+            });
+          }
+        }
+      });
+      
+      console.log(`Found ${imageUrls.length} images in SEC filing`);
       
       // Remove script and style tags
       $('script, style, noscript').remove();
@@ -721,14 +750,16 @@ class DataConnector {
         success: true,
         content: relevantContent,
         contentLength: relevantContent.length,
-        keywordMatches: keywords.length > 0
+        keywordMatches: keywords.length > 0,
+        images: imageUrls // Return extracted image URLs
       };
     } catch (error) {
       console.error(`Error fetching SEC filing content from ${url}:`, error.message);
       return {
         success: false,
         error: error.message,
-        content: null
+        content: null,
+        images: []
       };
     }
   }
@@ -1789,25 +1820,20 @@ Top Holders:`;
       
       if (needsDeepAnalysis) {
         try {
-          const keywordPrompt = `Extract and expand key search terms from this user query for searching SEC filings of a pharmaceutical/biotech company.
+          const keywordPrompt = `You are an expert research analyst. Extract and intelligently expand search terms from this query to find relevant content in SEC filings.
 
 User query: "${message}"
 
-Instructions:
-1. Identify the main concepts and entities mentioned
-2. Expand acronyms to their full forms:
-   - "FDA" → include "FDA", "Food and Drug Administration"
-   - "LSD" → include "LSD", "lysergic acid diethylamide", "lysergide", "lysergic acid"
-   - "MDMA" → include "MDMA", "methylenedioxymethamphetamine", "3,4-methylenedioxymethamphetamine"
-3. For drug companies, include common product code patterns (MM120, MM402, etc.)
-4. Include phase-related terms: "Phase 1", "Phase 2", "Phase 3", "clinical trial", "pivotal trial", "registration"
-5. Include regulatory terms: "NDA", "IND", "breakthrough therapy", "fast track", "approval"
-6. Add relevant synonyms ("trial" → "study", "investigation"; "roadmap" → "pipeline", "development plan")
-7. For pipeline queries, include: "product candidate", "indication", "preclinical", "development"
-8. Return a flat array of search terms
+Your task:
+1. Identify key concepts, entities, and topics in the query
+2. Use your knowledge to expand any acronyms, abbreviations, or technical terms to their full forms
+3. Add synonyms and related terms that might appear in formal SEC documents
+4. Think about what language a company would use in their 10-K/10-Q filings to discuss these topics
+5. Include both casual terms the user used AND formal/technical equivalents
 
-Return ONLY a JSON array of strings like: ["term1", "term2", "term3"]
-Maximum 25 terms. No explanation.`;
+Be intelligent and use your domain knowledge - if the query mentions pharmaceuticals, biotech, finance, technology, etc., expand terms appropriately for that industry.
+
+Return ONLY a JSON array of 15-25 search strings. No explanation.`;
 
           const keywordResponse = await openai.chat.completions.create({
             model: "gpt-4o-mini",
@@ -1885,7 +1911,19 @@ Maximum 25 terms. No explanation.`;
                   );
                   
                   if (contentResult.success && contentResult.content) {
-                    dataContext += `\n   === ${filing.form_type} FILING CONTENT ${contentResult.keywordMatches ? '(Keyword-Focused)' : ''} ===\n${contentResult.content}\n   === END ${filing.form_type} CONTENT ===\n\n`;
+                    dataContext += `\n   === ${filing.form_type} FILING CONTENT ${contentResult.keywordMatches ? '(Keyword-Focused)' : ''} ===\n${contentResult.content}\n   === END ${filing.form_type} CONTENT ===\n`;
+                    
+                    // Include image references if found (charts, tables, pipeline diagrams)
+                    if (contentResult.images && contentResult.images.length > 0) {
+                      dataContext += `\n   === IMAGES/CHARTS IN THIS FILING ===\n`;
+                      contentResult.images.slice(0, 5).forEach((img, idx) => {
+                        dataContext += `   ${idx + 1}. ${img.alt || 'Chart/Diagram'}: ${img.url}\n`;
+                        if (img.context) {
+                          dataContext += `      Context: ${img.context}...\n`;
+                        }
+                      });
+                      dataContext += `   === END IMAGES ===\n\n`;
+                    }
                   } else {
                     dataContext += `   (Unable to fetch filing content: ${contentResult.error})\n\n`;
                   }
