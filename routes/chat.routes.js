@@ -191,7 +191,7 @@ Return ONLY the JSON object, no explanation.`;
       ? tickersToQuery.join(', ')
       : 'market-wide data';
     
-    sendThinking('retrieving', `Gathering ${friendlyDataSources} for ${tickerList}...`);
+    // Note: Removed generic "Gathering..." message - using specific messages per data source now
     
     // FETCH INSTITUTIONAL DATA
     if (queryIntent.dataNeeded.includes('institutional') && tickersToQuery.length > 0) {
@@ -229,6 +229,7 @@ Top Holders:`;
       let uniqueKeywords = [];
       
       if (needsDeepAnalysis) {
+        sendThinking('retrieving', `Expanding search keywords with AI...`);
         try {
           const keywordPrompt = `You are an expert research analyst. Extract and intelligently expand search terms from this query to find relevant content in SEC filings.
 
@@ -262,6 +263,8 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
           .filter(word => word.length > 3 && /^[A-Za-z]+$/.test(word))
           .slice(0, 5);
       }
+      
+      sendThinking('retrieving', `Querying SEC database for ${tickersToQuery.slice(0, 3).join(', ')}...`);
       
       for (const ticker of tickersToQuery.slice(0, 3)) {
         try {
@@ -298,6 +301,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                 
                 if (filing.url) {
                   console.log(`Fetching content for ${filing.form_type} filing (${date})...`);
+                  sendThinking('retrieving', `Fetching ${filing.form_type} filing content from SEC.gov...`);
                   const contentResult = await DataConnector.fetchSecFilingContent(
                     filing.url, 
                     uniqueKeywords, 
@@ -308,6 +312,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                     dataContext += `\n   === ${filing.form_type} FILING CONTENT ${contentResult.keywordMatches ? '(Keyword-Focused)' : ''} ===\n${contentResult.content}\n   === END ${filing.form_type} CONTENT ===\n`;
                     
                     if (contentResult.images && contentResult.images.length > 0) {
+                      sendThinking('retrieving', `Extracting images and charts from ${filing.form_type}...`);
                       dataContext += `\n   === IMAGES/CHARTS IN THIS FILING ===\n`;
                       contentResult.images.slice(0, 5).forEach((img, idx) => {
                         dataContext += `   ${idx + 1}. ${img.alt || 'Chart/Diagram'}: ${img.url}\n`;
@@ -1019,6 +1024,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
 
     // Add user message with images for vision analysis
     if (hasImages) {
+      sendThinking('synthesizing', `Preparing visual analysis of ${imageCards.length} chart(s)/diagram(s)...`);
       const userContent = [
         { type: "text", text: message }
       ];
