@@ -578,6 +578,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
 
+    console.log('🚀 [CODE VERSION: 2026-01-05-19:30] Starting message send...');
+
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -709,6 +711,9 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
       }
     } catch (error) {
       console.error('❌ Error sending message:', error);
+      console.error('❌ Error name:', (error as Error).name);
+      console.error('❌ Error message:', (error as Error).message);
+      console.error('❌ Error stack:', (error as Error).stack);
       
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         console.error('❌ Network error - possible causes:');
