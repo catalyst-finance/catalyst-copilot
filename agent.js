@@ -2893,6 +2893,9 @@ FORMATTING RULES (CRITICAL - ALWAYS FOLLOW):
 • Add blank lines between paragraphs for readability
 • Use bullet points (•) for lists of items or features
 • Use numbered lists (1. 2. 3.) for sequential steps or rankings
+• NEVER use markdown headers (###, ##, #) - frontend displays plain text only
+• For section headers, use **BOLD CAPS** on its own line with blank line after
+• Bullet/numbered lists should have the header ABOVE the list, not as the first item
 • For multi-point analysis, structure with clear sections:
   - Lead with key takeaway
   - Follow with supporting details in separate paragraphs
@@ -2902,9 +2905,11 @@ FORMATTING RULES (CRITICAL - ALWAYS FOLLOW):
   
   Institutional activity shows mixed sentiment with 45 holders decreasing positions while 40 increased.
   
-  Key upcoming catalysts:
+  **KEY UPCOMING CATALYSTS**
+  
   • Q4 earnings on Feb 5 (31 days)
-  • Cybertruck update in March"
+  • Cybertruck update in March
+  • Cybertruck production ramp expected Q1"
 
 DATA INTERPRETATION RULES:
 • Institutional Ownership: >50% buying = bullish sentiment, >50% selling = bearish
