@@ -79,10 +79,39 @@ router.post('/', optionalAuth, async (req, res) => {
     // STEP 1: AI-POWERED QUERY CLASSIFICATION
     sendThinking('analyzing', 'Reading your question and understanding what you need...');
     const currentDate = new Date().toISOString().split('T')[0];
-    const classificationPrompt = `You are a query classifier for a financial data API. Analyze the user's question and return a JSON object with the following structure:
+    const classificationPrompt = `You are an intelligent query router for a multi-database financial data system. Analyze the user's question and intelligently determine which data sources and collections to query.
+
+AVAILABLE DATA SOURCES:
+
+**Supabase (PostgreSQL)**:
+- finnhub_quote_snapshots: Current stock quotes (price, volume, change)
+- intraday_prices: Tick-by-tick intraday data for charts
+- daily_prices: Historical daily OHLCV data
+- event_data: Corporate events (earnings, FDA approvals, product launches, M&A)
+
+**MongoDB - raw_data database**:
+- sec_filings: SEC filings (10-K, 10-Q, 8-K, 4, S-1, 13F, DEF 14A, 424B, etc.)
+  * Full text content available for deep analysis
+  * Use for: financial statements, risk disclosures, business updates, insider trading
+- institutional_ownership: 13F filings showing hedge fund/institution holdings
+  * Use for: investor sentiment, smart money positioning, ownership changes
+- government_policy: White House transcripts, policy speeches, political commentary
+  * Use for: tariffs, regulations, government actions, political statements
+- macro_economics: Economic indicators, global market news, country-specific data
+  * Use for: GDP, inflation, unemployment, market sentiment, international markets
+
+Analyze the query and return a JSON object:
 
 {
   "intent": "stock_price" | "events" | "institutional" | "sec_filings" | "macro_economic" | "government_policy" | "market_news" | "future_outlook" | "general",
+  "dataSources": [
+    {
+      "database": "supabase" | "mongodb",
+      "collection": "sec_filings" | "institutional_ownership" | "government_policy" | "macro_economics" | "event_data" | "finnhub_quote_snapshots" | "intraday_prices" | "daily_prices",
+      "priority": 1-10,
+      "reasoning": "Why this source is relevant"
+    }
+  ],
   "tickers": ["TSLA", "AAPL"],
   "timeframe": "current" | "historical" | "upcoming" | "specific_date" | "future",
   "date": "YYYY-MM-DD" or null,
@@ -95,9 +124,19 @@ router.post('/', optionalAuth, async (req, res) => {
   "isFutureOutlook": true | false,
   "needsDeepAnalysis": true | false,
   "isBiggestMoversQuery": true | false,
-  "topicKeywords": ["batteries", "tariffs", "South Korea"],
-  "dataNeeded": ["stock_prices", "events", "institutional", "sec_filings", "macro", "policy", "news"]
+  "topicKeywords": ["batteries", "tariffs", "South Korea"]
 }
+
+ROUTING INTELLIGENCE:
+- Earnings questions → event_data (Supabase) + sec_filings (MongoDB 10-Q, 8-K)
+- FDA/regulatory → event_data + sec_filings (8-K, S-1)
+- Ownership/investors → institutional_ownership (MongoDB)
+- Government policy/tariffs → government_policy (MongoDB)
+- Economic indicators → macro_economics (MongoDB)
+- Insider trading → sec_filings (MongoDB, Form 4)
+- Business updates → sec_filings (10-K, 10-Q for detailed info)
+- Stock price movements → finnhub_quote_snapshots or intraday_prices
+- Political statements → government_policy
 
 IMPORTANT: Today's date is ${currentDate}. 
 - When user says "last week", calculate the date range from 7 days ago to today.
@@ -107,6 +146,8 @@ IMPORTANT: Today's date is ${currentDate}.
 
 User's portfolio: ${selectedTickers.join(', ') || 'none'}
 User's question: "${message}"
+
+Return ONLY the JSON object with intelligent data source routing based on the query's actual needs.
 
 Return ONLY the JSON object, no explanation.`;
 
@@ -141,23 +182,35 @@ Return ONLY the JSON object, no explanation.`;
         needsDeepAnalysis: false,
         isBiggestMoversQuery: false,
         topicKeywords: [],
-        dataNeeded: ["stock_prices"]
+        dataSources: [
+          {
+            database: "supabase",
+            collection: "finnhub_quote_snapshots",
+            priority: 10,
+            reasoning: "Fallback to current stock quotes"
+          }
+        ]
       };
     }
 
-    // STEP 2: FETCH DATA BASED ON AI CLASSIFICATION
+    // STEP 2: FETCH DATA BASED ON AI-ROUTED DATA SOURCES
     let dataContext = "";
     const dataCards = [];
     const eventData = {};
     
-    // Determine which tickers to query
-    let tickersToQuery = [];
-    const isStockQuery = queryIntent.dataNeeded.includes('stock_prices') || 
-                         queryIntent.dataNeeded.includes('institutional') || 
-                         queryIntent.dataNeeded.includes('events') ||
-                         queryIntent.dataNeeded.includes('sec_filings');
+    // Log AI routing decisions
+    console.log('AI-selected data sources:');
+    (queryIntent.dataSources || []).forEach(source => {
+      console.log(`  ${source.priority}: ${source.database}.${source.collection} - ${source.reasoning}`);
+    });
     
-    if (isStockQuery) {
+    // Determine which tickers to query based on AI routing
+    let tickersToQuery = [];
+    const needsTickerData = (queryIntent.dataSources || []).some(source => 
+      ['sec_filings', 'institutional_ownership', 'event_data', 'finnhub_quote_snapshots', 'intraday_prices', 'daily_prices'].includes(source.collection)
+    );
+    
+    if (needsTickerData) {
       if (queryIntent.scope === 'focus_stocks' && selectedTickers.length > 0) {
         tickersToQuery = selectedTickers;
       } else if (queryIntent.scope === 'specific_tickers' && queryIntent.tickers.length > 0) {
@@ -170,30 +223,43 @@ Return ONLY the JSON object, no explanation.`;
     }
     
     console.log('Tickers to query:', tickersToQuery);
-    console.log('Data sources needed:', queryIntent.dataNeeded);
     
-    // Send data gathering update
-    const dataSourceMap = {
-      'stock_prices': 'stock prices',
-      'events': 'upcoming events',
-      'institutional': 'institutional ownership',
-      'sec_filings': 'SEC filings',
-      'macro': 'economic data',
-      'policy': 'government policy',
-      'news': 'market news'
-    };
+    // Sort data sources by priority (highest first)
+    const sortedDataSources = (queryIntent.dataSources || []).sort((a, b) => b.priority - a.priority);
     
-    const friendlyDataSources = queryIntent.dataNeeded
-      .map(source => dataSourceMap[source] || source)
-      .join(', ');
-    
-    const tickerList = tickersToQuery.length > 0 
-      ? tickersToQuery.join(', ')
-      : 'market-wide data';
-    
-    // Note: Removed generic "Gathering..." message - using specific messages per data source now
-    
-    // FETCH INSTITUTIONAL DATA
+    // DYNAMICALLY FETCH DATA BASED ON AI ROUTING
+    for (const dataSource of sortedDataSources) {
+      const { database, collection, reasoning } = dataSource;
+      
+      try {
+        // INSTITUTIONAL OWNERSHIP
+        if (collection === 'institutional_ownership' && tickersToQuery.length > 0) {
+          sendThinking('retrieving', `Looking up institutional ownership data...`);
+          for (const ticker of tickersToQuery.slice(0, 3)) {
+            try {
+              const instResult = await DataConnector.getInstitutionalData(ticker);
+              if (instResult.success && instResult.data.length > 0) {
+                const ownership = instResult.data[0];
+                dataContext += `\n\n${ticker} Institutional Ownership (as of ${ownership.date}):\n`;
+                dataContext += `Total institutional ownership: ${ownership.ownership.percentage}\n`;
+                dataContext += `Shares held: ${ownership.ownership.totalShares} by ${ownership.ownership.totalHolders} holders\n`;
+                dataContext += `Position changes: ${ownership.activity.increased.holders} increased (${ownership.activity.increased.shares} shares), `;
+                dataContext += `${ownership.activity.decreased.holders} decreased (${ownership.activity.decreased.shares} shares)\n`;
+                
+                if (ownership.topHolders && ownership.topHolders.length > 0) {
+                  dataContext += `\nTop 10 institutional holders:\n`;
+                  ownership.topHolders.forEach((holder, i) => {
+                    dataContext += `${i + 1}. ${holder.owner}: ${holder.shares} shares ($${holder.marketValue}), change: ${holder.change}\n`;
+                  });
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching institutional data for ${ticker}:`, error);
+            }
+          }
+        }
+        
+        // SEC FILINGS
     if (queryIntent.dataNeeded.includes('institutional') && tickersToQuery.length > 0) {
       sendThinking('retrieving', `Looking up institutional ownership data...`);
       for (const ticker of tickersToQuery.slice(0, 3)) {
