@@ -1789,20 +1789,25 @@ Top Holders:`;
       
       if (needsDeepAnalysis) {
         try {
-          const keywordPrompt = `Extract and expand key search terms from this user query for searching SEC filings. 
+          const keywordPrompt = `Extract and expand key search terms from this user query for searching SEC filings of a pharmaceutical/biotech company.
 
 User query: "${message}"
 
 Instructions:
 1. Identify the main concepts and entities mentioned
-2. Expand acronyms to their full forms (e.g., "FDA" → include both "FDA" and "Food and Drug Administration")
-3. Include both abbreviated and full chemical/drug names (e.g., "LSD" → include "LSD", "lysergic acid diethylamide", "lysergic acid")
-4. Add relevant synonyms (e.g., "trial" → include "clinical trial", "study", "investigation")
-5. Keep proper nouns and technical terms
-6. Return a flat array of search terms, not grouped
+2. Expand acronyms to their full forms:
+   - "FDA" → include "FDA", "Food and Drug Administration"
+   - "LSD" → include "LSD", "lysergic acid diethylamide", "lysergide", "lysergic acid"
+   - "MDMA" → include "MDMA", "methylenedioxymethamphetamine", "3,4-methylenedioxymethamphetamine"
+3. For drug companies, include common product code patterns (MM120, MM402, etc.)
+4. Include phase-related terms: "Phase 1", "Phase 2", "Phase 3", "clinical trial", "pivotal trial", "registration"
+5. Include regulatory terms: "NDA", "IND", "breakthrough therapy", "fast track", "approval"
+6. Add relevant synonyms ("trial" → "study", "investigation"; "roadmap" → "pipeline", "development plan")
+7. For pipeline queries, include: "product candidate", "indication", "preclinical", "development"
+8. Return a flat array of search terms
 
 Return ONLY a JSON array of strings like: ["term1", "term2", "term3"]
-Maximum 20 terms. No explanation.`;
+Maximum 25 terms. No explanation.`;
 
           const keywordResponse = await openai.chat.completions.create({
             model: "gpt-4o-mini",
@@ -1813,7 +1818,7 @@ Maximum 20 terms. No explanation.`;
           
           const keywordText = keywordResponse.choices[0].message.content.trim();
           const expandedKeywords = JSON.parse(keywordText);
-          uniqueKeywords = expandedKeywords.filter(k => k && k.length > 1); // Allow 2-char terms like "R&D"
+          uniqueKeywords = expandedKeywords.filter(k => k && k.length > 2);
           
           console.log(`AI-expanded keywords for SEC filing analysis: ${uniqueKeywords.join(', ')}`);
         } catch (error) {
@@ -1834,53 +1839,87 @@ Maximum 20 terms. No explanation.`;
       
       for (const ticker of tickersToQuery.slice(0, 3)) {
         try {
-          const secResult = await DataConnector.getSecFilings(ticker, formTypes, dateRange, needsDeepAnalysis ? 20 : 10);
+          // For deep analysis, fetch more filings to ensure we get substantive ones
+          const secResult = await DataConnector.getSecFilings(ticker, formTypes, dateRange, needsDeepAnalysis ? 50 : 10);
           if (secResult.success && secResult.data.length > 0) {
-            dataContext += `\n\n${ticker} Recent SEC Filings${formTypes ? ` (${Array.isArray(formTypes) ? formTypes.join(', ') : formTypes})` : ''}:\n`;
             
-            const filingsToShow = secResult.data.slice(0, needsDeepAnalysis ? 3 : 5);
+            // Separate substantive filings (10-K, 10-Q, 8-K, S-1) from routine filings (Form 4, 3, 144)
+            const substantiveTypes = ['10-K', '10-Q', '8-K', 'S-1', '10-K/A', '10-Q/A', '8-K/A', 'DEF 14A', '424B'];
+            const substantiveFilings = secResult.data.filter(f => substantiveTypes.some(t => f.form_type?.includes(t)));
+            const routineFilings = secResult.data.filter(f => !substantiveTypes.some(t => f.form_type?.includes(t)));
             
-            for (let i = 0; i < filingsToShow.length; i++) {
-              const filing = filingsToShow[i];
-              const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
-              const reportDate = filing.report_date ? ` (Period: ${filing.report_date})` : '';
-              const size = filing.file_size || 'N/A';
-              const enrichedIndicator = filing.enriched ? ' ✓' : '';
+            console.log(`Found ${substantiveFilings.length} substantive filings and ${routineFilings.length} routine filings for ${ticker}`);
+            
+            dataContext += `\n\n${ticker} SEC Filings Analysis:\n`;
+            
+            // For deep analysis, prioritize substantive filings and fetch their content
+            if (needsDeepAnalysis && substantiveFilings.length > 0) {
+              dataContext += `\n--- SUBSTANTIVE FILINGS (10-K, 10-Q, 8-K) ---\n`;
               
-              dataContext += `${i + 1}. ${filing.form_type}${enrichedIndicator} filed on ${date}${reportDate} (${size})\n`;
+              // Show and fetch content from top 3 substantive filings
+              const substantiveToAnalyze = substantiveFilings.slice(0, 3);
               
-              // Include summary if enriched (limit to 200 chars for token efficiency)
-              if (filing.enriched && filing.summary) {
-                const shortSummary = filing.summary.length > 200 ? filing.summary.substring(0, 200) + '...' : filing.summary;
-                dataContext += `   Summary: ${shortSummary}\n`;
-              }
-              
-              // Include key points if available (limit to 3 points)
-              if (filing.enriched && filing.key_points && Array.isArray(filing.key_points)) {
-                const limitedPoints = filing.key_points.slice(0, 3);
-                if (limitedPoints.length > 0) {
-                  dataContext += `   Key Points: ${limitedPoints.join('; ')}\n`;
-                }
-              }
-              
-              dataContext += `   URL: ${filing.url}\n`;
-              
-              // If deep analysis is needed, fetch actual filing content with keyword focus
-              if (needsDeepAnalysis && filing.url && i < 2) { // Only fetch content for first 2 filings to manage tokens
-                console.log(`Fetching content for ${filing.form_type} filing...`);
-                const contentResult = await DataConnector.fetchSecFilingContent(
-                  filing.url, 
-                  uniqueKeywords, 
-                  uniqueKeywords.length > 0 ? 20000 : 10000 // Larger limit if searching for keywords
-                );
+              for (let i = 0; i < substantiveToAnalyze.length; i++) {
+                const filing = substantiveToAnalyze[i];
+                const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+                const reportDate = filing.report_date ? ` (Period: ${filing.report_date})` : '';
+                const size = filing.file_size || 'N/A';
+                const enrichedIndicator = filing.enriched ? ' ✓' : '';
                 
-                if (contentResult.success && contentResult.content) {
-                  dataContext += `   \n   === FILING CONTENT ${contentResult.keywordMatches ? '(Keyword-Focused)' : ''} ===\n${contentResult.content}\n   === END CONTENT ===\n\n`;
-                } else {
-                  dataContext += `   (Unable to fetch filing content: ${contentResult.error})\n\n`;
+                dataContext += `${i + 1}. ${filing.form_type}${enrichedIndicator} filed on ${date}${reportDate} (${size})\n`;
+                dataContext += `   URL: ${filing.url}\n`;
+                
+                // Include summary if enriched
+                if (filing.enriched && filing.summary) {
+                  const shortSummary = filing.summary.length > 300 ? filing.summary.substring(0, 300) + '...' : filing.summary;
+                  dataContext += `   Summary: ${shortSummary}\n`;
+                }
+                
+                // Fetch actual filing content for substantive filings
+                if (filing.url) {
+                  console.log(`Fetching content for ${filing.form_type} filing (${date})...`);
+                  const contentResult = await DataConnector.fetchSecFilingContent(
+                    filing.url, 
+                    uniqueKeywords, 
+                    25000 // Larger limit for substantive filings
+                  );
+                  
+                  if (contentResult.success && contentResult.content) {
+                    dataContext += `\n   === ${filing.form_type} FILING CONTENT ${contentResult.keywordMatches ? '(Keyword-Focused)' : ''} ===\n${contentResult.content}\n   === END ${filing.form_type} CONTENT ===\n\n`;
+                  } else {
+                    dataContext += `   (Unable to fetch filing content: ${contentResult.error})\n\n`;
+                  }
                 }
               }
             }
+            
+            // Also show recent routine filings (Form 4s) as context but don't fetch content
+            if (routineFilings.length > 0) {
+              dataContext += `\n--- RECENT ROUTINE FILINGS (Form 4, etc.) ---\n`;
+              const routineToShow = routineFilings.slice(0, 5);
+              
+              for (let i = 0; i < routineToShow.length; i++) {
+                const filing = routineToShow[i];
+                const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+                dataContext += `${i + 1}. ${filing.form_type} filed on ${date} - ${filing.url}\n`;
+              }
+            }
+            
+            // If no substantive filings but user wants analysis, still show what we have
+            if (!needsDeepAnalysis || substantiveFilings.length === 0) {
+              const filingsToShow = secResult.data.slice(0, 5);
+              
+              for (let i = 0; i < filingsToShow.length; i++) {
+                const filing = filingsToShow[i];
+                const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+                const reportDate = filing.report_date ? ` (Period: ${filing.report_date})` : '';
+                const size = filing.file_size || 'N/A';
+                
+                dataContext += `${i + 1}. ${filing.form_type} filed on ${date}${reportDate} (${size})\n`;
+                dataContext += `   URL: ${filing.url}\n`;
+              }
+            }
+            
           } else if (secResult.message) {
             dataContext += `\n\n${secResult.message}`;
           }
