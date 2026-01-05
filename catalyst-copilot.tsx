@@ -274,54 +274,85 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         segments.push(currentText);
       }
       
-      // Parse SEC filing references in brackets [TICKER FORM-TYPE - Date] and convert to badges
-      // Also handle backtick-wrapped citations: `[TICKER FORM-TYPE - Date]`
-      const filingSegments: (string | JSX.Element)[] = [];
+      // Parse source citations in brackets [Source Text] or [Source Text](URL) and convert to badges
+      // Strip backticks from around brackets: `[Source]` → [Source]
+      const sourceSegments: (string | JSX.Element)[] = [];
       segments.forEach((segment) => {
         if (typeof segment === 'string') {
-          // First strip backticks from around brackets
+          // Strip backticks from around any bracket pattern
           let cleanedSegment = segment.replace(/`\[([^\]]+)\]`/g, '[$1]');
+          // Also strip backticks from markdown link format: `[text](url)` → [text](url)
+          cleanedSegment = cleanedSegment.replace(/`\[([^\]]+)\]\(([^)]+)\)`/g, '[$1]($2)');
           
-          const filingRegex = /\[([A-Z]{1,5})\s+(10-[KQ]|8-K|S-\d+|13[FG]|4|DEF 14A)\s*-\s*([^\]]+)\]/g;
-          let filingLastIndex = 0;
-          let filingMatch;
-          const filingParts: (string | JSX.Element)[] = [];
+          // Match [text](url) pattern first (citations with URLs)
+          const sourceWithUrlRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+          let sourceLastIndex = 0;
+          let sourceMatch;
+          const sourceParts: (string | JSX.Element)[] = [];
           
-          while ((filingMatch = filingRegex.exec(cleanedSegment)) !== null) {
-            if (filingMatch.index > filingLastIndex) {
-              filingParts.push(cleanedSegment.substring(filingLastIndex, filingMatch.index));
+          while ((sourceMatch = sourceWithUrlRegex.exec(cleanedSegment)) !== null) {
+            if (sourceMatch.index > sourceLastIndex) {
+              sourceParts.push(cleanedSegment.substring(sourceLastIndex, sourceMatch.index));
             }
             
-            const ticker = filingMatch[1];
-            const formType = filingMatch[2];
-            const dateStr = filingMatch[3].trim();
+            const sourceText = sourceMatch[1];
+            const sourceUrl = sourceMatch[2];
             
-            filingParts.push(
-              <span key={`filing-${key++}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-xs font-medium border border-blue-500/20">
+            sourceParts.push(
+              <a
+                key={`source-${key++}`}
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-xs font-medium border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <FileText className="w-3 h-3" />
-                {ticker} {formType}
+                {sourceText}
+              </a>
+            );
+            sourceLastIndex = sourceMatch.index + sourceMatch[0].length;
+          }
+          
+          // Now match [text] pattern without URLs (remaining brackets)
+          const remainingText = cleanedSegment.substring(sourceLastIndex);
+          const sourceOnlyRegex = /\[([^\]]+)\]/g;
+          let sourceOnlyLastIndex = 0;
+          let sourceOnlyMatch;
+          
+          while ((sourceOnlyMatch = sourceOnlyRegex.exec(remainingText)) !== null) {
+            if (sourceOnlyMatch.index > sourceOnlyLastIndex) {
+              sourceParts.push(remainingText.substring(sourceOnlyLastIndex, sourceOnlyMatch.index));
+            }
+            
+            const sourceText = sourceOnlyMatch[1];
+            
+            sourceParts.push(
+              <span key={`source-${key++}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-xs font-medium border border-blue-500/20">
+                <FileText className="w-3 h-3" />
+                {sourceText}
               </span>
             );
-            filingLastIndex = filingMatch.index + filingMatch[0].length;
+            sourceOnlyLastIndex = sourceOnlyMatch.index + sourceOnlyMatch[0].length;
           }
           
-          if (filingLastIndex < cleanedSegment.length) {
-            filingParts.push(cleanedSegment.substring(filingLastIndex));
+          if (sourceOnlyLastIndex < remainingText.length) {
+            sourceParts.push(remainingText.substring(sourceOnlyLastIndex));
           }
           
-          if (filingParts.length > 0) {
-            filingSegments.push(...filingParts);
+          if (sourceParts.length > 0) {
+            sourceSegments.push(...sourceParts);
           } else {
-            filingSegments.push(cleanedSegment);
+            sourceSegments.push(cleanedSegment);
           }
         } else {
-          filingSegments.push(segment);
+          sourceSegments.push(segment);
         }
       });
       
       // Now parse bold text in each segment
       const finalParts: (string | JSX.Element)[] = [];
-      filingSegments.forEach((segment) => {
+      sourceSegments.forEach((segment) => {
         if (typeof segment === 'string') {
           const boldRegex = /\*\*(.+?)\*\*/g;
           let boldLastIndex = 0;
