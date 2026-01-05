@@ -525,7 +525,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       msg.role === 'user' && /event|earnings|FDA|approval|launch|announcement|legal|regulatory/i.test(msg.content)
     );
     
-    const shouldFetchEvents = queryIntent.dataNeeded.includes('events') || hasEventContext;
+    const shouldFetchEvents = (queryIntent.dataSources || []).some(ds => ds.collection === 'event_data') || hasEventContext;
     let eventCardsContext = "";
     
     if (shouldFetchEvents) {
@@ -1134,7 +1134,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
             metadata: { 
               query_intent: queryIntent,
               tickers_queried: tickersToQuery,
-              data_sources: queryIntent.dataNeeded
+              data_sources: (queryIntent.dataSources || []).map(ds => ds.collection)
             }
           },
           {
