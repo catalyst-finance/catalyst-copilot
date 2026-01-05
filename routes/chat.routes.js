@@ -32,6 +32,29 @@ router.post('/', optionalAuth, async (req, res) => {
     console.log('Conversation ID:', conversationId);
     console.log('User portfolio:', selectedTickers);
     
+    // SET UP SSE IMMEDIATELY - Start streaming right away
+    const origin = req.headers.origin;
+    if (origin && (origin.endsWith('.figma.site') || origin === 'https://www.figma.com' || origin === 'https://figma.com')) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Cache-Control, Connection');
+    }
+    
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    
+    console.log('📡 SSE headers sent immediately - streaming enabled');
+    
+    // Helper function to send thinking updates
+    const sendThinking = (phase, content) => {
+      res.write(`data: ${JSON.stringify({ type: 'thinking', phase, content })}\n\n`);
+      console.log(`💭 Thinking: ${content}`);
+    };
+    
     // Verify conversation ownership if conversationId provided
     if (conversationId && userId) {
       const { data: conversation } = await supabase
@@ -41,7 +64,8 @@ router.post('/', optionalAuth, async (req, res) => {
         .single();
       
       if (!conversation || conversation.user_id !== userId) {
-        return res.status(403).json({ error: 'Access denied to this conversation' });
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'Access denied to this conversation' })}\n\n`);
+        return res.end();
       }
     }
     
@@ -53,6 +77,7 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // STEP 1: AI-POWERED QUERY CLASSIFICATION
+    sendThinking('analyzing', 'Reading your question and understanding what you need...');
     const currentDate = new Date().toISOString().split('T')[0];
     const classificationPrompt = `You are a query classifier for a financial data API. Analyze the user's question and return a JSON object with the following structure:
 
@@ -147,8 +172,30 @@ Return ONLY the JSON object, no explanation.`;
     console.log('Tickers to query:', tickersToQuery);
     console.log('Data sources needed:', queryIntent.dataNeeded);
     
+    // Send data gathering update
+    const dataSourceMap = {
+      'stock_prices': 'stock prices',
+      'events': 'upcoming events',
+      'institutional': 'institutional ownership',
+      'sec_filings': 'SEC filings',
+      'macro': 'economic data',
+      'policy': 'government policy',
+      'news': 'market news'
+    };
+    
+    const friendlyDataSources = queryIntent.dataNeeded
+      .map(source => dataSourceMap[source] || source)
+      .join(', ');
+    
+    const tickerList = tickersToQuery.length > 0 
+      ? tickersToQuery.join(', ')
+      : 'market-wide data';
+    
+    sendThinking('retrieving', `Gathering ${friendlyDataSources} for ${tickerList}...`);
+    
     // FETCH INSTITUTIONAL DATA
     if (queryIntent.dataNeeded.includes('institutional') && tickersToQuery.length > 0) {
+      sendThinking('retrieving', `Looking up institutional ownership data...`);
       for (const ticker of tickersToQuery.slice(0, 3)) {
         try {
           const instResult = await DataConnector.getInstitutionalData(ticker);
@@ -174,6 +221,7 @@ Top Holders:`;
     
     // FETCH SEC FILINGS DATA
     if (queryIntent.dataNeeded.includes('sec_filings') && tickersToQuery.length > 0) {
+      sendThinking('retrieving', `Searching SEC filings database...`);
       const formTypes = queryIntent.formTypes && queryIntent.formTypes.length > 0 ? queryIntent.formTypes : null;
       const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
       const dateRange = queryIntent.dateRange || null;
@@ -965,23 +1013,6 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     console.log("Calling OpenAI API with", messages.length, "messages");
 
     // STEP 7: CALL OPENAI WITH STREAMING
-    // Set CORS headers explicitly for SSE
-    const origin = req.headers.origin;
-    if (origin && (origin.endsWith('.figma.site') || origin === 'https://www.figma.com' || origin === 'https://figma.com')) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Cache-Control, Connection');
-    }
-    
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-    
-    console.log('📡 SSE headers sent, starting stream...');
-
     let finalConversationId = conversationId;
     let newConversation = null;
     
@@ -1006,7 +1037,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       }
     }
 
-    // Send metadata first
+    // Send metadata
     res.write(`data: ${JSON.stringify({
       type: 'metadata',
       dataCards,
@@ -1016,34 +1047,8 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       timestamp: new Date().toISOString()
     })}\n\n`);
 
-    // Send thinking phase updates
-    const dataSourceMap = {
-      'stock_prices': 'stock prices',
-      'events': 'upcoming events',
-      'institutional': 'institutional ownership',
-      'sec_filings': 'SEC filings',
-      'macro': 'economic data',
-      'policy': 'government policy',
-      'news': 'market news'
-    };
-    
-    const friendlyDataSources = queryIntent.dataNeeded
-      .map(source => dataSourceMap[source] || source)
-      .join(', ');
-    
-    const tickerList = tickersToQuery.length > 0 
-      ? tickersToQuery.join(', ')
-      : 'market-wide data';
-    
-    const thinkingSteps = [
-      { phase: 'analyzing', content: 'Understanding your question and determining what information you need...' },
-      { phase: 'retrieving', content: `Gathering ${friendlyDataSources} for ${tickerList}...` },
-      { phase: 'synthesizing', content: 'Analyzing the data and preparing your answer...' }
-    ];
-
-    thinkingSteps.forEach(step => {
-      res.write(`data: ${JSON.stringify({ type: 'thinking', phase: step.phase, content: step.content })}\n\n`);
-    });
+    // Send final thinking phase before OpenAI
+    sendThinking('synthesizing', 'Analyzing the data and preparing your answer...');
 
     const stream = await openai.chat.completions.create({
       model: "gpt-4o-mini",

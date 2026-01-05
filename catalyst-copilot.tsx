@@ -1,41 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Sparkles, 
-  ChevronDown, 
-  ChevronUp, 
-  Send, 
-  X, 
-  Minimize2, 
-  MoreVertical,
-  TrendingUp,
-  TrendingDown,
-  Package,
-  BarChart3,
-  Users,
-  Shield,
-  ShoppingCart,
-  Handshake,
-  Target,
-  AlertCircle,
-  Building,
-  Tag,
-  DollarSign,
-  Calendar,
-  Circle,
-  Presentation,
-  Edit2,
-  Check,
-  XCircle,
-  Scale,
-  Landmark,
-  Loader2
-} from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { Sparkles, Send, ChevronDown, ChevronUp, X, Minimize2, Edit2, Check, XCircle, TrendingUp, TrendingDown, Calendar, BarChart3, AlertCircle, Target, DollarSign, Package, ShoppingCart, Presentation, Users, Landmark, Handshake, Building, Tag, Shield, Scale, Loader2, Download, ExternalLink, FileText } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { SimpleMiniChart } from './simple-mini-chart';
-import { IntradayMiniChart } from './intraday-mini-chart';
+import { SimpleMiniChart, IntradayMiniChart } from './charts';
 import { formatCurrency, getEventTypeConfig, formatEventDateTime } from '../utils/formatting';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { MarketEvent } from '../utils/supabase/events-api';
@@ -49,11 +18,29 @@ interface Message {
   dataCards?: DataCard[];
   eventData?: Record<string, any>;
   timestamp: Date;
+  thinkingSteps?: ThinkingStep[];
+}
+
+interface ThinkingStep {
+  phase: string;
+  content: string;
 }
 
 interface DataCard {
-  type: 'stock' | 'event-list' | 'event' | 'chart';
+  type: 'stock' | 'event-list' | 'event' | 'chart' | 'image';
   data: any;
+}
+
+interface ImageCardData {
+  id: string;
+  ticker: string;
+  source: string;
+  title: string;
+  imageUrl: string;
+  context?: string;
+  filingType?: string;
+  filingDate?: string;
+  filingUrl?: string;
 }
 
 interface StockCardData {
@@ -69,7 +56,20 @@ interface StockCardData {
     date: string;
     endpoint: string;
   } | null;
+  chartReference?: {
+    table: string;
+    symbol: string;
+    dateRange: {
+      start: string;
+      end: string;
+    };
+    columns: string[];
+    orderBy: string;
+  };
   previousClose?: number;
+  open?: number;
+  high?: number;
+  low?: number;
 }
 
 interface CatalystCopilotProps {
@@ -79,90 +79,330 @@ interface CatalystCopilotProps {
 
 // Markdown Renderer Component
 function MarkdownText({ text }: { text: string }) {
-  const lines = text.split('\n');
-  const elements: JSX.Element[] = [];
+  // Split into main content and sources if sources exist
+  const sourcesMatch = text.match(/For more detailed insights.*?sources:\s*([\s\S]*)/i);
+  const mainContent = sourcesMatch ? text.substring(0, sourcesMatch.index).trim() : text;
+  const sourcesText = sourcesMatch ? sourcesMatch[1].trim() : null;
   
-  let currentList: string[] = [];
-  
-  const flushList = () => {
-    if (currentList.length > 0) {
-      elements.push(
-        <ul key={`list-${elements.length}`} className="space-y-1 my-2 ml-4">
-          {currentList.map((item, idx) => (
-            <li key={idx} className="flex items-start gap-2">
-              <span className="text-muted-foreground mt-0.5">•</span>
-              <span className="flex-1">{parseInlineFormatting(item)}</span>
-            </li>
-          ))}
-        </ul>
-      );
-      currentList = [];
-    }
-  };
-  
-  const parseInlineFormatting = (line: string) => {
-    const parts: (string | JSX.Element)[] = [];
-    let currentText = line;
-    let key = 0;
-    
-    const boldRegex = /\*\*(.+?)\*\*/g;
-    let lastIndex = 0;
+  // Extract sentences that talk about sources/links into a separate section
+  const extractSourceContext = (content: string) => {
+    // Extract all links from the content
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const links: { text: string; url: string }[] = [];
     let match;
     
-    while ((match = boldRegex.exec(currentText)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(currentText.substring(lastIndex, match.index));
-      }
-      parts.push(<strong key={`bold-${key++}`}>{match[1]}</strong>);
-      lastIndex = match.index + match[0].length;
+    while ((match = linkRegex.exec(content)) !== null) {
+      links.push({
+        text: match[1],
+        url: match[2]
+      });
     }
     
-    if (lastIndex < currentText.length) {
-      parts.push(currentText.substring(lastIndex));
-    }
+    // Remove sentences that talk about viewing/referring to links
+    const sentences = content.split(/(?<=[.!?])\s+/);
+    const cleanedSentences = sentences.filter(sentence => {
+      // Check if sentence contains a link
+      const hasLink = /\[([^\]]+)\]\(([^)]+)\)/g.test(sentence);
+      
+      // Check if sentence is about links/sources/viewing content
+      const isAboutLinks = /\b(for more details|for more|you can view|view the|refer to|you can refer|following links?|press briefings?|for more context|available through|see the|check out|find more|more information|full remarks|complete transcript)\b/i.test(sentence);
+      
+      // Filter out sentences that both have links AND talk about viewing them
+      return !(hasLink && isAboutLinks);
+    });
     
-    return parts.length > 0 ? parts : currentText;
+    return {
+      mainText: cleanedSentences.join(' ').trim(),
+      extractedLinks: links
+    };
   };
   
-  lines.forEach((line, index) => {
-    if (line.startsWith('### ')) {
-      flushList();
-      elements.push(
-        <h3 key={`h3-${index}`} className="font-semibold mt-3 mb-1">
-          {parseInlineFormatting(line.substring(4))}
-        </h3>
-      );
-    } else if (line.startsWith('## ')) {
-      flushList();
-      elements.push(
-        <h2 key={`h2-${index}`} className="font-semibold text-base mt-3 mb-1">
-          {parseInlineFormatting(line.substring(3))}
-        </h2>
-      );
-    } else if (line.startsWith('# ')) {
-      flushList();
-      elements.push(
-        <h1 key={`h1-${index}`} className="font-semibold text-lg mt-3 mb-1">
-          {parseInlineFormatting(line.substring(2))}
-        </h1>
-      );
-    } else if (line.trim().startsWith('- ')) {
-      currentList.push(line.trim().substring(2));
-    } else if (line.trim()) {
-      flushList();
-      elements.push(
-        <p key={`p-${index}`} className="my-1">
-          {parseInlineFormatting(line)}
-        </p>
-      );
-    } else {
-      flushList();
+  const { mainText, extractedLinks } = extractSourceContext(mainContent);
+  
+  const formatRollCallLink = (linkText: string, url: string) => {
+    // Check if this is a Roll Call URL
+    if (url.includes('rollcall.com')) {
+      // Extract the slug from the URL (last part after last slash)
+      const urlParts = url.split('/');
+      const slug = urlParts[urlParts.length - 1];
+      
+      // Parse the slug: expected format is words-words-month-day-year
+      const parts = slug.split('-');
+      
+      // Find where the date starts (looking for pattern: month-day-year)
+      let dateStartIndex = -1;
+      for (let i = 0; i < parts.length - 2; i++) {
+        const possibleMonth = parts[i];
+        const possibleDay = parts[i + 1];
+        const possibleYear = parts[i + 2];
+        
+        // Check if this looks like a date (month name, numeric day, 4-digit year)
+        const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 
+                           'july', 'august', 'september', 'october', 'november', 'december'];
+        if (monthNames.includes(possibleMonth.toLowerCase()) && 
+            /^\d+$/.test(possibleDay) && 
+            /^\d{4}$/.test(possibleYear)) {
+          dateStartIndex = i;
+          break;
+        }
+      }
+      
+      if (dateStartIndex > 0) {
+        // Extract title parts (before date)
+        const titleParts = parts.slice(0, dateStartIndex);
+        // Capitalize each word
+        const formattedTitle = titleParts
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+        
+        // Extract and format date
+        const month = parts[dateStartIndex];
+        const day = parts[dateStartIndex + 1];
+        const year = parts[dateStartIndex + 2];
+        
+        const monthNames: Record<string, string> = {
+          'january': 'January', 'february': 'February', 'march': 'March', 'april': 'April',
+          'may': 'May', 'june': 'June', 'july': 'July', 'august': 'August',
+          'september': 'September', 'october': 'October', 'november': 'November', 'december': 'December'
+        };
+        
+        const formattedMonth = monthNames[month.toLowerCase()] || month;
+        const formattedDate = `${formattedMonth} ${day}, ${year}`;
+        
+        return `${formattedTitle} (${formattedDate})`;
+      }
+      
+      // Fallback: just capitalize and clean up the slug
+      return slug
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
     }
-  });
+    return linkText;
+  };
   
-  flushList();
+  const renderContent = (content: string) => {
+    const lines = content.split('\n');
+    const elements: JSX.Element[] = [];
+    
+    let currentList: string[] = [];
+    let currentParagraph: string[] = [];
+    
+    const flushParagraph = () => {
+      if (currentParagraph.length > 0) {
+        const paragraphText = currentParagraph.join(' ');
+        elements.push(
+          <p key={`p-${elements.length}`} className="leading-relaxed m-[0px]">
+            {parseInlineFormatting(paragraphText)}
+          </p>
+        );
+        currentParagraph = [];
+      }
+    };
+    
+    const flushList = () => {
+      if (currentList.length > 0) {
+        elements.push(
+          <ul key={`list-${elements.length}`} className="space-y-1 my-3 ml-4">
+            {currentList.map((item, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="text-muted-foreground mt-0.5">•</span>
+                <span className="flex-1">{parseInlineFormatting(item)}</span>
+              </li>
+            ))}
+          </ul>
+        );
+        currentList = [];
+      }
+    };
+    
+    const parseInlineFormatting = (line: string) => {
+      const parts: (string | JSX.Element)[] = [];
+      let currentText = line;
+      let key = 0;
+      
+      // First, parse markdown links [text](url)
+      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let segments: (string | JSX.Element)[] = [];
+      let lastIndex = 0;
+      let match;
+      
+      while ((match = linkRegex.exec(currentText)) !== null) {
+        if (match.index > lastIndex) {
+          segments.push(currentText.substring(lastIndex, match.index));
+        }
+        
+        const linkText = formatRollCallLink(match[1], match[2]);
+        
+        segments.push(
+          <a
+            key={`link-${key++}`}
+            href={match[2]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline hover:text-blue-400 transition-colors"
+          >
+            {linkText}
+          </a>
+        );
+        lastIndex = match.index + match[0].length;
+      }
+      
+      if (lastIndex < currentText.length) {
+        segments.push(currentText.substring(lastIndex));
+      }
+      
+      // If no links were found, use the original text
+      if (segments.length === 0) {
+        segments.push(currentText);
+      }
+      
+      // Now parse bold text in each segment
+      const finalParts: (string | JSX.Element)[] = [];
+      segments.forEach((segment) => {
+        if (typeof segment === 'string') {
+          const boldRegex = /\*\*(.+?)\*\*/g;
+          let boldLastIndex = 0;
+          let boldMatch;
+          const boldParts: (string | JSX.Element)[] = [];
+          
+          while ((boldMatch = boldRegex.exec(segment)) !== null) {
+            if (boldMatch.index > boldLastIndex) {
+              boldParts.push(segment.substring(boldLastIndex, boldMatch.index));
+            }
+            boldParts.push(<strong key={`bold-${key++}`} className="font-semibold">{boldMatch[1]}</strong>);
+            boldLastIndex = boldMatch.index + boldMatch[0].length;
+          }
+          
+          if (boldLastIndex < segment.length) {
+            boldParts.push(segment.substring(boldLastIndex));
+          }
+          
+          if (boldParts.length > 0) {
+            finalParts.push(...boldParts);
+          } else {
+            finalParts.push(segment);
+          }
+        } else {
+          finalParts.push(segment);
+        }
+      });
+      
+      return finalParts.length > 0 ? finalParts : currentText;
+    };
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      
+      if (line.startsWith('### ')) {
+        flushParagraph();
+        flushList();
+        elements.push(
+          <h3 key={`h3-${index}`} className="font-semibold mt-4 mb-2">
+            {parseInlineFormatting(line.substring(4))}
+          </h3>
+        );
+      } else if (line.startsWith('## ')) {
+        flushParagraph();
+        flushList();
+        elements.push(
+          <h2 key={`h2-${index}`} className="font-semibold text-base mt-4 mb-2">
+            {parseInlineFormatting(line.substring(3))}
+          </h2>
+        );
+      } else if (line.startsWith('# ')) {
+        flushParagraph();
+        flushList();
+        elements.push(
+          <h1 key={`h1-${index}`} className="font-semibold text-lg mt-4 mb-2">
+            {parseInlineFormatting(line.substring(2))}
+          </h1>
+        );
+      } else if (trimmedLine.match(/^\d+\.\s+\*\*/) || trimmedLine.startsWith('- ')) {
+        flushParagraph();
+        // List item
+        const itemText = trimmedLine.replace(/^(\d+\.\s+|-\s+)/, '');
+        currentList.push(itemText);
+      } else if (trimmedLine) {
+        flushList();
+        // Regular paragraph text
+        currentParagraph.push(trimmedLine);
+      } else {
+        // Empty line - flush current paragraph
+        flushParagraph();
+        flushList();
+      }
+    });
+    
+    flushParagraph();
+    flushList();
+    
+    return elements;
+  };
   
-  return <div className="space-y-0.5">{elements}</div>;
+  const parseSources = (sourcesText: string) => {
+    // Parse pattern: [Title] (URL)
+    const sourceRegex = /\[([^\]]+)\]\s*\(([^)]+)\)/g;
+    const sources: { title: string; url: string }[] = [];
+    let match;
+    
+    while ((match = sourceRegex.exec(sourcesText)) !== null) {
+      const formattedTitle = formatRollCallLink(match[1], match[2]);
+      sources.push({
+        title: formattedTitle,
+        url: match[2]
+      });
+    }
+    
+    return sources;
+  };
+  
+  return (
+    <div className="space-y-0.5">
+      <div>{renderContent(mainText)}</div>
+      
+      {sourcesText && (
+        <div className="mt-4 pt-3 border-t border-border/50">
+          <p className="text-xs font-medium text-muted-foreground mb-2 text-[14px]">Sources:</p>
+          <div className="space-y-1.5">
+            {parseSources(sourcesText).map((source, idx) => (
+              <a
+                key={idx}
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-blue-500 hover:underline hover:text-blue-400 transition-colors text-[14px]"
+              >
+                {source.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {extractedLinks.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-border/50">
+          <p className="text-xs font-medium text-muted-foreground mb-2 text-[14px]">Sources:</p>
+          <div className="space-y-1.5">
+            {extractedLinks.map((link, idx) => {
+              const formattedText = formatRollCallLink(link.text, link.url);
+              return (
+                <a
+                  key={idx}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-xs text-blue-500 hover:underline hover:text-blue-400 transition-colors text-[14px]"
+                >
+                  {formattedText}
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function CatalystCopilot({ selectedTickers = [], onEventClick }: CatalystCopilotProps) {
@@ -172,6 +412,14 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
   const [isTyping, setIsTyping] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
+  
+  // Streaming states
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
+  const [streamedContent, setStreamedContent] = useState('');
+  const [streamingDataCards, setStreamingDataCards] = useState<DataCard[]>([]);
+  const [thinkingCollapsed, setThinkingCollapsed] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -260,7 +508,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     if (!isRestoringScroll.current) {
       scrollToBottom();
     }
-  }, [messages]);
+  }, [messages, streamedContent, thinkingSteps]);
 
   const quickStartChips = [
     "What moved TSLA today?",
@@ -268,10 +516,64 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     "Explain today's market in simple terms"
   ];
 
+  // Centralized function to process SSE data with robust error handling
+  const processSSEData = (rawData: string): any | null => {
+    try {
+      // Handle potential "data: " prefix variations and strip them
+      let cleanData = rawData.trim();
+      
+      // Remove "data: " prefix(es) - handles buffering edge cases
+      while (cleanData.startsWith('data: ')) {
+        cleanData = cleanData.substring(6).trim();
+      }
+      
+      // Skip empty data
+      if (!cleanData) {
+        return null;
+      }
+      
+      // Validate JSON format before parsing
+      if (!cleanData.startsWith('{') && !cleanData.startsWith('[')) {
+        console.warn('⚠️ Non-JSON SSE data:', cleanData.substring(0, 50));
+        return null;
+      }
+
+      return JSON.parse(cleanData);
+    } catch (error) {
+      console.error('❌ SSE JSON parse error:', error);
+      console.error('Problematic data:', rawData.substring(0, 100));
+      return null;
+    }
+  };
+
+  // Helper function to parse SSE stream with robust message boundary detection
+  const parseSSEStream = (buffer: string): { messages: string[], remaining: string } => {
+    // Find complete messages separated by double newlines
+    const doubleNewlineIndex = buffer.indexOf('\n\n');
+    
+    if (doubleNewlineIndex === -1) {
+      // No complete message yet, return everything as remaining buffer
+      return { messages: [], remaining: buffer };
+    }
+    
+    // Extract complete message(s) and remaining buffer
+    const completePart = buffer.substring(0, doubleNewlineIndex);
+    const remaining = buffer.substring(doubleNewlineIndex + 2);
+    
+    // Split complete part into individual messages
+    const messages = completePart.split(/\n\n|\r\n\r\n/).filter(msg => msg.trim());
+    
+    // Recursively process remaining buffer for additional complete messages
+    const recurseResult = parseSSEStream(remaining);
+    
+    return {
+      messages: [...messages, ...recurseResult.messages],
+      remaining: recurseResult.remaining
+    };
+  };
+
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
-
-    console.log('User input message:', message);
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -283,33 +585,30 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsTyping(true);
+    setIsStreaming(true);
+    setThinkingSteps([]);
+    setStreamedContent('');
+    setStreamingDataCards([]);
+    setThinkingCollapsed(false);
 
     if (chatState === 'inline-expanded') {
       setChatState('full-window');
     }
 
     try {
-      console.log('🌐 Current origin:', window.location.origin);
-      console.log('🌐 Current hostname:', window.location.hostname);
-      console.log('🚀 Sending chat request to DigitalOcean...');
-      console.log('Message:', inputValue);
-      console.log('Selected tickers:', selectedTickers);
-      
       const response = await fetch('https://catalyst-copilot-2nndy.ondigitalocean.app/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
         },
-        credentials: 'omit', // Don't send credentials
+        credentials: 'omit',
         body: JSON.stringify({
-          message: inputValue,
+          message: message,
           conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
           selectedTickers
         })
       });
-
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response headers:', [...response.headers.entries()]);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -317,65 +616,88 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
         throw new Error(`Chat request failed: ${response.status} - ${errorText}`);
       }
 
-      const data = await response.json();
-      console.log('Chat response:', data);
+      // Handle SSE stream
+      console.log('📡 SSE stream handler initialized');
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let collectedThinking: ThinkingStep[] = [];
+      let collectedContent = '';
+      let collectedDataCards: DataCard[] = [];
+      let eventData: Record<string, any> = {};
 
-      // Detect if this is an event listing query where user expects data cards
-      const isEventListingQuery = /what are.*event|list.*event|show.*event|upcoming event|legal.*event|regulatory.*event/i.test(message);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      const tickersInResponse = new Set<string>();
-      const tickerPattern = /\b([A-Z]{2,5})\b/g;
-      const tickerMatches = data.response.match(tickerPattern);
-      if (tickerMatches) {
-        const excludeWords = ['AI', 'US', 'IT', 'CEO', 'CFO', 'CTO', 'IPO', 'ETF', 'REIT', 'SEC', 'FDA', 'FTC', 'DOJ'];
-        tickerMatches.forEach((ticker: string) => {
-          if (!excludeWords.includes(ticker) && ticker.length >= 2 && ticker.length <= 5) {
-            tickersInResponse.add(ticker);
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Process complete SSE messages
+        const { messages: completeMessages, remaining } = parseSSEStream(buffer);
+        buffer = remaining;
+
+        for (const messageBlock of completeMessages) {
+          const lines = messageBlock.split('\n');
+          
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            
+            // Skip empty lines and comments
+            if (!trimmedLine || trimmedLine.startsWith(':')) continue;
+            
+            // Process data lines
+            if (trimmedLine.startsWith('data: ')) {
+              const data = processSSEData(trimmedLine);
+              if (!data || !data.type) continue;
+
+              console.log('📥 SSE:', data.type);
+
+              switch (data.type) {
+                case 'metadata':
+                  if (data.dataCards) {
+                    collectedDataCards = data.dataCards;
+                    setStreamingDataCards(data.dataCards);
+                  }
+                  if (data.eventData) {
+                    eventData = data.eventData;
+                  }
+                  break;
+
+                case 'thinking':
+                  const newStep = { phase: data.phase || 'thinking', content: data.content };
+                  collectedThinking.push(newStep);
+                  setThinkingSteps(prev => [...prev, newStep]);
+                  break;
+
+                case 'content':
+                  collectedContent += data.content;
+                  setStreamedContent(prev => prev + data.content);
+                  break;
+
+                case 'done':
+                  const aiMessage: Message = {
+                    id: `ai-${Date.now()}`,
+                    role: 'assistant',
+                    content: collectedContent,
+                    dataCards: collectedDataCards,
+                    eventData: eventData,
+                    thinkingSteps: collectedThinking,
+                    timestamp: new Date()
+                  };
+                  setMessages(prev => [...prev, aiMessage]);
+                  setIsStreaming(false);
+                  setThinkingSteps([]);
+                  setStreamedContent('');
+                  setStreamingDataCards([]);
+                  break;
+              }
+            }
           }
-        });
+        }
       }
-
-      // For event listing queries, also extract tickers from data cards themselves
-      if (isEventListingQuery && data.dataCards && data.dataCards.length > 0) {
-        data.dataCards.forEach((card: DataCard) => {
-          if (card.type === 'event' && card.data?.ticker) {
-            tickersInResponse.add(card.data.ticker);
-          }
-        });
-      }
-
-      if (tickersInResponse.size === 0 && selectedTickers.length > 0) {
-        selectedTickers.forEach(ticker => tickersInResponse.add(ticker));
-      }
-
-      let filteredDataCards = data.dataCards || [];
-      // Skip filtering for event listing queries - show all cards the backend returned
-      if (!isEventListingQuery && tickersInResponse.size > 0 && filteredDataCards.length > 0) {
-        filteredDataCards = filteredDataCards.filter((card: DataCard) => {
-          if (card.type === 'event' && card.data?.ticker) {
-            return tickersInResponse.has(card.data.ticker);
-          }
-          if (card.type === 'stock' && card.data?.ticker) {
-            return tickersInResponse.has(card.data.ticker);
-          }
-          return true;
-        });
-      }
-
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
-        role: 'assistant',
-        content: data.response,
-        dataCards: filteredDataCards,
-        eventData: data.eventData || {},
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error('❌ Error sending message:', error);
       
-      // More detailed error logging
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         console.error('❌ Network error - possible causes:');
         console.error('  1. CORS not configured on DigitalOcean app');
@@ -391,6 +713,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
+      setIsStreaming(false);
     } finally {
       setIsTyping(false);
     }
@@ -427,6 +750,131 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     }
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      // Dynamically import jsPDF
+      const { default: jsPDF } = await import('jspdf');
+      
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - (margin * 2);
+      let yPosition = margin;
+
+      // Helper function to add text with word wrap
+      const addText = (text: string, x: number, fontSize: number, fontStyle: string = 'normal', color: number[] = [0, 0, 0]) => {
+        doc.setFontSize(fontSize);
+        doc.setFont('helvetica', fontStyle);
+        doc.setTextColor(color[0], color[1], color[2]);
+        const lines = doc.splitTextToSize(text, maxWidth - (x - margin));
+        
+        lines.forEach((line: string) => {
+          if (yPosition > pageHeight - margin) {
+            doc.addPage();
+            yPosition = margin;
+          }
+          doc.text(line, x, yPosition);
+          yPosition += fontSize * 0.5;
+        });
+        yPosition += 3;
+      };
+
+      // Header
+      doc.setFillColor(0, 0, 0);
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Catalyst Copilot Chat', margin, 20);
+      
+      yPosition = 45;
+
+      // Add timestamp
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated: ${new Date().toLocaleString()}`, margin, yPosition);
+      yPosition += 15;
+
+      // Add messages
+      messages.forEach((msg, index) => {
+        // Check if we need a new page
+        if (yPosition > pageHeight - 40) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        // Message header with timestamp
+        const timestamp = new Date(msg.timestamp).toLocaleString();
+        const role = msg.role === 'user' ? 'You' : 'Catalyst AI';
+        
+        doc.setFillColor(msg.role === 'user' ? 240 : 250, msg.role === 'user' ? 240 : 250, msg.role === 'user' ? 240 : 255);
+        const boxHeight = 8;
+        doc.roundedRect(margin, yPosition - 5, maxWidth, boxHeight, 2, 2, 'F');
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(msg.role === 'user' ? 0 : 80, msg.role === 'user' ? 0 : 0, msg.role === 'user' ? 0 : 160);
+        doc.text(role, margin + 3, yPosition);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 120, 120);
+        doc.setFontSize(8);
+        doc.text(timestamp, pageWidth - margin - doc.getTextWidth(timestamp), yPosition);
+        
+        yPosition += 12;
+
+        // Add thinking steps if present (for AI messages)
+        if (msg.role === 'assistant' && msg.thinkingSteps && msg.thinkingSteps.length > 0) {
+          yPosition += 3;
+          addText('💭 Thinking Process:', margin + 5, 9, 'bold', [100, 100, 100]);
+          msg.thinkingSteps.forEach((step) => {
+            addText(`  • ${step.content}`, margin + 8, 8, 'normal', [120, 120, 120]);
+          });
+          yPosition += 3;
+        }
+
+        // Message content
+        addText(msg.content, margin + 5, 10, 'normal', [0, 0, 0]);
+
+        // Add data cards info if present
+        if (msg.dataCards && msg.dataCards.length > 0) {
+          yPosition += 3;
+          msg.dataCards.forEach((card) => {
+            if (card.type === 'stock' && card.data) {
+              const stockData = card.data as StockCardData;
+              addText(`📊 ${stockData.ticker}: ${formatCurrency(stockData.price)} (${stockData.changePercent >= 0 ? '+' : ''}${stockData.changePercent?.toFixed(2)}%)`, margin + 10, 9, 'normal', [60, 60, 60]);
+            } else if (card.type === 'event' && card.data) {
+              const eventConfig = getEventTypeConfig(card.data.type);
+              addText(`📅 ${card.data.ticker} - ${card.data.title} (${eventConfig?.label || card.data.type})`, margin + 10, 9, 'normal', [60, 60, 60]);
+            } else if (card.type === 'image' && card.data) {
+              const imageData = card.data as ImageCardData;
+              addText(`🖼️ ${imageData.ticker} - ${imageData.title}${imageData.filingType ? ` (${imageData.filingType})` : ''}`, margin + 10, 9, 'normal', [60, 60, 60]);
+              if (imageData.filingUrl) {
+                addText(`   View: ${imageData.filingUrl}`, margin + 10, 9, 'normal', [100, 100, 255]);
+              }
+            }
+          });
+        }
+
+        yPosition += 5;
+      });
+
+      // Footer on last page
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text('Powered by Catalyst Copilot', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      // Save the PDF
+      const filename = `catalyst-chat-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
+  };
+
   const handleEditMessage = (messageId: string, content: string) => {
     setEditingMessageId(messageId);
     setEditingValue(content);
@@ -442,8 +890,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
 
   const handleSubmitEdit = async (messageId: string) => {
     if (!editingValue.trim()) return;
-
-    console.log('User edited message:', editingValue);
 
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
@@ -481,7 +927,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
       }
 
       const data = await response.json();
-      console.log('Chat response:', data);
 
       // Detect if this is an event listing query where user expects data cards
       const isEventListingQuery = /what are.*event|list.*event|show.*event|upcoming event|legal.*event|regulatory.*event/i.test(editingValue);
@@ -591,6 +1036,17 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                 <h3 className="font-semibold">Catalyst Copilot</h3>
               </div>
               <div className="flex items-center gap-2">
+                {messages.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={handleDownloadPDF}
+                    title="Download chat as PDF"
+                  >
+                    <Download className="w-3 h-3" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -625,13 +1081,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
 
             {messages.length === 0 && (
               <div className="p-4">
-                <p className="text-xs text-muted-foreground mb-3">Quick start:</p>
+                <p className="text-xs text-muted-foreground mb-3 font-medium">Quick start:</p>
                 <div className="flex flex-wrap gap-2">
                   {quickStartChips.map((chip, index) => (
                     <Badge
                       key={index}
                       variant="outline"
-                      className="cursor-pointer hover:bg-accent rounded"
+                      className="cursor-pointer hover:bg-ai-accent hover:text-white transition-all hover:scale-105 rounded-full border-2"
                       onClick={() => handleQuickStart(chip)}
                     >
                       {chip}
@@ -642,29 +1098,48 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
             )}
 
             <div className="p-4 border-t border-border">
-              <div className="flex items-center gap-2">
-                <input
-                  ref={inputRef}
-                  type="text"
+              <div className="flex items-end gap-2">
+                <textarea
+                  ref={inputRef as any}
                   value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
+                  onChange={(e) => {
+                    setInputValue(e.target.value);
+                    // Auto-resize textarea
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       handleSendMessage(inputValue);
+                      // Reset height after sending
+                      if (inputRef.current) {
+                        (inputRef.current as any).style.height = 'auto';
+                      }
                     }
                   }}
-                  placeholder="Ask about any stock or your watchlist…"
-                  className="flex-1 bg-input-background rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder={isStreaming ? "AI is thinking..." : "Ask about any stock or your watchlist…"}
+                  className="flex-1 bg-input-background rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none overflow-y-auto min-h-[36px] max-h-[120px]"
+                  rows={1}
+                  disabled={isStreaming || isTyping}
                 />
-                <Button
-                  size="sm"
-                  className="h-9 w-9 p-0"
-                  onClick={() => handleSendMessage(inputValue)}
-                  disabled={!inputValue.trim()}
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <Send className="w-4 h-4" />
-                </Button>
+                  <Button
+                    size="sm"
+                    className={`h-9 w-9 p-0 rounded-full transition-all ${
+                      inputValue.trim() 
+                        ? 'bg-gradient-to-r from-ai-accent to-ai-accent/80 shadow-md' 
+                        : ''
+                    }`}
+                    onClick={() => handleSendMessage(inputValue)}
+                    disabled={!inputValue.trim() || isStreaming || isTyping}
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </motion.div>
               </div>
               <p className="text-[10px] text-muted-foreground mt-2 text-center">
                 Powered by OpenAI + Catalyst data
@@ -736,6 +1211,18 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
             <h2 className="font-semibold">Catalyst Copilot</h2>
           </div>
           <div className="flex items-center gap-2">
+            {messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3"
+                onClick={handleDownloadPDF}
+                title="Download chat as PDF"
+              >
+                <Download className="w-4 h-4 mr-1" />
+                <span className="text-xs">Export PDF</span>
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -757,27 +1244,55 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6" ref={chatContainerRef}>
           {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="w-16 h-16 bg-gradient-to-br from-ai-accent to-muted-foreground rounded-full flex items-center justify-center mb-4">
-                <Sparkles className="w-8 h-8 text-primary-foreground" />
-              </div>
-              <h3 className="font-semibold mb-2">Start a conversation</h3>
-              <p className="text-sm text-muted-foreground mb-4 text-center max-w-xs">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="flex flex-col items-center justify-center h-full"
+            >
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }}
+                className="w-16 h-16 bg-gradient-to-br from-ai-accent via-purple-500 to-blue-500 rounded-full flex items-center justify-center mb-4 shadow-lg"
+              >
+                <Sparkles className="w-8 h-8 text-white" />
+              </motion.div>
+              <motion.h3 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="font-semibold mb-2 text-lg"
+              >
+                Start a conversation
+              </motion.h3>
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className="text-sm text-muted-foreground mb-6 text-center max-w-xs"
+              >
                 Ask me anything about your stocks, watchlist, or market events
-              </p>
+              </motion.p>
               <div className="flex flex-wrap gap-2 justify-center max-w-md">
                 {quickStartChips.map((chip, index) => (
-                  <Badge
+                  <motion.div
                     key={index}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-accent rounded"
-                    onClick={() => handleQuickStart(chip)}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 + (index * 0.05) }}
                   >
-                    {chip}
-                  </Badge>
+                    <Badge
+                      variant="outline"
+                      className="cursor-pointer hover:bg-ai-accent hover:text-white transition-all hover:scale-105 rounded-full px-4 py-1.5 border-2"
+                      onClick={() => handleQuickStart(chip)}
+                    >
+                      {chip}
+                    </Badge>
+                  </motion.div>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )}
 
           {messages.map((msg) => (
@@ -785,7 +1300,22 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
               key={msg.id}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`max-w-[85%] ${msg.role === 'assistant' ? 'space-y-3' : ''}`}>
+              <div className={`${msg.role === 'user' ? 'max-w-[85%]' : 'w-full'} ${msg.role === 'assistant' ? 'space-y-3' : ''}`}>
+                {/* AI Avatar for assistant messages */}
+                {msg.role === 'assistant' && (
+                  <motion.div 
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    className="flex items-center gap-2 mb-2"
+                  >
+                    <div className="w-7 h-7 bg-gradient-to-br from-ai-accent via-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-md">
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
+                  </motion.div>
+                )}
+                
                 {editingMessageId === msg.id && msg.role === 'user' ? (
                   <div className="space-y-2">
                     <textarea
@@ -827,12 +1357,41 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="space-y-2"
+                  >
+                    {/* Show thinking steps for assistant messages if available */}
+                    {msg.role === 'assistant' && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
+                      <details className="rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-br from-muted/40 to-muted/20 backdrop-blur-sm mb-2 max-w-[85%]">
+                        <summary className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 transition-colors list-none">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-ai-accent" />
+                            <span className="text-xs font-medium text-muted-foreground">View thinking process</span>
+                          </div>
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        </summary>
+                        <div className="px-4 pb-3 space-y-2">
+                          {msg.thinkingSteps.map((step, index) => (
+                            <div
+                              key={index}
+                              className="text-xs text-muted-foreground flex items-start gap-2"
+                            >
+                              <div className="w-1 h-1 rounded-full bg-ai-accent mt-1.5 flex-shrink-0" />
+                              <span>{step.content}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+
                     <div
-                      className={`rounded-2xl px-4 py-3 ${
+                      className={`${
                         msg.role === 'user'
-                          ? 'bg-ai-accent text-primary-foreground'
-                          : 'bg-muted text-foreground'
+                          ? 'rounded-2xl px-4 py-3 bg-gradient-to-br from-ai-accent to-ai-accent/90 text-primary-foreground shadow-md'
+                          : 'text-foreground'
                       }`}
                     >
                       <MarkdownText text={msg.content} />
@@ -844,7 +1403,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEditMessage(msg.id, msg.content)}
-                          className="h-7 text-xs"
+                          className="h-7 text-xs opacity-60 hover:opacity-100 transition-opacity"
                         >
                           <Edit2 className="w-3 h-3 mr-1" />
                           Edit
@@ -853,28 +1412,195 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                     )}
 
                     {msg.dataCards && msg.dataCards.length > 0 && (
-                      <div className="space-y-2">
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.1 }}
+                        className="space-y-2"
+                      >
                         {msg.dataCards.map((card, index) => (
-                          <DataCardComponent key={index} card={card} onEventClick={onEventClick} />
+                          <motion.div
+                            key={index}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.3, delay: 0.1 + (index * 0.05) }}
+                          >
+                            <DataCardComponent card={card} onEventClick={onEventClick} />
+                          </motion.div>
                         ))}
-                      </div>
+                      </motion.div>
                     )}
-                  </div>
+                  </motion.div>
                 )}
               </div>
             </div>
           ))}
 
-          {isTyping && (
+          {/* Streaming Message with Thinking Box */}
+          {isStreaming && (
             <div className="flex justify-start">
-              <div className="bg-muted rounded-2xl px-4 py-3">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
+              <div className="w-full space-y-3">
+                {/* AI Avatar */}
+                <motion.div 
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  className="flex items-center gap-2 mb-2"
+                >
+                  <div className="w-7 h-7 bg-gradient-to-br from-ai-accent via-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-md">
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
+                </motion.div>
+
+                {/* Streaming Data Cards - Show First (metadata arrives first) */}
+                {streamingDataCards.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.1 }}
+                    className="space-y-2"
+                  >
+                    {streamingDataCards.map((card, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: 0.1 + (index * 0.05) }}
+                      >
+                        <DataCardComponent card={card} onEventClick={onEventClick} />
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+
+                {/* Loading indicator before thinking starts */}
+                {thinkingSteps.length === 0 && !streamedContent && streamingDataCards.length === 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex items-center gap-1.5 px-2 py-1"
+                  >
+                    <motion.div 
+                      className="w-2 h-2 bg-ai-accent rounded-full"
+                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+                    />
+                    <motion.div 
+                      className="w-2 h-2 bg-ai-accent rounded-full"
+                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
+                    />
+                    <motion.div 
+                      className="w-2 h-2 bg-ai-accent rounded-full"
+                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
+                    />
+                  </motion.div>
+                )}
+
+                {/* Thinking Box (ChatGPT style) */}
+                {thinkingSteps.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-br from-muted/40 to-muted/20 backdrop-blur-sm max-w-[85%]`}
+                  >
+                    <div 
+                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => setThinkingCollapsed(!thinkingCollapsed)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                        >
+                          <Sparkles className="w-4 h-4 text-ai-accent" />
+                        </motion.div>
+                        <span className="text-xs font-medium text-muted-foreground">Thinking...</span>
+                      </div>
+                      <motion.div
+                        animate={{ rotate: thinkingCollapsed ? -90 : 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      </motion.div>
+                    </div>
+                    
+                    {!thinkingCollapsed && (
+                      <div className="px-4 pb-3 space-y-2">
+                        {thinkingSteps.map((step, index) => (
+                          <motion.div
+                            key={index}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="text-xs text-muted-foreground flex items-start gap-2"
+                          >
+                            <div className="w-1 h-1 rounded-full bg-ai-accent mt-1.5 flex-shrink-0" />
+                            <span>{step.content}</span>
+                          </motion.div>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Streamed Content with Typing Cursor - Full Width, No Background */}
+                {streamedContent && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-foreground"
+                  >
+                    <MarkdownText text={streamedContent} />
+                    <motion.span
+                      className="inline-block w-[2px] h-4 bg-foreground/60 ml-0.5"
+                      animate={{ opacity: [1, 0, 1] }}
+                      transition={{ duration: 0.8, repeat: Infinity }}
+                    />
+                  </motion.div>
+                )}
               </div>
             </div>
+          )}
+
+          {isTyping && !isStreaming && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex justify-start"
+            >
+              <div className="flex items-center gap-2">
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  className="w-7 h-7 bg-gradient-to-br from-ai-accent via-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-md"
+                >
+                  <Sparkles className="w-4 h-4 text-white" />
+                </motion.div>
+                <div className="bg-gradient-to-br from-muted/80 to-muted/60 backdrop-blur-sm rounded-2xl px-4 py-3 border border-border/50">
+                  <div className="flex items-center gap-1.5">
+                    <motion.div 
+                      className="w-2 h-2 bg-ai-accent rounded-full"
+                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+                    />
+                    <motion.div 
+                      className="w-2 h-2 bg-ai-accent rounded-full"
+                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
+                    />
+                    <motion.div 
+                      className="w-2 h-2 bg-ai-accent rounded-full"
+                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           )}
 
           <div ref={messagesEndRef} />
@@ -893,17 +1619,38 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   handleSendMessage(inputValue);
                 }
               }}
-              placeholder="Ask anything about your stocks, watchlist, or events…"
+              placeholder={isStreaming ? "AI is thinking..." : "Ask anything about your stocks, watchlist, or events…"}
               className="flex-1 bg-input-background rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              disabled={isStreaming || isTyping}
             />
-            <Button
-              size="sm"
-              className="h-11 w-11 p-0 rounded-full"
-              onClick={() => handleSendMessage(inputValue)}
-              disabled={!inputValue.trim() || isTyping}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
-              <Send className="w-5 h-5" />
-            </Button>
+              <Button
+                size="sm"
+                className={`h-11 w-11 p-0 rounded-full transition-all ${
+                  inputValue.trim() && !isTyping && !isStreaming
+                    ? 'bg-gradient-to-r from-ai-accent to-ai-accent/80 shadow-lg' 
+                    : ''
+                }`}
+                onClick={() => handleSendMessage(inputValue)}
+                disabled={!inputValue.trim() || isTyping || isStreaming}
+              >
+                <motion.div
+                  animate={inputValue.trim() && !isTyping ? { 
+                    scale: [1, 1.1, 1],
+                  } : {}}
+                  transition={{ 
+                    duration: 1.5, 
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                >
+                  <Send className="w-5 h-5" />
+                </motion.div>
+              </Button>
+            </motion.div>
           </div>
           <p className="text-[10px] text-muted-foreground mt-[8px] text-center mr-[0px] mb-[-30px] ml-[0px]">
             Powered by OpenAI + Catalyst data (Supabase)
@@ -971,34 +1718,42 @@ function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClic
     };
 
     return (
-      <Card 
-        className="p-3 cursor-pointer hover:shadow-md transition-shadow"
-        onClick={handleClick}
+      <motion.div
+        whileHover={{ scale: 1.02, y: -2 }}
+        transition={{ duration: 0.2 }}
       >
-        <div className="flex items-start gap-3">
-          <div className={`w-10 h-10 rounded-full ${eventConfig.color} flex items-center justify-center flex-shrink-0`}>
-            <EventIcon className="w-5 h-5 text-white" />
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Badge className="!bg-black !text-white !border-black text-xs rounded">
-                {ticker}
-              </Badge>
-              <span className="text-xs text-muted-foreground">{eventConfig.label}</span>
+        <Card 
+          className="p-3 cursor-pointer hover:shadow-lg transition-all border-2 hover:border-ai-accent/30 bg-gradient-to-br from-background to-muted/20"
+          onClick={handleClick}
+        >
+          <div className="flex items-start gap-3">
+            <motion.div 
+              whileHover={{ rotate: 5, scale: 1.1 }}
+              className={`w-10 h-10 rounded-full ${eventConfig.color} flex items-center justify-center flex-shrink-0 shadow-md`}
+            >
+              <EventIcon className="w-5 h-5 text-white" />
+            </motion.div>
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <Badge className="!bg-gradient-to-r !from-ai-accent !to-ai-accent/80 !text-white !border-none text-xs shadow-sm">
+                  {ticker}
+                </Badge>
+                <span className="text-xs text-muted-foreground font-medium">{eventConfig.label}</span>
+              </div>
+              <p className="text-sm font-medium mb-1 line-clamp-2">{title}</p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Calendar className="w-3 h-3" />
+                <span>{formattedDate}</span>
+              </div>
+              {aiInsight && (
+                <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{aiInsight}</p>
+              )}
             </div>
-            <p className="text-sm font-medium mb-1 line-clamp-2">{title}</p>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar className="w-3 h-3" />
-              <span>{formattedDate}</span>
-            </div>
-            {aiInsight && (
-              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{aiInsight}</p>
-            )}
           </div>
-        </div>
-        <p className="text-[10px] text-muted-foreground mt-[-15px] mr-[0px] mb-[0px] ml-[0px]">Data from Catalyst (Supabase)</p>
-      </Card>
+          <p className="text-[10px] text-muted-foreground/60 mt-[-15px] mr-[0px] mb-[0px] ml-[0px]">Data from Catalyst (Supabase)</p>
+        </Card>
+      </motion.div>
     );
   }
 
@@ -1006,20 +1761,105 @@ function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClic
     const { events } = card.data;
 
     return (
-      <Card className="p-3">
-        <h4 className="font-semibold text-sm mb-2">Upcoming Events</h4>
-        <div className="space-y-2">
-          {events.slice(0, 3).map((event: any, index: number) => (
-            <div key={index} className="flex items-center gap-2 text-xs">
-              <div className={`w-2 h-2 rounded-full ${event.color || 'bg-muted-foreground'}`} />
-              <span className="font-medium">{formatEventDateTime(event.date)}</span>
-              <span className="text-muted-foreground">•</span>
-              <span className="text-muted-foreground">{getEventTypeConfig(event.type)?.label || event.type}</span>
-            </div>
-          ))}
-        </div>
-        <p className="text-[10px] text-muted-foreground mt-2">Data from Catalyst (Supabase)</p>
-      </Card>
+      <motion.div
+        whileHover={{ scale: 1.02, y: -2 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Card className="p-3 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg">
+          <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-ai-accent" />
+            Upcoming Events
+          </h4>
+          <div className="space-y-2">
+            {events.slice(0, 3).map((event: any, index: number) => (
+              <motion.div 
+                key={index} 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="flex items-center gap-2 text-xs p-2 rounded-lg hover:bg-muted/50 transition-colors"
+              >
+                <div className={`w-2 h-2 rounded-full ${event.color || 'bg-muted-foreground'} shadow-sm`} />
+                <span className="font-medium">{formatEventDateTime(event.date)}</span>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-muted-foreground">{getEventTypeConfig(event.type)?.label || event.type}</span>
+              </motion.div>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted-foreground/60 mt-2">Data from Catalyst (Supabase)</p>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  if (card.type === 'image') {
+    const imageData = card.data as ImageCardData;
+    
+    return (
+      <motion.div
+        whileHover={{ scale: 1.01, y: -2 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Card className="p-4 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg overflow-hidden">
+          {/* Header with ticker and filing info */}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <Badge className="!bg-gradient-to-r !from-ai-accent !to-ai-accent/80 !text-white !border-none text-xs shadow-sm">
+              {imageData.ticker}
+            </Badge>
+            {imageData.filingType && (
+              <Badge variant="outline" className="text-xs border-green-500 text-green-600 dark:text-green-400">
+                {imageData.filingType}
+              </Badge>
+            )}
+            {imageData.filingDate && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                {imageData.filingDate}
+              </span>
+            )}
+          </div>
+
+          {/* Image Title */}
+          {imageData.title && (
+            <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-ai-accent" />
+              {imageData.title}
+            </h4>
+          )}
+
+          {/* SEC Filing Image */}
+          <div className="rounded-lg overflow-hidden border border-border/50 mb-3 bg-white dark:bg-muted/20">
+            <img 
+              src={imageData.imageUrl} 
+              alt={imageData.title || 'SEC Filing Image'} 
+              className="w-full h-auto"
+              loading="lazy"
+            />
+          </div>
+
+          {/* Context/Caption */}
+          {imageData.context && (
+            <p className="text-xs text-muted-foreground mb-3 line-clamp-3">
+              {imageData.context}
+            </p>
+          )}
+
+          {/* View Full Filing Link */}
+          {imageData.filingUrl && (
+            <a 
+              href={imageData.filingUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-ai-accent hover:text-ai-accent/80 transition-colors font-medium"
+            >
+              View Full Filing
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+
+          <p className="text-[10px] text-muted-foreground/60 mt-2">SEC Filing Image</p>
+        </Card>
+      </motion.div>
     );
   }
 
@@ -1027,7 +1867,7 @@ function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClic
 }
 
 function StockCard({ data }: { data: StockCardData }) {
-  const { ticker, company, price, change, changePercent, chartData, chartMetadata, previousClose } = data;
+  const { ticker, company, price, change, changePercent, chartData, chartMetadata, chartReference, previousClose, open, high, low } = data;
   const [loadedChartData, setLoadedChartData] = useState<any[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -1036,7 +1876,54 @@ function StockCard({ data }: { data: StockCardData }) {
   // Calculate previous close if not provided
   const calculatedPreviousClose = previousClose || (change != null ? price - change : null);
 
-  // Fetch chart data if metadata is available but chartData is not provided
+  // NEW: Fetch data directly from Supabase if chartReference is provided
+  useEffect(() => {
+    if (chartReference && !chartData && !loadedChartData && !isLoading && !error) {
+      setIsLoading(true);
+      
+      // Build Supabase URL dynamically
+      const params = new URLSearchParams();
+      params.append('select', chartReference.columns.join(','));
+      params.append(chartReference.columns[0], `gte.${chartReference.dateRange.start}`);
+      params.append(chartReference.columns[0], `lte.${chartReference.dateRange.end}`);
+      params.append('symbol', `eq.${chartReference.symbol}`);
+      params.append('order', chartReference.orderBy);
+      params.append('limit', '5000');
+      
+      const url = `https://${projectId}.supabase.co/rest/v1/${chartReference.table}?${params}`;
+      
+      fetch(url, {
+        headers: {
+          'apikey': publicAnonKey,
+          'Authorization': `Bearer ${publicAnonKey}`
+        }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`Supabase query failed: ${res.status}`);
+          return res.json();
+        })
+        .then((result: any[]) => {
+          // Map Supabase response to chartData format
+          const mappedData = result.map(row => ({
+            timestamp_et: row.timestamp_et,
+            timestamp: row.timestamp,
+            price: row.price,
+            value: row.price,
+            volume: row.volume
+          }));
+          
+          setLoadedChartData(mappedData);
+          setIsLoading(false);
+        })
+        .catch(err => {
+          console.error('❌ Supabase query error:', err);
+          setError(true);
+          setIsLoading(false);
+        });
+    }
+  }, [chartReference, chartData, loadedChartData, isLoading, error, ticker]);
+
+  // EXISTING: Fetch chart data if metadata is available but chartData is not provided
   useEffect(() => {
     if (chartMetadata?.available && !chartData && !loadedChartData && !isLoading && !error) {
       setIsLoading(true);
@@ -1050,7 +1937,6 @@ function StockCard({ data }: { data: StockCardData }) {
           return res.json();
         })
         .then(result => {
-          console.log('Fetched intraday chart data:', result);
           setLoadedChartData(result.prices || []);
           setIsLoading(false);
         })
@@ -1067,11 +1953,13 @@ function StockCard({ data }: { data: StockCardData }) {
 
   // Detect if this is intraday-only data (all timestamps from the same calendar day)
   const isIntradayOnly = effectiveChartData && effectiveChartData.length > 0 && (() => {
-    const firstDate = new Date(typeof effectiveChartData[0].timestamp === 'string' ? effectiveChartData[0].timestamp : effectiveChartData[0].timestamp);
+    const firstTimestamp = effectiveChartData[0].timestamp || effectiveChartData[0].timestamp_et;
+    const firstDate = new Date(typeof firstTimestamp === 'string' ? firstTimestamp : firstTimestamp);
     const firstDay = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate());
     
     return effectiveChartData.every((point: any) => {
-      const pointDate = new Date(typeof point.timestamp === 'string' ? point.timestamp : point.timestamp);
+      const pointTimestamp = point.timestamp || point.timestamp_et;
+      const pointDate = new Date(typeof pointTimestamp === 'string' ? pointTimestamp : pointTimestamp);
       const pointDay = new Date(pointDate.getFullYear(), pointDate.getMonth(), pointDate.getDate());
       return pointDay.getTime() === firstDay.getTime();
     });
@@ -1080,37 +1968,60 @@ function StockCard({ data }: { data: StockCardData }) {
   const hasChart = chartMetadata?.available || (effectiveChartData && effectiveChartData.length > 0);
 
   return (
-    <Card className="p-3">
-      {!isIntradayOnly && (
-        <div className="flex items-start justify-between mb-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-ai-accent text-primary-foreground text-xs rounded">
-                {ticker}
-              </Badge>
-              {company && company !== ticker && (
-                <span className="text-xs text-muted-foreground">{company}</span>
+    <motion.div
+      whileHover={{ scale: 1.02, y: -2 }}
+      transition={{ duration: 0.2 }}
+    >
+      <Card className="p-3 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg">
+        {!isIntradayOnly && (
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-gradient-to-r from-ai-accent to-ai-accent/80 text-primary-foreground text-xs shadow-sm">
+                  {ticker}
+                </Badge>
+                {company && company !== ticker && (
+                  <span className="text-xs text-muted-foreground font-medium">{company}</span>
+                )}
+              </div>
+            </div>
+            <div className="text-right">
+              <motion.div 
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                className="font-semibold"
+              >
+                {formatCurrency(price)}
+              </motion.div>
+              {changePercent != null && (
+                <motion.div 
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className={`text-xs flex items-center gap-1 justify-end font-medium ${isPositive ? 'text-positive' : 'text-negative'}`}
+                >
+                  {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {isPositive ? '+' : ''}{changePercent.toFixed(2)}%
+                </motion.div>
               )}
             </div>
           </div>
-          <div className="text-right">
-            <div className="font-semibold">{formatCurrency(price)}</div>
-            {changePercent != null && (
-              <div className={`text-xs flex items-center gap-1 justify-end ${isPositive ? 'text-positive' : 'text-negative'}`}>
-                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {isPositive ? '+' : ''}{changePercent.toFixed(2)}%
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+        )}
       {hasChart && (
         <>
           {isLoading ? (
-            <div className="h-24 flex flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Loading chart...</span>
-            </div>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="h-24 flex flex-col items-center justify-center gap-2 text-xs text-muted-foreground"
+            >
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              >
+                <Loader2 className="w-5 h-5 text-ai-accent" />
+              </motion.div>
+              <span className="font-medium">Loading chart...</span>
+            </motion.div>
           ) : error ? (
             <div className="h-24 flex items-center justify-center text-xs text-muted-foreground">
               Chart unavailable
@@ -1118,17 +2029,42 @@ function StockCard({ data }: { data: StockCardData }) {
           ) : effectiveChartData && effectiveChartData.length > 0 ? (
             <>
               {isIntradayOnly ? (
-                <IntradayMiniChart 
-                  data={effectiveChartData.map((point: any) => ({
-                    timestamp: typeof point.timestamp === 'string' ? new Date(point.timestamp).getTime() : point.timestamp,
-                    value: point.price || point.value || 0
-                  }))}
-                  previousClose={calculatedPreviousClose}
-                  currentPrice={price}
-                  ticker={ticker}
-                  company={company}
-                  upcomingEventsCount={0}
-                />
+                <div className="w-full">
+                  <IntradayMiniChart 
+                    data={effectiveChartData.map((point: any) => {
+                      // Handle timestamp conversion - timestamp_et is in ET timezone but labeled as UTC
+                      // Example: "2025-11-21T08:00:27.296+00:00" means 8:00 AM ET (not UTC)
+                      // We need to add 5 hours to get actual UTC timestamp for chart rendering
+                      let timestamp;
+                      
+                      if (typeof point.timestamp === 'string') {
+                        // Regular UTC timestamp
+                        timestamp = new Date(point.timestamp).getTime();
+                      } else if (typeof point.timestamp_et === 'string') {
+                        // timestamp_et is ET time mislabeled as UTC
+                        // Parse and add 5 hours (EST offset) to get correct UTC time
+                        const etDate = new Date(point.timestamp_et);
+                        timestamp = etDate.getTime() + (5 * 60 * 60 * 1000); // Add 5 hours
+                      } else {
+                        // Already a number
+                        timestamp = point.timestamp || point.timestamp_et || 0;
+                      }
+                      
+                      return {
+                        timestamp,
+                        value: point.price || point.value || 0
+                        // Charts will calculate session from timestamp
+                      };
+                    })}
+                    previousClose={calculatedPreviousClose}
+                    currentPrice={price}
+                    ticker={ticker}
+                    company={company}
+                    upcomingEventsCount={0}
+                    width={350}
+                    height={120}
+                  />
+                </div>
               ) : (
                 <div className="h-12">
                   <SimpleMiniChart data={effectiveChartData} ticker={ticker} />
@@ -1138,7 +2074,8 @@ function StockCard({ data }: { data: StockCardData }) {
           ) : null}
         </>
       )}
-      <p className="text-[10px] text-muted-foreground mt-2">Data from Catalyst (Supabase)</p>
-    </Card>
+        <p className="text-[10px] text-muted-foreground/60 mt-2">Data from Catalyst (Supabase)</p>
+      </Card>
+    </motion.div>
   );
 }
