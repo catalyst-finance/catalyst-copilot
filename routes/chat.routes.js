@@ -1038,40 +1038,12 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     // STEP 6: PREPARE SYSTEM PROMPT (truncated for brevity - full prompt in original)
     const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext);
 
-    // Extract image URLs for vision analysis
-    const imageCards = dataCards.filter(card => card.type === 'image');
-    const hasImages = imageCards.length > 0;
-
-    // Build messages array with vision support
+    // Build messages array (text-only - SEC.gov blocks image downloads)
     const messages = [
       { role: "system", content: systemPrompt },
-      ...loadedHistory || []
+      ...loadedHistory || [],
+      { role: "user", content: message }
     ];
-
-    // Add user message with images for vision analysis
-    if (hasImages) {
-      sendThinking('synthesizing', `Preparing visual analysis of ${imageCards.length} chart(s)/diagram(s)...`);
-      const userContent = [
-        { type: "text", text: message }
-      ];
-      
-      // Add up to 3 images for vision analysis (to stay within limits)
-      imageCards.slice(0, 3).forEach(card => {
-        userContent.push({
-          type: "image_url",
-          image_url: {
-            url: card.data.imageUrl,
-            detail: "high" // Use high detail for better analysis
-          }
-        });
-      });
-      
-      messages.push({ role: "user", content: userContent });
-      
-      console.log(`📸 Including ${imageCards.slice(0, 3).length} images for visual analysis`);
-    } else {
-      messages.push({ role: "user", content: message });
-    }
 
     console.log("Calling OpenAI API with", messages.length, "messages");
 
@@ -1111,45 +1083,16 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     })}\n\n`);
 
     // Send final thinking phase before OpenAI
-    sendThinking('synthesizing', hasImages ? 'Analyzing charts and data visually...' : 'Analyzing the data and preparing your answer...');
+    sendThinking('synthesizing', 'Analyzing the data and preparing your answer...');
 
-    let stream;
-    let useImages = hasImages;
-    
-    try {
-      stream = await openai.chat.completions.create({
-        model: useImages ? "gpt-4o" : "gpt-4o-mini", // Use gpt-4o for vision, gpt-4o-mini otherwise
-        messages,
-        temperature: 0.7,
-        max_tokens: 10000,
-        stream: true
-      });
-    } catch (imageError) {
-      // If image download fails, retry without images
-      if (imageError.code === 'invalid_image_url' && useImages) {
-        console.log('⚠️ Image download failed, retrying without images:', imageError.message);
-        sendThinking('synthesizing', 'Image unavailable, analyzing text content...');
-        
-        // Rebuild messages without images
-        const textOnlyMessages = [
-          { role: "system", content: systemPrompt },
-          ...loadedHistory || [],
-          { role: "user", content: message }
-        ];
-        
-        stream = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: textOnlyMessages,
-          temperature: 0.7,
-          max_tokens: 10000,
-          stream: true
-        });
-        
-        useImages = false;
-      } else {
-        throw imageError; // Re-throw if it's not an image error
-      }
-    }
+    // Call OpenAI with text-only streaming (SEC.gov blocks image downloads)
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+      temperature: 0.7,
+      max_tokens: 10000,
+      stream: true
+    });
 
     let fullResponse = '';
     let finishReason = null;
@@ -1247,15 +1190,6 @@ ROLE & EXPERTISE:
 - Expert at connecting institutional ownership trends with price movements
 - Specialist in FDA approvals, earnings catalysts, and regulatory events
 - Policy analyst tracking government decisions affecting markets
-- **Vision-enabled analyst**: Can analyze charts, tables, and diagrams from SEC filings
-
-VISUAL ANALYSIS GUIDELINES (when images are provided):
-• Carefully examine any charts, tables, or diagrams shown
-• Extract key data points, trends, and patterns from visual elements
-• Describe what the images show in specific detail (e.g., "The pipeline chart shows 3 Phase 3 trials")
-• Integrate visual insights with text data to provide comprehensive analysis
-• Call out important visual information that enhances understanding
-• If tables show numerical data, reference specific figures
 
 RESPONSE GUIDELINES:
 • Lead with the most important insight or answer
