@@ -257,9 +257,50 @@ function MarkdownText({ text }: { text: string }) {
         segments.push(currentText);
       }
       
+      // Parse SEC filing references in brackets [TICKER FORM-TYPE - Date] and convert to badges
+      const filingSegments: (string | JSX.Element)[] = [];
+      segments.forEach((segment) => {
+        if (typeof segment === 'string') {
+          const filingRegex = /\[([A-Z]{1,5})\s+(10-[KQ]|8-K|S-\d+|13[FG]|4|DEF 14A)\s*-\s*([^\]]+)\]/g;
+          let filingLastIndex = 0;
+          let filingMatch;
+          const filingParts: (string | JSX.Element)[] = [];
+          
+          while ((filingMatch = filingRegex.exec(segment)) !== null) {
+            if (filingMatch.index > filingLastIndex) {
+              filingParts.push(segment.substring(filingLastIndex, filingMatch.index));
+            }
+            
+            const ticker = filingMatch[1];
+            const formType = filingMatch[2];
+            const dateStr = filingMatch[3].trim();
+            
+            filingParts.push(
+              <span key={`filing-${key++}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-xs font-medium border border-blue-500/20">
+                <FileText className="w-3 h-3" />
+                {ticker} {formType}
+              </span>
+            );
+            filingLastIndex = filingMatch.index + filingMatch[0].length;
+          }
+          
+          if (filingLastIndex < segment.length) {
+            filingParts.push(segment.substring(filingLastIndex));
+          }
+          
+          if (filingParts.length > 0) {
+            filingSegments.push(...filingParts);
+          } else {
+            filingSegments.push(segment);
+          }
+        } else {
+          filingSegments.push(segment);
+        }
+      });
+      
       // Now parse bold text in each segment
       const finalParts: (string | JSX.Element)[] = [];
-      segments.forEach((segment) => {
+      filingSegments.forEach((segment) => {
         if (typeof segment === 'string') {
           const boldRegex = /\*\*(.+?)\*\*/g;
           let boldLastIndex = 0;
@@ -318,10 +359,19 @@ function MarkdownText({ text }: { text: string }) {
             {parseInlineFormatting(line.substring(2))}
           </h1>
         );
-      } else if (trimmedLine.match(/^\d+\.\s+\*\*/) || trimmedLine.startsWith('- ')) {
+      } else if (trimmedLine.match(/^\*\*[^*]+\*\*$/) && trimmedLine.length < 50) {
+        // Detect bold text on its own line as a subheading (e.g., **Q4 2025**)
+        flushParagraph();
+        flushList();
+        elements.push(
+          <h3 key={`h3-bold-${index}`} className="font-semibold mt-4 mb-2">
+            {parseInlineFormatting(trimmedLine)}
+          </h3>
+        );
+      } else if (trimmedLine.match(/^\d+\.\s+\*\*/) || trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ')) {
         flushParagraph();
         // List item
-        const itemText = trimmedLine.replace(/^(\d+\.\s+|-\s+)/, '');
+        const itemText = trimmedLine.replace(/^(\d+\.\s+|-\s+|•\s+)/, '');
         currentList.push(itemText);
       } else if (trimmedLine) {
         flushList();
