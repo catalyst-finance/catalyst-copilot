@@ -1087,31 +1087,85 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     // Send final thinking phase before OpenAI
     sendThinking('synthesizing', hasImages ? 'Analyzing charts and data visually...' : 'Analyzing the data and preparing your answer...');
 
-    const stream = await openai.chat.completions.create({
-      model: hasImages ? "gpt-4o" : "gpt-4o-mini", // Use gpt-4o for vision, gpt-4o-mini otherwise
-      messages,
-      temperature: 0.7,
-      max_tokens: 5000,
-      stream: true
-    });
-
     let fullResponse = '';
     let finishReason = null;
     let model = null;
 
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || '';
-      if (content) {
-        fullResponse += content;
-        res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
+    try {
+      const stream = await openai.chat.completions.create({
+        model: hasImages ? "gpt-4o" : "gpt-4o-mini", // Use gpt-4o for vision, gpt-4o-mini otherwise
+        messages,
+        temperature: 0.7,
+        max_tokens: 5000,
+        stream: true
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          fullResponse += content;
+          res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
+        }
+        
+        if (chunk.choices[0]?.finish_reason) {
+          finishReason = chunk.choices[0].finish_reason;
+        }
+        
+        if (chunk.model) {
+          model = chunk.model;
+        }
       }
+    } catch (openaiError) {
+      console.error('OpenAI API error:', openaiError.message);
       
-      if (chunk.choices[0]?.finish_reason) {
-        finishReason = chunk.choices[0].finish_reason;
-      }
-      
-      if (chunk.model) {
-        model = chunk.model;
+      // If error is due to image issues, retry without images
+      if (hasImages && openaiError.message && openaiError.message.includes('image')) {
+        console.log('Retrying without images due to image error...');
+        sendThinking('retrieving', 'Image analysis failed, analyzing text content instead...');
+        
+        // Remove images from messages and retry
+        const messagesWithoutImages = [
+          { role: "system", content: systemPrompt },
+          ...loadedHistory || [],
+          { role: "user", content: message }
+        ];
+        
+        try {
+          const fallbackStream = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: messagesWithoutImages,
+            temperature: 0.7,
+            max_tokens: 5000,
+            stream: true
+          });
+
+          for await (const chunk of fallbackStream) {
+            const content = chunk.choices[0]?.delta?.content || '';
+            if (content) {
+              fullResponse += content;
+              res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
+            }
+            
+            if (chunk.choices[0]?.finish_reason) {
+              finishReason = chunk.choices[0].finish_reason;
+            }
+            
+            if (chunk.model) {
+              model = chunk.model;
+            }
+          }
+        } catch (fallbackError) {
+          console.error('Fallback API error:', fallbackError.message);
+          fullResponse += '\n\n[Error: Unable to complete analysis due to technical issues. Please try again.]';
+          finishReason = 'error';
+          model = 'gpt-4o-mini';
+        }
+      } else {
+        // For non-image errors, add error message to response
+        console.error('Non-image API error, continuing with error message');
+        fullResponse += '\n\n[Error: Unable to complete analysis due to technical issues. Please try again.]';
+        finishReason = 'error';
+        model = hasImages ? "gpt-4o" : "gpt-4o-mini";
       }
     }
 
