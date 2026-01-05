@@ -2948,6 +2948,26 @@ ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dat
       timestamp: new Date().toISOString()
     })}\n\n`);
 
+    // Send "thinking" phase updates for a dedicated thinking container on the UI
+    const thinkingSteps = [
+      {
+        phase: 'analyzing',
+        content: 'Analyzing query intent and data requirements...'
+      },
+      {
+        phase: 'retrieving',
+        content: `Retrieving data sources: ${queryIntent.dataNeeded.join(', ')} | Tickers: ${tickersToQuery.join(', ') || 'none'}`
+      },
+      {
+        phase: 'synthesizing',
+        content: 'Synthesizing findings and preparing response...'
+      }
+    ];
+
+    thinkingSteps.forEach(step => {
+      res.write(`data: ${JSON.stringify({ type: 'thinking', phase: step.phase, content: step.content })}\n\n`);
+    });
+
     const stream = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages,
