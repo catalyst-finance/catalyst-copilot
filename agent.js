@@ -696,7 +696,7 @@ class DataConnector {
     }
   }
   
-  static async getSecFilings(symbol, formType = null, limit = 20) {
+  static async getSecFilings(symbol, formType = null, dateRange = null, limit = 20) {
     try {
       await connectMongo();
       const db = mongoClient.db('raw_data');
@@ -729,6 +729,16 @@ class DataConnector {
         } else {
           query.form_type = formType;
         }
+      }
+      
+      // Add date range filtering if provided
+      if (dateRange && dateRange.start && dateRange.end) {
+        // Use acceptance_datetime for filtering (ISO format with timezone)
+        query.acceptance_datetime = {
+          $gte: dateRange.start,
+          $lte: dateRange.end
+        };
+        console.log(`Filtering SEC filings from ${dateRange.start} to ${dateRange.end}`);
       }
       
       const data = await collection.find(query)
@@ -1621,7 +1631,11 @@ app.post('/chat', optionalAuth, async (req, res) => {
 
 IMPORTANT: Set needsChart=true when user asks "How did [stock] trade today?" or similar intraday questions.
 
-IMPORTANT: Today's date is ${currentDate}. When user says "last week", calculate the date range from 7 days ago to today.
+IMPORTANT: Today's date is ${currentDate}. 
+- When user says "last week", calculate the date range from 7 days ago to today.
+- When user says "past year" or "last year", calculate the date range from 365 days ago to today.
+- When user says "past 6 months", calculate from 180 days ago to today.
+- When user says "past 3 months" or "this quarter", calculate from 90 days ago to today.
 
 User's portfolio: ${selectedTickers.join(', ') || 'none'}
 User's question: "${message}"
@@ -1720,9 +1734,12 @@ Top Holders:`;
       // Determine if we should fetch full content (for deep analysis queries)
       const needsDeepAnalysis = /analyze|analysis|roadmap|strategy|plan|insights?|details?|review/i.test(message);
       
+      // Use date range if provided by AI classification
+      const dateRange = queryIntent.dateRange || null;
+      
       for (const ticker of tickersToQuery.slice(0, 3)) {
         try {
-          const secResult = await DataConnector.getSecFilings(ticker, formTypes, needsDeepAnalysis ? 5 : 10);
+          const secResult = await DataConnector.getSecFilings(ticker, formTypes, dateRange, needsDeepAnalysis ? 20 : 10);
           if (secResult.success && secResult.data.length > 0) {
             dataContext += `\n\n${ticker} Recent SEC Filings${formTypes ? ` (${Array.isArray(formTypes) ? formTypes.join(', ') : formTypes})` : ''}:\n`;
             
