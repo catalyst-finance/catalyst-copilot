@@ -231,6 +231,42 @@ class DataConnector {
       };
     }
   }
+  
+  static async getSecFilings(symbol, formType = null, limit = 20) {
+    try {
+      await connectMongo();
+      const db = mongoClient.db('raw_data');
+      const collection = db.collection('sec_filings');
+      
+      let query = {
+        ticker: symbol.toUpperCase()
+      };
+      
+      if (formType) {
+        query.form_type = formType;
+      }
+      
+      const data = await collection.find(query)
+        .sort({ acceptance_datetime: -1 })
+        .limit(limit)
+        .toArray();
+      
+      return {
+        success: true,
+        data: data || [],
+        source: 'mongodb',
+        type: 'sec_filings'
+      };
+    } catch (error) {
+      console.error(`Error fetching SEC filings for ${symbol}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        source: 'mongodb',
+        type: 'sec_filings'
+      };
+    }
+  }
 }
 
 // AI Agent with function calling
@@ -319,6 +355,31 @@ const tools = [
         }
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_sec_filings",
+      description: "Get SEC filings data (10-K, 10-Q, 8-K, etc.) from MongoDB",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: {
+            type: "string",
+            description: "Stock ticker symbol"
+          },
+          formType: {
+            type: "string",
+            description: "Type of SEC form to filter (e.g., 10-K, 10-Q, 8-K, 4, S-1)"
+          },
+          limit: {
+            type: "number",
+            description: "Number of filings to return"
+          }
+        },
+        required: ["symbol"]
+      }
+    }
   }
 ];
 
@@ -333,6 +394,8 @@ async function executeFunction(name, args) {
       return await DataConnector.getInstitutionalData(args.symbol);
     case 'get_macro_data':
       return await DataConnector.getMacroData(args.category);
+    case 'get_sec_filings':
+      return await DataConnector.getSecFilings(args.symbol, args.formType, args.limit);
     default:
       throw new Error(`Unknown function: ${name}`);
   }
