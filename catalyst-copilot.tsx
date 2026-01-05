@@ -275,17 +275,21 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       }
       
       // Parse SEC filing references in brackets [TICKER FORM-TYPE - Date] and convert to badges
+      // Also handle backtick-wrapped citations: `[TICKER FORM-TYPE - Date]`
       const filingSegments: (string | JSX.Element)[] = [];
       segments.forEach((segment) => {
         if (typeof segment === 'string') {
+          // First strip backticks from around brackets
+          let cleanedSegment = segment.replace(/`\[([^\]]+)\]`/g, '[$1]');
+          
           const filingRegex = /\[([A-Z]{1,5})\s+(10-[KQ]|8-K|S-\d+|13[FG]|4|DEF 14A)\s*-\s*([^\]]+)\]/g;
           let filingLastIndex = 0;
           let filingMatch;
           const filingParts: (string | JSX.Element)[] = [];
           
-          while ((filingMatch = filingRegex.exec(segment)) !== null) {
+          while ((filingMatch = filingRegex.exec(cleanedSegment)) !== null) {
             if (filingMatch.index > filingLastIndex) {
-              filingParts.push(segment.substring(filingLastIndex, filingMatch.index));
+              filingParts.push(cleanedSegment.substring(filingLastIndex, filingMatch.index));
             }
             
             const ticker = filingMatch[1];
@@ -301,14 +305,14 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
             filingLastIndex = filingMatch.index + filingMatch[0].length;
           }
           
-          if (filingLastIndex < segment.length) {
-            filingParts.push(segment.substring(filingLastIndex));
+          if (filingLastIndex < cleanedSegment.length) {
+            filingParts.push(cleanedSegment.substring(filingLastIndex));
           }
           
           if (filingParts.length > 0) {
             filingSegments.push(...filingParts);
           } else {
-            filingSegments.push(segment);
+            filingSegments.push(cleanedSegment);
           }
         } else {
           filingSegments.push(segment);

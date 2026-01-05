@@ -830,6 +830,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
             eventCardsContext += `${index + 1}. ${event.ticker} - ${event.title} (${event.type}) on ${eventDate}\n   AI Insight: ${event.aiInsight}\n   **IMPORTANT**: After describing this event in your response, insert the marker: [EVENT_CARD:${eventId}]\n\n`;
           });
           eventCardsContext += `\nMake sure your response discusses ALL ${topEvents.length} events listed above and includes the [EVENT_CARD:id] marker immediately after each event's description. Do not omit any.`;
+          console.log(`📋 Event Cards Context Built: ${topEvents.length} events with inline markers`);
         }
         
         for (const event of topEvents) {
