@@ -317,18 +317,21 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                       });
                       dataContext += `   === END IMAGES ===\n\n`;
                       
+                      // Add image cards with correct structure (data property wrapper)
                       contentResult.images.slice(0, 5).forEach((img, idx) => {
                         dataCards.push({
                           type: 'image',
-                          id: `sec-image-${ticker}-${filing.accession_number}-${idx}`,
-                          ticker: ticker,
-                          source: 'sec_filing',
-                          title: img.alt || 'Chart/Diagram from SEC Filing',
-                          imageUrl: img.url,
-                          context: img.context || null,
-                          filingType: filing.form_type,
-                          filingDate: filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date,
-                          filingUrl: filing.url
+                          data: {
+                            id: `sec-image-${ticker}-${filing.accession_number}-${idx}`,
+                            ticker: ticker,
+                            source: 'sec_filing',
+                            title: img.alt || 'Chart/Diagram from SEC Filing',
+                            imageUrl: img.url,
+                            context: img.context || null,
+                            filingType: filing.form_type,
+                            filingDate: filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date,
+                            filingUrl: filing.url
+                          }
                         });
                       });
                     }
