@@ -1276,14 +1276,23 @@ INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 
 **ROADMAP queries** (roadmap, timeline, plan, outlook, future):
 • Structure as chronological timeline with clear phases
+• Headers like "Recent Developments", "Q1 2026", "Q2 2026" MUST be on their own line
+• Add a blank line BEFORE and AFTER each time period header
 • Use format: "**Q1 2026**", "**Q2 2026**", etc. or "**Phase 1**", "**Phase 2**"
-• List specific milestones under each period
+• List specific milestones under each period as bullet points
 • Example:
+
+  **Recent Developments**
+  
+  Brief paragraph summarizing current status...
+  
   **Q1 2026**
+  
   • FDA submission for MM120 expected
   • Phase 3 trial enrollment completion
   
   **Q2 2026**
+  
   • Top-line data readout anticipated
 
 **COMPARISON queries** (compare, versus, vs, difference between):
@@ -1319,9 +1328,10 @@ FORMATTING RULES (CRITICAL - ALWAYS FOLLOW):
 • Use bullet points (•) for lists of items or features
 • Use numbered lists (1. 2. 3.) for sequential steps or rankings
 • NEVER use markdown headers (###, ##, #) - frontend displays plain text only
-• For section headers, use **BOLD** format on its own line with blank line after
+• For section headers, use **BOLD** format on its own line with blank line BEFORE and AFTER
+• Headers must NEVER appear at the end of a sentence or paragraph
 • Bullet/numbered lists should have the header ABOVE the list, not as the first item
-• For multi-point analysis, structure with clear sections
+• For multi-point analysis, structure with clear sections separated by blank lines
 
 CRITICAL CONSTRAINTS:
 1. ONLY use data provided - NEVER use training knowledge for facts/numbers
