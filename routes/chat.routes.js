@@ -91,19 +91,12 @@ Return ONLY the JSON object, no explanation.`;
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: classificationPrompt }],
         temperature: 0.1,
-        max_tokens: 5000
+        max_tokens: 5000,
+        response_format: { type: "json_object" }
       });
       
-      let classificationText = classificationResponse.choices[0].message.content.trim();
+      const classificationText = classificationResponse.choices[0].message.content.trim();
       console.log('AI Classification:', classificationText);
-      
-      // Strip markdown code fences if present
-      if (classificationText.startsWith('```json')) {
-        classificationText = classificationText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (classificationText.startsWith('```')) {
-        classificationText = classificationText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-      
       queryIntent = JSON.parse(classificationText);
       console.log('Parsed intent:', queryIntent);
       
@@ -193,26 +186,19 @@ Top Holders:`;
 
 User query: "${message}"
 
-Return ONLY a JSON array of 15-25 search strings. No explanation.`;
+Return a JSON object with a "keywords" array containing 15-25 search strings.`;
 
           const keywordResponse = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [{ role: "user", content: keywordPrompt }],
             temperature: 0.2,
-            max_tokens: 500
+            max_tokens: 500,
+            response_format: { type: "json_object" }
           });
           
-          let keywordText = keywordResponse.choices[0].message.content.trim();
-          
-          // Strip markdown code fences if present
-          if (keywordText.startsWith('```json')) {
-            keywordText = keywordText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-          } else if (keywordText.startsWith('```')) {
-            keywordText = keywordText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-          }
-          
-          const expandedKeywords = JSON.parse(keywordText);
-          uniqueKeywords = expandedKeywords.filter(k => k && k.length > 2);
+          const keywordText = keywordResponse.choices[0].message.content.trim();
+          const keywordData = JSON.parse(keywordText);
+          uniqueKeywords = (keywordData.keywords || []).filter(k => k && k.length > 2);
           
           console.log(`AI-expanded keywords for SEC filing analysis: ${uniqueKeywords.join(', ')}`);
         } catch (error) {
