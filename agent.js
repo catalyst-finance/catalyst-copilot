@@ -733,25 +733,33 @@ class DataConnector {
       
       // Add date range filtering if provided
       if (dateRange && dateRange.start && dateRange.end) {
-        // Use acceptance_datetime for filtering (ISO format with timezone)
+        // Convert string dates to MongoDB Date objects
+        // acceptance_datetime is stored as: 2025-12-29T22:00:08.000+00:00
+        const startDate = new Date(dateRange.start + 'T00:00:00.000Z');
+        const endDate = new Date(dateRange.end + 'T23:59:59.999Z');
+        
         query.acceptance_datetime = {
-          $gte: dateRange.start,
-          $lte: dateRange.end
+          $gte: startDate,
+          $lte: endDate
         };
-        console.log(`Filtering SEC filings from ${dateRange.start} to ${dateRange.end}`);
+        console.log(`Filtering SEC filings from ${startDate.toISOString()} to ${endDate.toISOString()}`);
       }
+      
+      console.log(`MongoDB query for SEC filings:`, JSON.stringify(query, null, 2));
       
       const data = await collection.find(query)
         .sort({ acceptance_datetime: -1 })
         .limit(limit)
         .toArray();
       
+      console.log(`Found ${data ? data.length : 0} SEC filings for ${symbol}`);
+      
       if (!data || data.length === 0) {
         return {
           success: true,
           data: [],
           count: 0,
-          message: `No SEC filings found for ${symbol}${formType ? ` of type ${Array.isArray(formType) ? formType.join(', ') : formType}` : ''}`,
+          message: `No SEC filings found for ${symbol}${formType ? ` of type ${Array.isArray(formType) ? formType.join(', ') : formType}` : ''}${dateRange ? ` between ${dateRange.start} and ${dateRange.end}` : ''}`,
           source: 'mongodb',
           type: 'sec_filings'
         };
