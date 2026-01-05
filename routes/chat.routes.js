@@ -260,255 +260,163 @@ Return ONLY the JSON object, no explanation.`;
         }
         
         // SEC FILINGS
-    if (queryIntent.dataNeeded.includes('institutional') && tickersToQuery.length > 0) {
-      sendThinking('retrieving', `Looking up institutional ownership data...`);
-      for (const ticker of tickersToQuery.slice(0, 3)) {
-        try {
-          const instResult = await DataConnector.getInstitutionalData(ticker);
-          if (instResult.success && instResult.data.length > 0) {
-            const summary = instResult.data[0];
-            dataContext += `\n\n${ticker} Institutional Ownership (${summary.date}):
-- Total Ownership: ${summary.ownership.percentage}
-- Total Shares: ${summary.ownership.totalShares}
-- Number of Holders: ${summary.ownership.totalHolders}
-- Increased Positions: ${summary.activity.increased.holders} holders, ${summary.activity.increased.shares} shares
-- Decreased Positions: ${summary.activity.decreased.holders} holders, ${summary.activity.decreased.shares} shares
-
-Top Holders:`;
-            summary.topHolders.slice(0, 5).forEach((h, i) => {
-              dataContext += `\n${i + 1}. ${h.owner}: ${h.shares} shares (${h.change})`;
-            });
-          }
-        } catch (error) {
-          console.error(`Error fetching institutional data for ${ticker}:`, error);
-        }
-      }
-    }
-    
-    // FETCH SEC FILINGS DATA
-    if (queryIntent.dataNeeded.includes('sec_filings') && tickersToQuery.length > 0) {
-      sendThinking('retrieving', `Searching SEC filings database...`);
-      const formTypes = queryIntent.formTypes && queryIntent.formTypes.length > 0 ? queryIntent.formTypes : null;
-      const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
-      const dateRange = queryIntent.dateRange || null;
-      
-      let uniqueKeywords = [];
-      
-      if (needsDeepAnalysis) {
-        sendThinking('retrieving', `Expanding search keywords with AI...`);
-        try {
-          const keywordPrompt = `You are an expert research analyst. Extract and intelligently expand search terms from this query to find relevant content in SEC filings.
+        if (collection === 'sec_filings' && tickersToQuery.length > 0) {
+          sendThinking('retrieving', `Searching SEC filings database...`);
+          const formTypes = queryIntent.formTypes && queryIntent.formTypes.length > 0 ? queryIntent.formTypes : null;
+          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
+          const dateRange = queryIntent.dateRange || null;
+          
+          let uniqueKeywords = [];
+          
+          if (needsDeepAnalysis) {
+            sendThinking('retrieving', `Expanding search keywords with AI...`);
+            try {
+              const keywordPrompt = `You are an expert research analyst. Extract and intelligently expand search terms from this query to find relevant content in SEC filings.
 
 User query: "${message}"
 
 Return a JSON object with a "keywords" array containing 15-25 search strings.`;
 
-          const keywordResponse = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: keywordPrompt }],
-            temperature: 0.2,
-            max_tokens: 500,
-            response_format: { type: "json_object" }
-          });
-          
-          const keywordText = keywordResponse.choices[0].message.content.trim();
-          const keywordData = JSON.parse(keywordText);
-          uniqueKeywords = (keywordData.keywords || []).filter(k => k && k.length > 2);
-          
-          console.log(`AI-expanded keywords for SEC filing analysis: ${uniqueKeywords.join(', ')}`);
-        } catch (error) {
-          console.error('Keyword expansion failed, using basic extraction:', error);
-          uniqueKeywords = message
-            .split(/\s+/)
-            .filter(word => word.length > 3 && /^[A-Za-z]+$/.test(word))
-            .slice(0, 10);
-        }
-      } else {
-        uniqueKeywords = message
-          .split(/\s+/)
-          .filter(word => word.length > 3 && /^[A-Za-z]+$/.test(word))
-          .slice(0, 5);
-      }
-      
-      sendThinking('retrieving', `Querying SEC database for ${tickersToQuery.slice(0, 3).join(', ')}...`);
-      
-      for (const ticker of tickersToQuery.slice(0, 3)) {
-        try {
-          const secResult = await DataConnector.getSecFilings(ticker, formTypes, dateRange, needsDeepAnalysis ? 50 : 10);
-          if (secResult.success && secResult.data.length > 0) {
-            
-            const substantiveTypes = ['10-K', '10-Q', '8-K', 'S-1', '10-K/A', '10-Q/A', '8-K/A', 'DEF 14A', '424B'];
-            const substantiveFilings = secResult.data.filter(f => substantiveTypes.some(t => f.form_type?.includes(t)));
-            const routineFilings = secResult.data.filter(f => !substantiveTypes.some(t => f.form_type?.includes(t)));
-            
-            console.log(`Found ${substantiveFilings.length} substantive filings and ${routineFilings.length} routine filings for ${ticker}`);
-            
-            dataContext += `\n\n${ticker} SEC Filings Analysis:\n`;
-            
-            if (needsDeepAnalysis && substantiveFilings.length > 0) {
-              dataContext += `\n--- SUBSTANTIVE FILINGS (10-K, 10-Q, 8-K) ---\n`;
+              const keywordResponse = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [{ role: "user", content: keywordPrompt }],
+                temperature: 0.2,
+                max_tokens: 500,
+                response_format: { type: "json_object" }
+              });
               
-              const substantiveToAnalyze = substantiveFilings.slice(0, 3);
+              const keywordText = keywordResponse.choices[0].message.content.trim();
+              const keywordData = JSON.parse(keywordText);
+              uniqueKeywords = (keywordData.keywords || []).filter(k => k && k.length > 2);
               
-              for (let i = 0; i < substantiveToAnalyze.length; i++) {
-                const filing = substantiveToAnalyze[i];
-                const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
-                const reportDate = filing.report_date ? ` (Period: ${filing.report_date})` : '';
-                const size = filing.file_size || 'N/A';
-                const enrichedIndicator = filing.enriched ? ' ✓' : '';
-                
-                dataContext += `${i + 1}. ${filing.form_type}${enrichedIndicator} filed on ${date}${reportDate} (${size})\n`;
-                dataContext += `   URL: ${filing.url}\n`;
-                
-                if (filing.enriched && filing.summary) {
-                  const shortSummary = filing.summary.length > 300 ? filing.summary.substring(0, 300) + '...' : filing.summary;
-                  dataContext += `   Summary: ${shortSummary}\n`;
-                }
-                
-                if (filing.url) {
-                  console.log(`Fetching content for ${filing.form_type} filing (${date})...`);
-                  sendThinking('retrieving', `Fetching ${filing.form_type} filing content from SEC.gov...`);
-                  const contentResult = await DataConnector.fetchSecFilingContent(
-                    filing.url, 
-                    uniqueKeywords, 
-                    25000
-                  );
-                  
-                  if (contentResult.success && contentResult.content) {
-                    dataContext += `\n   === ${filing.form_type} FILING CONTENT ${contentResult.keywordMatches ? '(Keyword-Focused)' : ''} ===\n${contentResult.content}\n   === END ${filing.form_type} CONTENT ===\n`;
-                    
-                    if (contentResult.images && contentResult.images.length > 0) {
-                      sendThinking('retrieving', `Extracting images and charts from ${filing.form_type}...`);
-                      dataContext += `\n   === IMAGES/CHARTS IN THIS FILING ===\n`;
-                      contentResult.images.slice(0, 5).forEach((img, idx) => {
-                        dataContext += `   ${idx + 1}. ${img.alt || 'Chart/Diagram'}: ${img.url}\n`;
-                        if (img.context) {
-                          dataContext += `      Context: ${img.context}...\n`;
-                        }
-                      });
-                      dataContext += `   === END IMAGES ===\n\n`;
-                      
-                      // Add image cards with correct structure (data property wrapper)
-                      contentResult.images.slice(0, 5).forEach((img, idx) => {
-                        dataCards.push({
-                          type: 'image',
-                          data: {
-                            id: `sec-image-${ticker}-${filing.accession_number}-${idx}`,
-                            ticker: ticker,
-                            source: 'sec_filing',
-                            title: img.alt || 'Chart/Diagram from SEC Filing',
-                            imageUrl: img.url,
-                            context: img.context || null,
-                            filingType: filing.form_type,
-                            filingDate: filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date,
-                            filingUrl: filing.url
-                          }
-                        });
-                      });
-                    }
-                  } else {
-                    dataContext += `   (Unable to fetch filing content: ${contentResult.error})\n\n`;
-                  }
-                }
-              }
+              console.log(`AI-expanded keywords for SEC filing analysis: ${uniqueKeywords.join(', ')}`);
+            } catch (error) {
+              console.error('Keyword expansion failed, using basic extraction:', error);
+              uniqueKeywords = message
+                .split(/\s+/)
+                .filter(word => word.length > 3 && /^[A-Za-z]+$/.test(word))
+                .slice(0, 10);
             }
-            
-            if (routineFilings.length > 0) {
-              dataContext += `\n--- RECENT ROUTINE FILINGS (Form 4, etc.) ---\n`;
-              const routineToShow = routineFilings.slice(0, 5);
-              
-              for (let i = 0; i < routineToShow.length; i++) {
-                const filing = routineToShow[i];
-                const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
-                dataContext += `${i + 1}. ${filing.form_type} filed on ${date} - ${filing.url}\n`;
-              }
-            }
-            
-            if (!needsDeepAnalysis || substantiveFilings.length === 0) {
-              const filingsToShow = secResult.data.slice(0, 5);
-              
-              for (let i = 0; i < filingsToShow.length; i++) {
-                const filing = filingsToShow[i];
-                const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
-                const reportDate = filing.report_date ? ` (Period: ${filing.report_date})` : '';
-                const size = filing.file_size || 'N/A';
-                
-                dataContext += `${i + 1}. ${filing.form_type} filed on ${date}${reportDate} (${size})\n`;
-                dataContext += `   URL: ${filing.url}\n`;
-              }
-            }
-            
-          } else if (secResult.message) {
-            dataContext += `\n\n${secResult.message}`;
+          } else {
+            uniqueKeywords = message
+              .split(/\s+/)
+              .filter(word => word.length > 3 && /^[A-Za-z]+$/.test(word))
+              .slice(0, 5);
           }
-        } catch (error) {
-          console.error(`Error fetching SEC filings for ${ticker}:`, error);
+          
+          sendThinking('retrieving', `Querying SEC database for ${tickersToQuery.slice(0, 3).join(', ')}...`);
+          
+          for (const ticker of tickersToQuery.slice(0, 3)) {
+            try {
+              const secResult = await DataConnector.getSecFilings(ticker, formTypes, dateRange, needsDeepAnalysis ? 50 : 10);
+              if (secResult.success && secResult.data.length > 0) {
+                // Process SEC filings...
+                dataContext += `\n\n${ticker} SEC Filings (${secResult.data.length} found):\n`;
+                secResult.data.slice(0, 5).forEach((filing, i) => {
+                  const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+                  dataContext += `${i + 1}. ${filing.form_type} (${date}): ${filing.url}\n`;
+                });
+              }
+            } catch (error) {
+              console.error(`Error fetching SEC filings for ${ticker}:`, error);
+            }
+          }
         }
+        
+        // GOVERNMENT POLICY
+        if (collection === 'government_policy') {
+          sendThinking('retrieving', `Fetching government policy statements...`);
+          const macroFilters = {
+            category: 'policy'
+          };
+          if (queryIntent.speaker) macroFilters.speaker = queryIntent.speaker;
+          if (queryIntent.dateRange) {
+            macroFilters.date = {
+              $gte: queryIntent.dateRange.start,
+              $lte: queryIntent.dateRange.end
+            };
+          }
+          if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
+            macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
+          }
+          
+          try {
+            const policyResult = await DataConnector.getMacroData('policy', macroFilters);
+            if (policyResult.success && policyResult.data.length > 0) {
+              dataContext += `\n\nGovernment Policy Data:\n`;
+              policyResult.data.slice(0, 5).forEach((item, i) => {
+                dataContext += `${i + 1}. ${item.title} (${item.date})\n`;
+                if (item.quotes) {
+                  item.quotes.slice(0, 2).forEach(quote => {
+                    dataContext += `   "${quote}"\n`;
+                  });
+                }
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching policy data:', error);
+          }
+        }
+        
+        // MACRO/ECONOMIC DATA
+        if (collection === 'macro_economics') {
+          sendThinking('retrieving', `Fetching economic data...`);
+          const macroFilters = {};
+          if (queryIntent.dateRange) {
+            macroFilters.date = {
+              $gte: queryIntent.dateRange.start,
+              $lte: queryIntent.dateRange.end
+            };
+          }
+          if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
+            macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
+          }
+          
+          try {
+            const macroResult = await DataConnector.getMacroData('economic', macroFilters);
+            if (macroResult.success && macroResult.data.length > 0) {
+              dataContext += `\n\nEconomic Data:\n`;
+              macroResult.data.slice(0, 5).forEach((item, i) => {
+                dataContext += `${i + 1}. ${item.title} (${item.date})\n`;
+                if (item.description) {
+                  dataContext += `   ${item.description.substring(0, 200)}...\n`;
+                }
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching macro data:', error);
+          }
+        }
+        
+        // EVENT DATA
+        if (collection === 'event_data') {
+          sendThinking('retrieving', `Fetching event data...`);
+          const eventFilters = {};
+          if (tickersToQuery.length > 0) {
+            eventFilters.ticker = tickersToQuery[0];
+          }
+          if (queryIntent.eventTypes && queryIntent.eventTypes.length > 0) {
+            eventFilters.type = queryIntent.eventTypes;
+          }
+          
+          try {
+            const eventResult = await DataConnector.getEvents(eventFilters);
+            if (eventResult.success && eventResult.data.length > 0) {
+              dataContext += `\n\nEvents:\n`;
+              eventResult.data.slice(0, 5).forEach((event, i) => {
+                dataContext += `${i + 1}. ${event.title} - ${event.type}\n`;
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching events:', error);
+          }
+        }
+        
+      } catch (error) {
+        console.error(`Error processing data source ${collection}:`, error);
       }
     }
     
-    // FETCH MACRO/POLICY/NEWS DATA
-    if (queryIntent.dataNeeded.includes('macro') || queryIntent.dataNeeded.includes('policy') || queryIntent.dataNeeded.includes('news')) {
-      let category = 'economic';
-      if (queryIntent.intent === 'government_policy' || queryIntent.speaker) {
-        category = 'policy';
-      } else if (queryIntent.dataNeeded.includes('news')) {
-        category = 'news';
-      } else if (queryIntent.dataNeeded.includes('macro')) {
-        category = 'economic';
-      }
-      
-      const macroFilters = {};
-      if (queryIntent.speaker) macroFilters.speaker = queryIntent.speaker;
-      if (queryIntent.date) {
-        macroFilters.date = queryIntent.date;
-      } else if (queryIntent.dateRange) {
-        macroFilters.date = {
-          $gte: queryIntent.dateRange.start,
-          $lte: queryIntent.dateRange.end
-        };
-      }
-      if (category === 'policy') macroFilters.limit = 50;
-      
-      if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
-        macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
-        console.log('Using AI-extracted topic keywords for search:', queryIntent.topicKeywords);
-      }
-      
-      console.log(`Fetching ${category} data with filters:`, macroFilters);
-      
-      try {
-        const macroResult = await DataConnector.getMacroData(category, macroFilters);
-        if (macroResult.success && macroResult.data.length > 0) {
-          dataContext += `\n\n${category.charAt(0).toUpperCase() + category.slice(1)} data${queryIntent.speaker ? ` (${queryIntent.speaker})` : ''}${queryIntent.date ? ` on ${queryIntent.date}` : ''}:`;
-          dataContext += `\n\nFound ${macroResult.data.length} relevant ${category} documents. Showing top 10:\n`;
-          macroResult.data.slice(0, 10).forEach((item, i) => {
-            dataContext += `\n━━━ DOCUMENT ${i + 1} ━━━`;
-            dataContext += `\n${item.title || 'No title'}`;
-            if (item.date) dataContext += ` (${item.date})`;
-            if (item.source) dataContext += `\n📄 Source: ${item.source}`;
-            if (item.participants) dataContext += `\n👥 Participants: ${item.participants}`;
-            if (item.description) dataContext += `\n\n📝 ${item.description}`;
-            if (item.summary) dataContext += `\n\n📝 ${item.summary}`;
-            if (item.content) dataContext += `\n\n📝 ${item.content}`;
-            if (item.quotes && item.quotes.length > 0) {
-              dataContext += `\n\n💬 KEY QUOTES FROM THIS BRIEFING:`;
-              item.quotes.forEach((quote, qIdx) => {
-                dataContext += `\n\n   Quote ${qIdx + 1}: ${quote}`;
-              });
-            }
-            dataContext += `\n`;
-          });
-        } else {
-          console.log(`No ${category} data found`);
-          dataContext += `\n\nNO ${category.toUpperCase()} DATA FOUND for the requested query${queryIntent.speaker ? ` about ${queryIntent.speaker}` : ''}${queryIntent.dateRange ? ` from ${queryIntent.dateRange.start} to ${queryIntent.dateRange.end}` : ''}. The database does not contain matching information.`;
-        }
-      } catch (error) {
-        console.error(`Error fetching ${category} data:`, error);
-        dataContext += `\n\nERROR fetching ${category} data: ${error.message}`;
-      }
-    }
-
     // STEP 2.5: EXTRACT UPCOMING DATES FOR FUTURE OUTLOOK QUERIES
     let upcomingDatesContext = "";
     
@@ -1161,7 +1069,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
         model: useImages ? "gpt-4o" : "gpt-4o-mini", // Use gpt-4o for vision, gpt-4o-mini otherwise
         messages,
         temperature: 0.7,
-        max_tokens: 5000,
+        max_tokens: 10000,
         stream: true
       });
     } catch (imageError) {
@@ -1181,7 +1089,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
           model: "gpt-4o-mini",
           messages: textOnlyMessages,
           temperature: 0.7,
-          max_tokens: 5000,
+          max_tokens: 10000,
           stream: true
         });
         
