@@ -9,6 +9,7 @@ const { supabase } = require('../config/database');
 const openai = require('../config/openai');
 const DataConnector = require('../services/DataConnector');
 const ConversationManager = require('../services/ConversationManager');
+const IntelligenceEngine = require('../services/IntelligenceEngine');
 const { optionalAuth } = require('../middleware/auth');
 
 // Main AI chat endpoint
@@ -197,6 +198,23 @@ Return ONLY the JSON object, no explanation.`;
     const dataCards = [];
     const eventData = {};
     
+    // Intelligence metadata tracking
+    const intelligenceMetadata = {
+      totalSources: 0,
+      sourceFreshness: [],
+      dataCompleteness: { hasExpectedData: false, hasPartialData: false },
+      tickers: [],
+      secFilingTypes: [],
+      hasInstitutionalData: false,
+      hasPolicyData: false,
+      hasEvents: false,
+      upcomingEvents: 0,
+      institutionalDataDate: null,
+      temporalData: {},
+      anomalies: [],
+      crossRefData: {}
+    };
+    
     // Log AI routing decisions
     console.log('AI-selected data sources:');
     (queryIntent.dataSources || []).forEach(source => {
@@ -309,6 +327,36 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
             try {
               const secResult = await DataConnector.getSecFilings(ticker, formTypes, dateRange, needsDeepAnalysis ? 50 : 10);
               if (secResult.success && secResult.data.length > 0) {
+                // Track metadata
+                intelligenceMetadata.totalSources += secResult.data.length;
+                intelligenceMetadata.tickers.push(ticker);
+                
+                // Track filing types found
+                secResult.data.forEach(filing => {
+                  if (filing.form_type && !intelligenceMetadata.secFilingTypes.includes(filing.form_type)) {
+                    intelligenceMetadata.secFilingTypes.push(filing.form_type);
+                  }
+                  
+                  // Track freshness
+                  if (filing.acceptance_datetime) {
+                    const filingDate = new Date(filing.acceptance_datetime);
+                    const today = new Date();
+                    const daysSinceFiling = (today - filingDate) / (1000 * 60 * 60 * 24);
+                    intelligenceMetadata.sourceFreshness.push(daysSinceFiling);
+                  }
+                });
+                
+                // Store for temporal analysis
+                if (!intelligenceMetadata.temporalData[ticker]) {
+                  intelligenceMetadata.temporalData[ticker] = { filings: [] };
+                }
+                secResult.data.forEach(filing => {
+                  intelligenceMetadata.temporalData[ticker].filings.push({
+                    date: filing.acceptance_datetime,
+                    type: filing.form_type
+                  });
+                });
+                
                 const substantiveTypes = ['10-K', '10-Q', '8-K', 'S-1', '10-K/A', '10-Q/A', '8-K/A', 'DEF 14A', '424B'];
                 const substantiveFilings = secResult.data.filter(f => substantiveTypes.some(t => f.form_type?.includes(t)));
                 
@@ -1035,8 +1083,95 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       ? `The user is tracking: ${selectedTickers.join(', ')}.`
       : '';
 
+    // STEP 5.5: INTELLIGENT ANALYSIS
+    sendThinking('synthesizing', 'Running intelligent analysis...');
+    
+    // Calculate confidence score
+    intelligenceMetadata.dataCompleteness.hasExpectedData = intelligenceMetadata.totalSources >= 3;
+    intelligenceMetadata.dataCompleteness.hasPartialData = intelligenceMetadata.totalSources > 0;
+    
+    const confidence = IntelligenceEngine.calculateConfidence(intelligenceMetadata);
+    console.log('📊 Confidence Analysis:', confidence);
+    
+    // Detect anomalies in temporal patterns
+    Object.keys(intelligenceMetadata.temporalData).forEach(ticker => {
+      const filings = intelligenceMetadata.temporalData[ticker].filings;
+      if (filings.length >= 3) {
+        const pattern = IntelligenceEngine.analyzeTemporalPatterns(filings, `${ticker} SEC filings`);
+        if (pattern.hasPattern || pattern.insights?.length > 0) {
+          console.log(`📈 Temporal Pattern for ${ticker}:`, pattern);
+          intelligenceMetadata.anomalies.push({
+            type: 'temporal_pattern',
+            ticker,
+            pattern
+          });
+        }
+        
+        // Detect filing frequency anomalies
+        const filingCounts = filings.map((f, i) => ({ value: 1, date: f.date }));
+        const anomalies = IntelligenceEngine.detectAnomalies(filingCounts, `${ticker} filing frequency`);
+        if (anomalies.length > 0) {
+          console.log(`⚠️ Anomalies detected for ${ticker}:`, anomalies);
+          intelligenceMetadata.anomalies.push(...anomalies);
+        }
+      }
+    });
+    
+    // Identify missing data
+    const missingData = IntelligenceEngine.identifyMissingData(queryIntent, intelligenceMetadata);
+    if (missingData.length > 0) {
+      console.log('🔍 Missing Data Detected:', missingData);
+    }
+    
+    // Generate follow-up suggestions
+    const followUps = IntelligenceEngine.generateFollowUps(queryIntent, intelligenceMetadata);
+    console.log('💡 Suggested Follow-ups:', followUps);
+    
+    // Add intelligence insights to context
+    let intelligenceContext = '';
+    
+    if (confidence.level !== 'High') {
+      intelligenceContext += `\n\n═══ DATA QUALITY ASSESSMENT ═══\n`;
+      intelligenceContext += `Confidence Level: ${confidence.level} (${confidence.score}/100)\n`;
+      intelligenceContext += `Factors: ${confidence.factors.join(', ')}\n`;
+      if (confidence.warnings.length > 0) {
+        intelligenceContext += `Warnings:\n${confidence.warnings.map(w => `- ${w}`).join('\n')}\n`;
+      }
+    }
+    
+    if (missingData.length > 0) {
+      intelligenceContext += `\n\n═══ DATA GAPS IDENTIFIED ═══\n`;
+      missingData.forEach(gap => {
+        intelligenceContext += `- ${gap.message}\n`;
+      });
+    }
+    
+    if (intelligenceMetadata.anomalies.length > 0) {
+      intelligenceContext += `\n\n═══ PATTERNS & ANOMALIES ═══\n`;
+      intelligenceMetadata.anomalies.forEach(anomaly => {
+        if (anomaly.pattern) {
+          intelligenceContext += `- ${anomaly.pattern.message}\n`;
+          if (anomaly.pattern.insights) {
+            anomaly.pattern.insights.forEach(insight => {
+              intelligenceContext += `  • ${insight.message}\n`;
+            });
+          }
+        } else if (anomaly.message) {
+          intelligenceContext += `- ${anomaly.message}\n`;
+        }
+      });
+    }
+    
+    if (followUps.length > 0) {
+      intelligenceContext += `\n\n═══ SUGGESTED FOLLOW-UP QUESTIONS ═══\n`;
+      intelligenceContext += `You might also want to explore:\n`;
+      followUps.forEach((q, i) => {
+        intelligenceContext += `${i + 1}. ${q}\n`;
+      });
+    }
+
     // STEP 6: PREPARE SYSTEM PROMPT (truncated for brevity - full prompt in original)
-    const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext);
+    const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext);
 
     // Build messages array (text-only - SEC.gov blocks image downloads)
     const messages = [
@@ -1072,14 +1207,20 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       }
     }
 
-    // Send metadata
+    // Send metadata with intelligence insights
     res.write(`data: ${JSON.stringify({
       type: 'metadata',
       dataCards,
       eventData,
       conversationId: finalConversationId,
       newConversation: newConversation,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      intelligence: {
+        confidence,
+        missingData,
+        anomalies: intelligenceMetadata.anomalies,
+        followUps
+      }
     })}\n\n`);
 
     // Send final thinking phase before OpenAI
@@ -1191,7 +1332,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
 /**
  * Build the system prompt for OpenAI
  */
-function buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext) {
+function buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext = '') {
   return `You are Catalyst Copilot, a financial AI assistant specializing in connecting market data, institutional activity, and policy developments.
 
 ROLE & EXPERTISE:
@@ -1199,6 +1340,7 @@ ROLE & EXPERTISE:
 - Expert at connecting institutional ownership trends with price movements
 - Specialist in FDA approvals, earnings catalysts, and regulatory events
 - Policy analyst tracking government decisions affecting markets
+- Advanced pattern recognition and anomaly detection
 
 RESPONSE GUIDELINES:
 • Lead with the most important insight or answer
@@ -1288,7 +1430,13 @@ CRITICAL CONSTRAINTS:
 5. Never fabricate quotes, statistics, or data points
 6. If data seems contradictory, acknowledge it rather than hiding the discrepancy
 
-${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}`;
+INTELLIGENCE INSIGHTS:
+• If confidence level is provided, acknowledge data quality in your response
+• When anomalies are detected, highlight them as notable patterns
+• If missing data is identified, mention what information gaps exist
+• Include suggested follow-up questions at the end if provided
+
+${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${intelligenceContext}`;
 }
 
 module.exports = router;
