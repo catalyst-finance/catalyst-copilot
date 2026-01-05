@@ -212,7 +212,10 @@ Return ONLY the JSON object, no explanation.`;
       institutionalDataDate: null,
       temporalData: {},
       anomalies: [],
-      crossRefData: {}
+      crossRefData: {},
+      sentimentData: [],
+      secFilings: [],
+      entityRelationships: null
     };
     
     // Log AI routing decisions
@@ -383,6 +386,15 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                       
                       if (contentResult.success && contentResult.content) {
                         dataContext += `\n   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
+                        
+                        // Store filing data for sentiment and entity analysis
+                        intelligenceMetadata.secFilings.push({
+                          ticker,
+                          formType: filing.form_type,
+                          date: filing.acceptance_datetime,
+                          content: contentResult.content.substring(0, 5000), // First 5000 chars for analysis
+                          url: filing.url
+                        });
                         
                         if (contentResult.images && contentResult.images.length > 0) {
                           contentResult.images.slice(0, 5).forEach((img, idx) => {
@@ -1086,6 +1098,12 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     // STEP 5.5: INTELLIGENT ANALYSIS
     sendThinking('synthesizing', 'Running intelligent analysis...');
     
+    // Multi-step query decomposition
+    const subQueries = IntelligenceEngine.decomposeComplexQuery(message, queryIntent);
+    if (subQueries.length > 0) {
+      console.log('🧩 Complex Query Decomposed:', subQueries);
+    }
+    
     // Calculate confidence score
     intelligenceMetadata.dataCompleteness.hasExpectedData = intelligenceMetadata.totalSources >= 3;
     intelligenceMetadata.dataCompleteness.hasPartialData = intelligenceMetadata.totalSources > 0;
@@ -1127,6 +1145,48 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     const followUps = IntelligenceEngine.generateFollowUps(queryIntent, intelligenceMetadata);
     console.log('💡 Suggested Follow-ups:', followUps);
     
+    // Sentiment analysis on SEC filings
+    const sentiments = [];
+    intelligenceMetadata.secFilings.forEach(filing => {
+      const sentiment = IntelligenceEngine.analyzeSentiment(
+        filing.content,
+        `${filing.ticker} ${filing.formType}`
+      );
+      if (sentiment.hasSentiment) {
+        sentiment.date = filing.date;
+        sentiments.push(sentiment);
+        intelligenceMetadata.sentimentData.push(sentiment);
+      }
+    });
+    
+    if (sentiments.length > 0) {
+      console.log('💬 Sentiment Analysis:', sentiments);
+      
+      // Compare sentiments if multiple filings
+      if (sentiments.length >= 2) {
+        const sentimentComparison = IntelligenceEngine.compareSentiments(sentiments);
+        if (sentimentComparison.hasComparison) {
+          console.log('📊 Sentiment Comparison:', sentimentComparison);
+          intelligenceMetadata.anomalies.push({
+            type: 'sentiment_shift',
+            data: sentimentComparison
+          });
+        }
+      }
+    }
+    
+    // Build entity relationships
+    if (intelligenceMetadata.secFilings.length > 0) {
+      const entities = IntelligenceEngine.buildEntityRelationships({
+        secFilings: intelligenceMetadata.secFilings
+      });
+      intelligenceMetadata.entityRelationships = entities;
+      
+      if (entities.connections.length > 0) {
+        console.log('🔗 Entity Relationships:', entities.connections);
+      }
+    }
+    
     // Add intelligence insights to context
     let intelligenceContext = '';
     
@@ -1156,9 +1216,33 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
               intelligenceContext += `  • ${insight.message}\n`;
             });
           }
+        } else if (anomaly.type === 'sentiment_shift' && anomaly.data) {
+          intelligenceContext += `- Sentiment Analysis: ${anomaly.data.message}\n`;
+          if (anomaly.data.insights) {
+            anomaly.data.insights.forEach(insight => {
+              intelligenceContext += `  • ${insight}\n`;
+            });
+          }
         } else if (anomaly.message) {
           intelligenceContext += `- ${anomaly.message}\n`;
         }
+      });
+    }
+    
+    // Add sentiment insights
+    if (intelligenceMetadata.sentimentData.length > 0) {
+      intelligenceContext += `\n\n═══ MANAGEMENT SENTIMENT ═══\n`;
+      intelligenceMetadata.sentimentData.forEach(s => {
+        intelligenceContext += `- ${s.message} (${s.scores.positive}% positive, ${s.scores.negative}% negative)\n`;
+      });
+    }
+    
+    // Add entity relationships
+    if (intelligenceMetadata.entityRelationships && intelligenceMetadata.entityRelationships.connections.length > 0) {
+      intelligenceContext += `\n\n═══ RELATED ENTITIES ═══\n`;
+      const topConnections = intelligenceMetadata.entityRelationships.connections.slice(0, 5);
+      topConnections.forEach(conn => {
+        intelligenceContext += `- ${conn.from} → ${conn.to} (${conn.type} in ${conn.source})\n`;
       });
     }
     
@@ -1219,7 +1303,9 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
         confidence,
         missingData,
         anomalies: intelligenceMetadata.anomalies,
-        followUps
+        followUps,
+        sentiments: intelligenceMetadata.sentimentData,
+        entityRelationships: intelligenceMetadata.entityRelationships
       }
     })}\n\n`);
 
@@ -1434,7 +1520,10 @@ INTELLIGENCE INSIGHTS:
 • If confidence level is provided, acknowledge data quality in your response
 • When anomalies are detected, highlight them as notable patterns
 • If missing data is identified, mention what information gaps exist
+• When sentiment shifts are detected, interpret what they might indicate
+• If entity relationships are found, mention connections between companies
 • Include suggested follow-up questions at the end if provided
+• If query was decomposed into sub-queries, ensure all aspects are addressed
 
 ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${intelligenceContext}`;
 }

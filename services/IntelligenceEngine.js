@@ -429,6 +429,339 @@ class IntelligenceEngine {
       ]
     };
   }
+  /**
+   * Perform sentiment analysis on text
+   * @param {String} text - Text to analyze
+   * @param {String} source - Source of text (filing, transcript, etc)
+   * @returns {Object} Sentiment analysis
+   */
+  static analyzeSentiment(text, source) {
+    if (!text || text.length < 50) {
+      return { hasSentiment: false };
+    }
+
+    // Positive indicators
+    const positiveWords = [
+      'growth', 'strong', 'successful', 'increased', 'improved', 'positive',
+      'expand', 'opportunity', 'optimistic', 'confident', 'exceeded',
+      'progress', 'achieved', 'milestone', 'advancement', 'breakthrough',
+      'robust', 'favorable', 'momentum', 'outperform', 'accelerate'
+    ];
+
+    // Negative indicators
+    const negativeWords = [
+      'decline', 'decreased', 'loss', 'risk', 'challenge', 'concern',
+      'uncertainty', 'delay', 'difficult', 'adverse', 'negative',
+      'weakness', 'failure', 'reduction', 'impairment', 'litigation',
+      'volatile', 'cautious', 'headwind', 'pressure', 'deteriorate'
+    ];
+
+    // Hedging/uncertainty words
+    const hedgingWords = [
+      'may', 'might', 'could', 'possible', 'potential', 'uncertain',
+      'subject to', 'depends on', 'if', 'contingent', 'variable'
+    ];
+
+    const textLower = text.toLowerCase();
+    const words = textLower.split(/\s+/);
+    const totalWords = words.length;
+
+    // Count sentiment indicators
+    let positiveCount = 0;
+    let negativeCount = 0;
+    let hedgingCount = 0;
+
+    positiveWords.forEach(word => {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      const matches = textLower.match(regex);
+      if (matches) positiveCount += matches.length;
+    });
+
+    negativeWords.forEach(word => {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      const matches = textLower.match(regex);
+      if (matches) negativeCount += matches.length;
+    });
+
+    hedgingWords.forEach(word => {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      const matches = textLower.match(regex);
+      if (matches) hedgingCount += matches.length;
+    });
+
+    // Calculate sentiment scores
+    const positiveScore = (positiveCount / totalWords) * 100;
+    const negativeScore = (negativeCount / totalWords) * 100;
+    const hedgingScore = (hedgingCount / totalWords) * 100;
+    const netSentiment = positiveScore - negativeScore;
+
+    // Determine overall sentiment
+    let sentiment;
+    if (netSentiment > 0.5) sentiment = 'Positive';
+    else if (netSentiment < -0.5) sentiment = 'Negative';
+    else sentiment = 'Neutral';
+
+    // Tone classification
+    let tone = 'Balanced';
+    if (hedgingScore > 2) tone = 'Cautious';
+    if (positiveScore > 2 && hedgingScore < 1) tone = 'Confident';
+    if (negativeScore > 2) tone = 'Concerned';
+
+    return {
+      hasSentiment: true,
+      source,
+      sentiment,
+      tone,
+      scores: {
+        positive: positiveScore.toFixed(2),
+        negative: negativeScore.toFixed(2),
+        hedging: hedgingScore.toFixed(2),
+        net: netSentiment.toFixed(2)
+      },
+      indicators: {
+        positiveCount,
+        negativeCount,
+        hedgingCount
+      },
+      message: `${source} sentiment: ${sentiment} (${tone} tone)`
+    };
+  }
+
+  /**
+   * Compare sentiment across multiple documents
+   * @param {Array} sentiments - Array of sentiment analyses
+   * @returns {Object} Comparative sentiment analysis
+   */
+  static compareSentiments(sentiments) {
+    if (!sentiments || sentiments.length < 2) {
+      return { hasComparison: false };
+    }
+
+    // Sort by date if available
+    const sorted = sentiments.sort((a, b) => {
+      if (a.date && b.date) {
+        return new Date(a.date) - new Date(b.date);
+      }
+      return 0;
+    });
+
+    // Detect sentiment shifts
+    const shifts = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+
+      if (prev.sentiment !== curr.sentiment) {
+        shifts.push({
+          from: { sentiment: prev.sentiment, source: prev.source },
+          to: { sentiment: curr.sentiment, source: curr.source },
+          message: `Sentiment shifted from ${prev.sentiment} to ${curr.sentiment}`
+        });
+      }
+
+      // Detect tone changes
+      if (prev.tone !== curr.tone) {
+        shifts.push({
+          from: { tone: prev.tone, source: prev.source },
+          to: { tone: curr.tone, source: curr.source },
+          message: `Management tone shifted from ${prev.tone} to ${curr.tone}`
+        });
+      }
+    }
+
+    // Calculate trend
+    const recentSentiments = sorted.slice(-3);
+    const positiveCount = recentSentiments.filter(s => s.sentiment === 'Positive').length;
+    const negativeCount = recentSentiments.filter(s => s.sentiment === 'Negative').length;
+
+    let trend = 'Stable';
+    if (positiveCount > negativeCount && positiveCount >= 2) trend = 'Improving';
+    if (negativeCount > positiveCount && negativeCount >= 2) trend = 'Declining';
+
+    return {
+      hasComparison: true,
+      shifts,
+      trend,
+      recent: recentSentiments,
+      message: `Sentiment trend: ${trend}`,
+      insights: shifts.map(s => s.message)
+    };
+  }
+
+  /**
+   * Perform multi-step query decomposition
+   * @param {String} query - Original user query
+   * @param {Object} queryIntent - Classified intent
+   * @returns {Array} Sub-queries to execute
+   */
+  static decomposeComplexQuery(query, queryIntent) {
+    const subQueries = [];
+
+    // Check for comparative questions
+    if (/compare|versus|vs|difference between/i.test(query)) {
+      const tickers = queryIntent.tickers || [];
+      if (tickers.length >= 2) {
+        subQueries.push({
+          type: 'individual_analysis',
+          tickers: [tickers[0]],
+          purpose: `Analyze ${tickers[0]} independently`
+        });
+        subQueries.push({
+          type: 'individual_analysis',
+          tickers: [tickers[1]],
+          purpose: `Analyze ${tickers[1]} independently`
+        });
+        subQueries.push({
+          type: 'comparison',
+          tickers: tickers,
+          purpose: `Compare ${tickers[0]} vs ${tickers[1]}`
+        });
+      }
+    }
+
+    // Check for causal questions (how X affects Y)
+    if (/how.*affect|impact of|influence on/i.test(query)) {
+      const match = query.match(/how (.*?) affect|impact of (.*?) on|influence (.*?) on/i);
+      if (match) {
+        const factor = match[1] || match[2] || match[3];
+        subQueries.push({
+          type: 'cause_analysis',
+          factor: factor.trim(),
+          purpose: `Analyze ${factor} as causal factor`
+        });
+        subQueries.push({
+          type: 'historical_correlation',
+          purpose: `Find historical examples of similar impacts`
+        });
+        subQueries.push({
+          type: 'current_exposure',
+          purpose: `Assess current exposure to ${factor}`
+        });
+      }
+    }
+
+    // Check for multi-aspect analysis
+    if (/and|also|additionally/i.test(query)) {
+      const aspects = query.split(/and|also|additionally/i);
+      aspects.forEach((aspect, i) => {
+        if (aspect.trim().length > 10) {
+          subQueries.push({
+            type: 'aspect_analysis',
+            aspect: aspect.trim(),
+            order: i + 1,
+            purpose: `Address: ${aspect.trim()}`
+          });
+        }
+      });
+    }
+
+    return subQueries;
+  }
+
+  /**
+   * Identify causal relationships in data
+   * @param {Array} events - Time series of events
+   * @param {Array} outcomes - Time series of outcomes
+   * @returns {Array} Potential causal relationships
+   */
+  static identifyCausalRelationships(events, outcomes) {
+    if (!events || !outcomes || events.length < 2 || outcomes.length < 2) {
+      return [];
+    }
+
+    const relationships = [];
+
+    // Sort both by date
+    const sortedEvents = events.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sortedOutcomes = outcomes.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Look for outcomes that follow events within a time window
+    sortedEvents.forEach(event => {
+      const eventDate = new Date(event.date);
+
+      // Check outcomes within 90 days after event
+      const relatedOutcomes = sortedOutcomes.filter(outcome => {
+        const outcomeDate = new Date(outcome.date);
+        const daysDiff = (outcomeDate - eventDate) / (1000 * 60 * 60 * 24);
+        return daysDiff > 0 && daysDiff <= 90;
+      });
+
+      if (relatedOutcomes.length > 0) {
+        relatedOutcomes.forEach(outcome => {
+          const daysDiff = Math.round((new Date(outcome.date) - eventDate) / (1000 * 60 * 60 * 24));
+          relationships.push({
+            event: event.description || event.type,
+            eventDate: event.date,
+            outcome: outcome.description || outcome.type,
+            outcomeDate: outcome.date,
+            daysLater: daysDiff,
+            message: `${outcome.description || outcome.type} occurred ${daysDiff} days after ${event.description || event.type}`,
+            confidence: daysDiff <= 30 ? 'High' : daysDiff <= 60 ? 'Medium' : 'Low'
+          });
+        });
+      }
+    });
+
+    return relationships;
+  }
+
+  /**
+   * Build entity relationship map
+   * @param {Object} data - All fetched data
+   * @returns {Object} Entity relationship graph
+   */
+  static buildEntityRelationships(data) {
+    const relationships = {
+      companies: {},
+      people: {},
+      events: {},
+      connections: []
+    };
+
+    // Extract company mentions
+    if (data.secFilings) {
+      data.secFilings.forEach(filing => {
+        const ticker = filing.ticker;
+        if (!relationships.companies[ticker]) {
+          relationships.companies[ticker] = {
+            ticker,
+            filings: [],
+            relatedCompanies: new Set(),
+            keyPeople: new Set()
+          };
+        }
+        relationships.companies[ticker].filings.push(filing);
+
+        // Look for related company mentions in content
+        if (filing.content) {
+          // Simple pattern matching for company names (can be enhanced)
+          const tickerPattern = /\b[A-Z]{2,5}\b/g;
+          const matches = filing.content.match(tickerPattern) || [];
+          matches.forEach(match => {
+            if (match !== ticker && match.length <= 5) {
+              relationships.companies[ticker].relatedCompanies.add(match);
+              relationships.connections.push({
+                from: ticker,
+                to: match,
+                type: 'mentioned_in_filing',
+                source: filing.form_type
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // Convert Sets to Arrays for JSON serialization
+    Object.keys(relationships.companies).forEach(ticker => {
+      relationships.companies[ticker].relatedCompanies = 
+        Array.from(relationships.companies[ticker].relatedCompanies);
+      relationships.companies[ticker].keyPeople = 
+        Array.from(relationships.companies[ticker].keyPeople);
+    });
+
+    return relationships;
+  }
 }
 
 module.exports = IntelligenceEngine;
