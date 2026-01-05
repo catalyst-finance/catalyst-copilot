@@ -541,35 +541,36 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
       return JSON.parse(cleanData);
     } catch (error) {
       console.error('❌ SSE JSON parse error:', error);
-      console.error('Problematic data:', rawData.substring(0, 100));
+      console.error('Raw data (first 200 chars):', rawData.substring(0, 200));
+      console.error('Clean data (first 200 chars):', rawData.trim().substring(6).substring(0, 200));
+      console.error('Full length:', rawData.length);
       return null;
     }
   };
 
-  // Helper function to parse SSE stream with robust message boundary detection
+  // Helper function to parse SSE stream - split on double newlines
   const parseSSEStream = (buffer: string): { messages: string[], remaining: string } => {
-    // Find complete messages separated by double newlines
-    const doubleNewlineIndex = buffer.indexOf('\n\n');
+    const messages: string[] = [];
+    let currentBuffer = buffer;
     
-    if (doubleNewlineIndex === -1) {
-      // No complete message yet, return everything as remaining buffer
-      return { messages: [], remaining: buffer };
+    // Keep finding and extracting complete messages until we can't find more
+    while (true) {
+      const doubleNewlineIndex = currentBuffer.indexOf('\n\n');
+      
+      if (doubleNewlineIndex === -1) {
+        // No more complete messages, return what we have
+        return { messages, remaining: currentBuffer };
+      }
+      
+      // Extract one complete message
+      const message = currentBuffer.substring(0, doubleNewlineIndex);
+      if (message.trim()) {
+        messages.push(message);
+      }
+      
+      // Move past the double newline
+      currentBuffer = currentBuffer.substring(doubleNewlineIndex + 2);
     }
-    
-    // Extract complete message(s) and remaining buffer
-    const completePart = buffer.substring(0, doubleNewlineIndex);
-    const remaining = buffer.substring(doubleNewlineIndex + 2);
-    
-    // Split complete part into individual messages
-    const messages = completePart.split(/\n\n|\r\n\r\n/).filter(msg => msg.trim());
-    
-    // Recursively process remaining buffer for additional complete messages
-    const recurseResult = parseSSEStream(remaining);
-    
-    return {
-      messages: [...messages, ...recurseResult.messages],
-      remaining: recurseResult.remaining
-    };
   };
 
   const handleSendMessage = async (message: string) => {
@@ -616,7 +617,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
         throw new Error(`Chat request failed: ${response.status} - ${errorText}`);
       }
 
-      // Handle SSE stream
+      // ALWAYS handle as SSE stream - this endpoint ONLY streams
       console.log('📡 SSE stream handler initialized');
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
@@ -625,75 +626,77 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
       let collectedContent = '';
       let collectedDataCards: DataCard[] = [];
       let eventData: Record<string, any> = {};
+      
+      // Helper to process a batch of messages
+      const processMessages = (msgs: string[]) => {
+        for (const messageBlock of msgs) {
+          // Each message block should be a complete SSE message
+          // Don't split by \n - the entire block is one message
+          const trimmedBlock = messageBlock.trim();
+          
+          // Skip empty blocks and comments
+          if (!trimmedBlock || trimmedBlock.startsWith(':')) continue;
+          
+          // Process the entire message block as one SSE message
+          if (trimmedBlock.startsWith('data: ')) {
+            const data = processSSEData(trimmedBlock);
+            if (!data || !data.type) continue;
 
+            console.log('📥 SSE:', data.type);
+
+            switch (data.type) {
+              case 'metadata':
+                if (data.dataCards) {
+                  collectedDataCards = data.dataCards;
+                  setStreamingDataCards(data.dataCards);
+                }
+                if (data.eventData) {
+                  eventData = data.eventData;
+                }
+                break;
+
+              case 'thinking':
+                const newStep = { phase: data.phase || 'thinking', content: data.content };
+                collectedThinking.push(newStep);
+                setThinkingSteps(prev => [...prev, newStep]);
+                break;
+
+              case 'content':
+                collectedContent += data.content;
+                setStreamedContent(prev => prev + data.content);
+                break;
+
+              case 'done':
+                const aiMessage: Message = {
+                  id: `ai-${Date.now()}`,
+                  role: 'assistant',
+                  content: collectedContent,
+                  dataCards: collectedDataCards,
+                  eventData: eventData,
+                  thinkingSteps: collectedThinking,
+                  timestamp: new Date()
+                };
+                setMessages(prev => [...prev, aiMessage]);
+                setIsStreaming(false);
+                setThinkingSteps([]);
+                setStreamedContent('');
+                setStreamingDataCards([]);
+                break;
+            }
+          }
+        }
+      };
+
+      // Continue reading the stream
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        
-        // Process complete SSE messages
         const { messages: completeMessages, remaining } = parseSSEStream(buffer);
         buffer = remaining;
 
-        for (const messageBlock of completeMessages) {
-          const lines = messageBlock.split('\n');
-          
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            
-            // Skip empty lines and comments
-            if (!trimmedLine || trimmedLine.startsWith(':')) continue;
-            
-            // Process data lines
-            if (trimmedLine.startsWith('data: ')) {
-              const data = processSSEData(trimmedLine);
-              if (!data || !data.type) continue;
-
-              console.log('📥 SSE:', data.type);
-
-              switch (data.type) {
-                case 'metadata':
-                  if (data.dataCards) {
-                    collectedDataCards = data.dataCards;
-                    setStreamingDataCards(data.dataCards);
-                  }
-                  if (data.eventData) {
-                    eventData = data.eventData;
-                  }
-                  break;
-
-                case 'thinking':
-                  const newStep = { phase: data.phase || 'thinking', content: data.content };
-                  collectedThinking.push(newStep);
-                  setThinkingSteps(prev => [...prev, newStep]);
-                  break;
-
-                case 'content':
-                  collectedContent += data.content;
-                  setStreamedContent(prev => prev + data.content);
-                  break;
-
-                case 'done':
-                  const aiMessage: Message = {
-                    id: `ai-${Date.now()}`,
-                    role: 'assistant',
-                    content: collectedContent,
-                    dataCards: collectedDataCards,
-                    eventData: eventData,
-                    thinkingSteps: collectedThinking,
-                    timestamp: new Date()
-                  };
-                  setMessages(prev => [...prev, aiMessage]);
-                  setIsStreaming(false);
-                  setThinkingSteps([]);
-                  setStreamedContent('');
-                  setStreamingDataCards([]);
-                  break;
-              }
-            }
-          }
-        }
+        processMessages(completeMessages);
       }
     } catch (error) {
       console.error('❌ Error sending message:', error);
