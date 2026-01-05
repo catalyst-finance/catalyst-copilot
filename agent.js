@@ -645,9 +645,12 @@ class DataConnector {
     }
   }
   
-  static async fetchSecFilingContent(url, maxLength = 15000) {
+  static async fetchSecFilingContent(url, keywords = [], maxLength = 15000) {
     try {
       console.log(`Fetching SEC filing content from: ${url}`);
+      if (keywords.length > 0) {
+        console.log(`Looking for keywords: ${keywords.join(', ')}`);
+      }
       
       // Fetch the HTML/XML content
       const response = await axios.get(url, {
@@ -674,17 +677,51 @@ class DataConnector {
         .replace(/\n\s*\n/g, '\n') // Remove empty lines
         .trim();
       
-      // Truncate to maxLength to avoid token overflow
-      if (text.length > maxLength) {
-        text = text.substring(0, maxLength) + '... [truncated for length]';
+      // If keywords provided, extract relevant sections
+      let relevantContent = text;
+      if (keywords.length > 0) {
+        // Split into sentences
+        const sentences = text.split(/(?<=[.!?])\s+/);
+        
+        // Find sentences containing keywords (case-insensitive)
+        const keywordRegex = new RegExp(keywords.join('|'), 'gi');
+        const relevantSentences = [];
+        const contextWindow = 2; // Include 2 sentences before and after keyword match
+        
+        for (let i = 0; i < sentences.length; i++) {
+          if (keywordRegex.test(sentences[i])) {
+            // Add context sentences
+            const start = Math.max(0, i - contextWindow);
+            const end = Math.min(sentences.length, i + contextWindow + 1);
+            for (let j = start; j < end; j++) {
+              if (!relevantSentences.includes(sentences[j])) {
+                relevantSentences.push(sentences[j]);
+              }
+            }
+          }
+        }
+        
+        if (relevantSentences.length > 0) {
+          relevantContent = relevantSentences.join(' ');
+          console.log(`Found ${relevantSentences.length} relevant sentences with keywords`);
+        } else {
+          console.log('No keyword matches found, using full text');
+          relevantContent = text;
+        }
       }
       
-      console.log(`Fetched ${text.length} characters of content`);
+      // Truncate to maxLength to avoid token overflow
+      if (relevantContent.length > maxLength) {
+        relevantContent = relevantContent.substring(0, maxLength) + '... [truncated for length]';
+      }
+      
+      console.log(`Fetched ${relevantContent.length} characters of content`);
       
       return {
         success: true,
-        content: text,
-        contentLength: text.length
+        content: relevantContent,
+        contentLength: relevantContent.length,
+        keywordMatches: keywords.length > 0
       };
     } catch (error) {
       console.error(`Error fetching SEC filing content from ${url}:`, error.message);
@@ -1745,6 +1782,56 @@ Top Holders:`;
       // Use date range if provided by AI classification
       const dateRange = queryIntent.dateRange || null;
       
+      // Use AI to intelligently extract and expand keywords from user query
+      // This handles acronyms (FDA → Food and Drug Administration), 
+      // abbreviations (LSD → lysergic acid diethylamide), and synonyms
+      let uniqueKeywords = [];
+      
+      if (needsDeepAnalysis) {
+        try {
+          const keywordPrompt = `Extract and expand key search terms from this user query for searching SEC filings. 
+
+User query: "${message}"
+
+Instructions:
+1. Identify the main concepts and entities mentioned
+2. Expand acronyms to their full forms (e.g., "FDA" → include both "FDA" and "Food and Drug Administration")
+3. Include both abbreviated and full chemical/drug names (e.g., "LSD" → include "LSD", "lysergic acid diethylamide", "lysergic acid")
+4. Add relevant synonyms (e.g., "trial" → include "clinical trial", "study", "investigation")
+5. Keep proper nouns and technical terms
+6. Return a flat array of search terms, not grouped
+
+Return ONLY a JSON array of strings like: ["term1", "term2", "term3"]
+Maximum 20 terms. No explanation.`;
+
+          const keywordResponse = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: keywordPrompt }],
+            temperature: 0.2,
+            max_tokens: 500
+          });
+          
+          const keywordText = keywordResponse.choices[0].message.content.trim();
+          const expandedKeywords = JSON.parse(keywordText);
+          uniqueKeywords = expandedKeywords.filter(k => k && k.length > 1); // Allow 2-char terms like "R&D"
+          
+          console.log(`AI-expanded keywords for SEC filing analysis: ${uniqueKeywords.join(', ')}`);
+        } catch (error) {
+          console.error('Keyword expansion failed, using basic extraction:', error);
+          // Fallback: extract words from the message
+          uniqueKeywords = message
+            .split(/\s+/)
+            .filter(word => word.length > 3 && /^[A-Za-z]+$/.test(word))
+            .slice(0, 10);
+        }
+      } else {
+        // For non-deep analysis, just extract basic terms
+        uniqueKeywords = message
+          .split(/\s+/)
+          .filter(word => word.length > 3 && /^[A-Za-z]+$/.test(word))
+          .slice(0, 5);
+      }
+      
       for (const ticker of tickersToQuery.slice(0, 3)) {
         try {
           const secResult = await DataConnector.getSecFilings(ticker, formTypes, dateRange, needsDeepAnalysis ? 20 : 10);
@@ -1778,13 +1865,17 @@ Top Holders:`;
               
               dataContext += `   URL: ${filing.url}\n`;
               
-              // If deep analysis is needed, fetch actual filing content
+              // If deep analysis is needed, fetch actual filing content with keyword focus
               if (needsDeepAnalysis && filing.url && i < 2) { // Only fetch content for first 2 filings to manage tokens
                 console.log(`Fetching content for ${filing.form_type} filing...`);
-                const contentResult = await DataConnector.fetchSecFilingContent(filing.url, 10000);
+                const contentResult = await DataConnector.fetchSecFilingContent(
+                  filing.url, 
+                  uniqueKeywords, 
+                  uniqueKeywords.length > 0 ? 20000 : 10000 // Larger limit if searching for keywords
+                );
                 
                 if (contentResult.success && contentResult.content) {
-                  dataContext += `   \n   === FILING CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n\n`;
+                  dataContext += `   \n   === FILING CONTENT ${contentResult.keywordMatches ? '(Keyword-Focused)' : ''} ===\n${contentResult.content}\n   === END CONTENT ===\n\n`;
                 } else {
                   dataContext += `   (Unable to fetch filing content: ${contentResult.error})\n\n`;
                 }
