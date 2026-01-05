@@ -2894,7 +2894,7 @@ FORMATTING RULES (CRITICAL - ALWAYS FOLLOW):
 • Use bullet points (•) for lists of items or features
 • Use numbered lists (1. 2. 3.) for sequential steps or rankings
 • NEVER use markdown headers (###, ##, #) - frontend displays plain text only
-• For section headers, use **BOLD CAPS** on its own line with blank line after
+• For section headers, use **BOLD** format on its own line with blank line after
 • Bullet/numbered lists should have the header ABOVE the list, not as the first item
 • For multi-point analysis, structure with clear sections:
   - Lead with key takeaway
@@ -2988,18 +2988,37 @@ ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dat
     })}\n\n`);
 
     // Send "thinking" phase updates for a dedicated thinking container on the UI
+    // Make data sources user-friendly
+    const dataSourceMap = {
+      'stock_prices': 'stock prices',
+      'events': 'upcoming events',
+      'institutional': 'institutional ownership',
+      'sec_filings': 'SEC filings',
+      'macro': 'economic data',
+      'policy': 'government policy',
+      'news': 'market news'
+    };
+    
+    const friendlyDataSources = queryIntent.dataNeeded
+      .map(source => dataSourceMap[source] || source)
+      .join(', ');
+    
+    const tickerList = tickersToQuery.length > 0 
+      ? tickersToQuery.join(', ')
+      : 'market-wide data';
+    
     const thinkingSteps = [
       {
         phase: 'analyzing',
-        content: 'Analyzing query intent and data requirements...'
+        content: 'Understanding your question and determining what information you need...'
       },
       {
         phase: 'retrieving',
-        content: `Retrieving data sources: ${queryIntent.dataNeeded.join(', ')} | Tickers: ${tickersToQuery.join(', ') || 'none'}`
+        content: `Gathering ${friendlyDataSources} for ${tickerList}...`
       },
       {
         phase: 'synthesizing',
-        content: 'Synthesizing findings and preparing response...'
+        content: 'Analyzing the data and preparing your answer...'
       }
     ];
 
