@@ -6,7 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../config/database');
-const { openai } = require('../config/openai');
+const openai = require('../config/openai');
 const DataConnector = require('../services/DataConnector');
 const ConversationManager = require('../services/ConversationManager');
 const { optionalAuth } = require('../middleware/auth');
