@@ -653,9 +653,10 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     let eventCardsContext = "";
     
     if (shouldFetchEvents) {
-      const isUpcomingQuery = queryIntent.timeframe === 'upcoming';
+      const isUpcomingQuery = queryIntent.timeframe === 'upcoming' || queryIntent.isFutureOutlook;
       const today = new Date().toISOString();
-      const requestedEventTypes = queryIntent.eventTypes || [];
+      // For roadmap/outlook queries, fetch ALL event types, not just requested ones
+      const requestedEventTypes = queryIntent.isFutureOutlook ? [] : (queryIntent.eventTypes || []);
       const isFocusOnlyQuery = queryIntent.scope === 'focus_stocks';
       const isOutsideFocusQuery = queryIntent.scope === 'outside_focus';
       const isSpecificTickersQuery = queryIntent.scope === 'specific_tickers';
