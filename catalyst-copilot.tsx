@@ -277,7 +277,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         const isSourceCitation = /\b(10-[KQ]|8-K|Form\s+[0-9]+|S-[0-9]+|DEF\s+14A|13F|424B)\b/i.test(linkText);
         
         if (isSourceCitation) {
-          // Render as blue badge with link
+          // Render as grey rounded badge with link (ChatGPT style)
           const formattedLinkText = formatRollCallLink(linkText, linkUrl);
           segments.push(
             <a
@@ -285,12 +285,13 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
               href={linkUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-xs font-medium border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground text-xs font-medium border border-border/40 hover:bg-muted hover:border-border transition-colors cursor-pointer"
             >
               <FileText className="w-3 h-3" />
               {formattedLinkText}
             </a>
           );
+        }
         } else {
           // Regular link (not a source citation)
           const formattedLinkText = formatRollCallLink(linkText, linkUrl);
@@ -336,7 +337,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
             const sourceText = sourceMatch[1];
             
             sourceParts.push(
-              <span key={`source-${key++}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-xs font-medium border border-blue-500/20">
+              <span key={`source-${key++}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground text-xs font-medium border border-border/40">
                 <FileText className="w-3 h-3" />
                 {sourceText}
               </span>
