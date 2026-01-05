@@ -1114,6 +1114,15 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       }
     }
 
+    // Log full response with visible formatting characters for debugging
+    console.log('\n📄 FULL RESPONSE WITH FORMATTING:');
+    console.log('='.repeat(80));
+    console.log(fullResponse);
+    console.log('='.repeat(80));
+    console.log('\n🔍 ESCAPED VERSION (shows \\n, \\t, etc):');
+    console.log(JSON.stringify(fullResponse, null, 2));
+    console.log('='.repeat(80));
+
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
     res.end();
     
