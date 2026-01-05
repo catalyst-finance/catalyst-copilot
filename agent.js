@@ -6,6 +6,8 @@ const OpenAI = require('openai');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const axios = require('axios');
+const cheerio = require('cheerio');
 require('dotenv').config();
 
 const app = express();
@@ -639,6 +641,57 @@ class DataConnector {
         success: false,
         error: error.message,
         type: `macro_${category}`
+      };
+    }
+  }
+  
+  static async fetchSecFilingContent(url, maxLength = 15000) {
+    try {
+      console.log(`Fetching SEC filing content from: ${url}`);
+      
+      // Fetch the HTML/XML content
+      const response = await axios.get(url, {
+        timeout: 10000, // 10 second timeout
+        headers: {
+          'User-Agent': 'Catalyst Copilot Financial Analysis Tool contact@catalyst.finance'
+        }
+      });
+      
+      const html = response.data;
+      
+      // Parse HTML and extract text content
+      const $ = cheerio.load(html);
+      
+      // Remove script and style tags
+      $('script, style, noscript').remove();
+      
+      // Extract text content
+      let text = $('body').text() || $.text();
+      
+      // Clean up whitespace
+      text = text
+        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .replace(/\n\s*\n/g, '\n') // Remove empty lines
+        .trim();
+      
+      // Truncate to maxLength to avoid token overflow
+      if (text.length > maxLength) {
+        text = text.substring(0, maxLength) + '... [truncated for length]';
+      }
+      
+      console.log(`Fetched ${text.length} characters of content`);
+      
+      return {
+        success: true,
+        content: text,
+        contentLength: text.length
+      };
+    } catch (error) {
+      console.error(`Error fetching SEC filing content from ${url}:`, error.message);
+      return {
+        success: false,
+        error: error.message,
+        content: null
       };
     }
   }
@@ -1664,12 +1717,19 @@ Top Holders:`;
       // Use AI-detected form types if available, otherwise fetch all
       const formTypes = queryIntent.formTypes && queryIntent.formTypes.length > 0 ? queryIntent.formTypes : null;
       
+      // Determine if we should fetch full content (for deep analysis queries)
+      const needsDeepAnalysis = /analyze|analysis|roadmap|strategy|plan|insights?|details?|review/i.test(message);
+      
       for (const ticker of tickersToQuery.slice(0, 3)) {
         try {
-          const secResult = await DataConnector.getSecFilings(ticker, formTypes, 10);
+          const secResult = await DataConnector.getSecFilings(ticker, formTypes, needsDeepAnalysis ? 5 : 10);
           if (secResult.success && secResult.data.length > 0) {
             dataContext += `\n\n${ticker} Recent SEC Filings${formTypes ? ` (${Array.isArray(formTypes) ? formTypes.join(', ') : formTypes})` : ''}:\n`;
-            secResult.data.slice(0, 5).forEach((filing, i) => {
+            
+            const filingsToShow = secResult.data.slice(0, needsDeepAnalysis ? 3 : 5);
+            
+            for (let i = 0; i < filingsToShow.length; i++) {
+              const filing = filingsToShow[i];
               const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
               const reportDate = filing.report_date ? ` (Period: ${filing.report_date})` : '';
               const size = filing.file_size || 'N/A';
@@ -1692,7 +1752,19 @@ Top Holders:`;
               }
               
               dataContext += `   URL: ${filing.url}\n`;
-            });
+              
+              // If deep analysis is needed, fetch actual filing content
+              if (needsDeepAnalysis && filing.url && i < 2) { // Only fetch content for first 2 filings to manage tokens
+                console.log(`Fetching content for ${filing.form_type} filing...`);
+                const contentResult = await DataConnector.fetchSecFilingContent(filing.url, 10000);
+                
+                if (contentResult.success && contentResult.content) {
+                  dataContext += `   \n   === FILING CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n\n`;
+                } else {
+                  dataContext += `   (Unable to fetch filing content: ${contentResult.error})\n\n`;
+                }
+              }
+            }
           } else if (secResult.message) {
             dataContext += `\n\n${secResult.message}`;
           }
