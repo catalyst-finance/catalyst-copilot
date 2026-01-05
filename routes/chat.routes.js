@@ -1466,7 +1466,8 @@ RESPONSE GUIDELINES:
 **CITATION FORMAT** (CRITICAL - ALWAYS CITE SOURCES):
 • After EVERY factual claim, add inline citations using this EXACT format: \`[Source Name](URL)\`
 • Place citations immediately after the sentence or claim they support - INLINE, not at the end
-• DO NOT create a "Sources:" section at the bottom - all citations must be inline within the text
+• **NEVER EVER create a "Sources:" section or "For more details:" section at the bottom** - all citations must be inline within the text only
+• **DO NOT list sources separately or repeat them** - they are already visible as inline badges to the user
 • Use specific source names from the data provided (e.g., "Mind Medicine 10-Q", "MNMD 8-K", "SEC Filing", "Institutional Data")
 • **For SEC filings with URLs**: Use markdown link format \`[TICKER Form Type - Date](URL)\` (e.g., \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/...)\`)
   - When the data context includes "URL: https://..." immediately after a filing, you MUST include that URL in your citation
@@ -1545,7 +1546,12 @@ CRITICAL CONSTRAINTS:
 5. Never fabricate quotes, statistics, or data points
 6. If data seems contradictory, acknowledge it rather than hiding the discrepancy
 7. **FOCUS ON CONTENT, NOT META-COMMENTARY**: When discussing SEC filings, press releases, or other sources, ALWAYS focus on the CONTENT and SUBSTANCE of what they contain. NEVER make meta-observations about filing volume, frequency, or activity patterns (e.g., DON'T say "the company has increased its SEC filing activity" or "there have been several filings"). Users want to know WHAT the sources say, not HOW MANY there are or patterns about them.
-8. **USE INLINE IMAGE MARKERS**: When SEC filing content includes [IMAGE_CARD:...] markers, place them in your response immediately after discussing that specific filing. Example: "The Q3 10-Q shows $15M cash reserves [IMAGE_CARD:sec-image-MNMD-0-0]. This positions them well for..."
+8. **USE INLINE CARD MARKERS (MANDATORY)**: 
+   - When data context includes [IMAGE_CARD:...] markers after SEC filings, you MUST copy those exact markers into your response immediately after discussing that filing
+   - When data context includes [EVENT_CARD:...] markers for events, you MUST copy those exact markers into your response when mentioning that event
+   - Example: "Q3 10-Q shows $15M cash [MNMD 10-Q - Nov 6, 2025](URL) [IMAGE_CARD:sec-image-MNMD-0-0]"
+   - Example: "MM120 Phase 3 data expected May 15, 2026 [EVENT_CARD:MNMD_clinical_2026-05-15T09:00:00+00:00]"
+   - These markers trigger visual cards to appear inline - they are REQUIRED when present in the data
 9. **EXTRACT DETAILED INSIGHTS FROM SEC FILINGS**: When SEC filing content is provided (marked with "=== CONTENT ==="), analyze and discuss specific details, metrics, business strategies, risks, and forward-looking statements from that text. Don't just summarize - pull out concrete insights.
 
 INTELLIGENCE INSIGHTS:

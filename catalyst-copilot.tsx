@@ -255,30 +255,57 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       let currentText = line;
       let key = 0;
       
-      // First, parse markdown links [text](url)
-      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      // Strip backticks from around bracket patterns first: `[text](url)` → [text](url) and `[text]` → [text]
+      currentText = currentText.replace(/`\[([^\]]+)\]\(([^)]+)\)`/g, '[$1]($2)');
+      currentText = currentText.replace(/`\[([^\]]+)\]`/g, '[$1]');
+      
+      // First, parse [text](url) patterns - these become clickable blue badges (for sources with URLs)
+      const linkWithBracketRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
       let segments: (string | JSX.Element)[] = [];
       let lastIndex = 0;
       let match;
       
-      while ((match = linkRegex.exec(currentText)) !== null) {
+      while ((match = linkWithBracketRegex.exec(currentText)) !== null) {
         if (match.index > lastIndex) {
           segments.push(currentText.substring(lastIndex, match.index));
         }
         
-        const linkText = formatRollCallLink(match[1], match[2]);
+        const linkText = match[1];
+        const linkUrl = match[2];
         
-        segments.push(
-          <a
-            key={`link-${key++}`}
-            href={match[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 hover:underline hover:text-blue-400 transition-colors"
-          >
-            {linkText}
-          </a>
-        );
+        // Check if this looks like a source citation (contains form type like 10-Q, 10-K, 8-K, etc.)
+        const isSourceCitation = /\b(10-[KQ]|8-K|Form\s+[0-9]+|S-[0-9]+|DEF\s+14A|13F|424B)\b/i.test(linkText);
+        
+        if (isSourceCitation) {
+          // Render as blue badge with link
+          const formattedLinkText = formatRollCallLink(linkText, linkUrl);
+          segments.push(
+            <a
+              key={`source-badge-${key++}`}
+              href={linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-xs font-medium border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer"
+            >
+              <FileText className="w-3 h-3" />
+              {formattedLinkText}
+            </a>
+          );
+        } else {
+          // Regular link (not a source citation)
+          const formattedLinkText = formatRollCallLink(linkText, linkUrl);
+          segments.push(
+            <a
+              key={`link-${key++}`}
+              href={linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline hover:text-blue-400 transition-colors"
+            >
+              {formattedLinkText}
+            </a>
+          );
+        }
         lastIndex = match.index + match[0].length;
       }
       
@@ -291,23 +318,19 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         segments.push(currentText);
       }
       
-      // Parse source citations in brackets [Source Text] and convert to badges
-      // Strip backticks from around brackets: `[Source]` → [Source]
+      // Now parse remaining [text] patterns (without URLs) as non-clickable badges
       const sourceSegments: (string | JSX.Element)[] = [];
       segments.forEach((segment) => {
         if (typeof segment === 'string') {
-          // Strip backticks from around any bracket pattern
-          let cleanedSegment = segment.replace(/`\[([^\]]+)\]`/g, '[$1]');
-          
-          // Match any [text] pattern that isn't a markdown link (those are already parsed)
+          // Match any [text] pattern (these are sources without URLs)
           const sourceRegex = /\[([^\]]+)\]/g;
           let sourceLastIndex = 0;
           let sourceMatch;
           const sourceParts: (string | JSX.Element)[] = [];
           
-          while ((sourceMatch = sourceRegex.exec(cleanedSegment)) !== null) {
+          while ((sourceMatch = sourceRegex.exec(segment)) !== null) {
             if (sourceMatch.index > sourceLastIndex) {
-              sourceParts.push(cleanedSegment.substring(sourceLastIndex, sourceMatch.index));
+              sourceParts.push(segment.substring(sourceLastIndex, sourceMatch.index));
             }
             
             const sourceText = sourceMatch[1];
@@ -321,14 +344,14 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
             sourceLastIndex = sourceMatch.index + sourceMatch[0].length;
           }
           
-          if (sourceLastIndex < cleanedSegment.length) {
-            sourceParts.push(cleanedSegment.substring(sourceLastIndex));
+          if (sourceLastIndex < segment.length) {
+            sourceParts.push(segment.substring(sourceLastIndex));
           }
           
           if (sourceParts.length > 0) {
             sourceSegments.push(...sourceParts);
           } else {
-            sourceSegments.push(cleanedSegment);
+            sourceSegments.push(segment);
           }
         } else {
           sourceSegments.push(segment);
