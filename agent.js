@@ -1616,7 +1616,8 @@ Return ONLY the JSON object, no explanation.`;
     let tickersToQuery = [];
     const isStockQuery = queryIntent.dataNeeded.includes('stock_prices') || 
                          queryIntent.dataNeeded.includes('institutional') || 
-                         queryIntent.dataNeeded.includes('events');
+                         queryIntent.dataNeeded.includes('events') ||
+                         queryIntent.dataNeeded.includes('sec_filings');
     
     if (isStockQuery) {
       if (queryIntent.scope === 'focus_stocks' && selectedTickers.length > 0) {
