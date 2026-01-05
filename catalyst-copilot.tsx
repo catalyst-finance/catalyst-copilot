@@ -78,7 +78,7 @@ interface CatalystCopilotProps {
 }
 
 // Markdown Renderer Component
-function MarkdownText({ text }: { text: string }) {
+function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void }) {
   // Split into main content and sources if sources exist
   const sourcesMatch = text.match(/For more detailed insights.*?sources:\s*([\s\S]*)/i);
   const mainContent = sourcesMatch ? text.substring(0, sourcesMatch.index).trim() : text;
@@ -216,6 +216,23 @@ function MarkdownText({ text }: { text: string }) {
       }
     };
     
+    const insertEventCard = (eventId: string) => {
+      // Find the matching event card
+      if (dataCards) {
+        const eventCard = dataCards.find(card => 
+          card.type === 'event' && (card.data.id === eventId || card.data.id?.toString() === eventId)
+        );
+        
+        if (eventCard) {
+          elements.push(
+            <div key={`event-card-${eventId}-${elements.length}`} className="my-3">
+              <DataCardComponent card={eventCard} onEventClick={onEventClick} />
+            </div>
+          );
+        }
+      }
+    };
+    
     const parseInlineFormatting = (line: string) => {
       const parts: (string | JSX.Element)[] = [];
       let currentText = line;
@@ -334,6 +351,15 @@ function MarkdownText({ text }: { text: string }) {
     
     lines.forEach((line, index) => {
       const trimmedLine = line.trim();
+      
+      // Check for EVENT_CARD marker
+      const eventCardMatch = trimmedLine.match(/\[EVENT_CARD:([^\]]+)\]/);
+      if (eventCardMatch) {
+        flushParagraph();
+        flushList();
+        insertEventCard(eventCardMatch[1]);
+        return; // Skip this line, it's just a marker
+      }
       
       if (line.startsWith('### ')) {
         flushParagraph();
@@ -1461,7 +1487,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                           : 'text-foreground'
                       }`}
                     >
-                      <MarkdownText text={msg.content} />
+                      <MarkdownText text={msg.content} dataCards={msg.dataCards} onEventClick={onEventClick} />
                     </div>
 
                     {msg.role === 'user' && !isTyping && (
@@ -1478,14 +1504,15 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                       </div>
                     )}
 
-                    {msg.dataCards && msg.dataCards.length > 0 && (
+                    {/* Render non-event cards at the bottom (stock cards, charts, etc.) */}
+                    {msg.dataCards && msg.dataCards.filter(card => card.type !== 'event').length > 0 && (
                       <motion.div 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3, delay: 0.1 }}
                         className="space-y-2"
                       >
-                        {msg.dataCards.map((card, index) => (
+                        {msg.dataCards.filter(card => card.type !== 'event').map((card, index) => (
                           <motion.div
                             key={index}
                             initial={{ opacity: 0, x: -20 }}
@@ -1520,15 +1547,15 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
                 </motion.div>
 
-                {/* Streaming Data Cards - Show First (metadata arrives first) */}
-                {streamingDataCards.length > 0 && (
+                {/* Streaming Non-Event Data Cards - Show First (stock cards, charts, etc.) */}
+                {streamingDataCards.filter(card => card.type !== 'event').length > 0 && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.1 }}
                     className="space-y-2"
                   >
-                    {streamingDataCards.map((card, index) => (
+                    {streamingDataCards.filter(card => card.type !== 'event').map((card, index) => (
                       <motion.div
                         key={index}
                         initial={{ opacity: 0, x: -20 }}
@@ -1620,7 +1647,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                     animate={{ opacity: 1, y: 0 }}
                     className="text-foreground"
                   >
-                    <MarkdownText text={streamedContent} />
+                    <MarkdownText text={streamedContent} dataCards={streamingDataCards} onEventClick={onEventClick} />
                     <motion.span
                       className="inline-block w-[2px] h-4 bg-foreground/60 ml-0.5"
                       animate={{ opacity: [1, 0, 1] }}

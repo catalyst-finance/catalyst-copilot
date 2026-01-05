@@ -817,9 +817,10 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
           eventCardsContext = `\n\n**CRITICAL - EVENT CARDS TO DISPLAY:**\nYou will be showing the following ${topEvents.length} event cards to the user. Your response MUST mention and briefly describe ALL of these events:\n\n`;
           topEvents.forEach((event, index) => {
             const eventDate = new Date(event.actualDateTime_et || event.actualDateTime).toLocaleDateString();
-            eventCardsContext += `${index + 1}. ${event.ticker} - ${event.title} (${event.type}) on ${eventDate}\n   AI Insight: ${event.aiInsight}\n\n`;
+            const eventId = event.id || `${event.ticker}_${event.type}_${(event.actualDateTime_et || event.actualDateTime)}`;
+            eventCardsContext += `${index + 1}. ${event.ticker} - ${event.title} (${event.type}) on ${eventDate}\n   AI Insight: ${event.aiInsight}\n   **IMPORTANT**: After describing this event in your response, insert the marker: [EVENT_CARD:${eventId}]\n\n`;
           });
-          eventCardsContext += `\nMake sure your response discusses ALL ${topEvents.length} events listed above. Do not omit any.`;
+          eventCardsContext += `\nMake sure your response discusses ALL ${topEvents.length} events listed above and includes the [EVENT_CARD:id] marker immediately after each event's description. Do not omit any.`;
         }
         
         for (const event of topEvents) {
