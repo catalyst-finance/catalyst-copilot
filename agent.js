@@ -1692,9 +1692,9 @@ app.post('/chat', optionalAuth, async (req, res) => {
     const classificationPrompt = `You are a query classifier for a financial data API. Analyze the user's question and return a JSON object with the following structure:
 
 {
-  "intent": "stock_price" | "events" | "institutional" | "sec_filings" | "macro_economic" | "government_policy" | "market_news" | "general",
+  "intent": "stock_price" | "events" | "institutional" | "sec_filings" | "macro_economic" | "government_policy" | "market_news" | "future_outlook" | "general",
   "tickers": ["TSLA", "AAPL"],  // Array of stock tickers mentioned (empty if none)
-  "timeframe": "current" | "historical" | "upcoming" | "specific_date",
+  "timeframe": "current" | "historical" | "upcoming" | "specific_date" | "future",
   "date": "YYYY-MM-DD" or null,  // Specific date if mentioned
   "dateRange": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"} or null,
   "speaker": "hassett" | "biden" | "trump" | "yellen" | "powell" | null,  // For government policy queries
@@ -1702,10 +1702,22 @@ app.post('/chat', optionalAuth, async (req, res) => {
   "formTypes": ["10-K", "10-Q", "8-K", "4", "S-1", "13F"],  // Specific SEC form types requested
   "scope": "focus_stocks" | "outside_focus" | "all_stocks" | "specific_tickers",
   "needsChart": true | false,  // Set to true if user asks about intraday trading, today's price action, or wants to see price movement
+  "isFutureOutlook": true | false,  // Set to true if user asks about future prospects, outlook, what's ahead, catalysts, or predictions
+  "needsDeepAnalysis": true | false,  // Set to true if user wants detailed analysis requiring full SEC filing content (not just metadata)
+  "isBiggestMoversQuery": true | false,  // Set to true if user asks which stocks moved most or wants top movers comparison
+  "topicKeywords": ["batteries", "tariffs", "South Korea"],  // Key topics/entities mentioned that aren't tickers or common words
   "dataNeeded": ["stock_prices", "events", "institutional", "sec_filings", "macro", "policy", "news"]  // What data sources to query
 }
 
 IMPORTANT: Set needsChart=true when user asks "How did [stock] trade today?" or similar intraday questions.
+
+IMPORTANT: Set isFutureOutlook=true when the user's question is forward-looking or seeks to understand what may happen next, including questions about prospects, catalysts, guidance, or potential future developments.
+
+IMPORTANT: Set needsDeepAnalysis=true when user wants comprehensive analysis, detailed insights, or mentions examining SEC filing contents (not just summaries).
+
+IMPORTANT: Set isBiggestMoversQuery=true when user asks about top performers, biggest movers, or wants to compare which stocks moved most.
+
+IMPORTANT: For topicKeywords, extract meaningful nouns and proper nouns (places, products, policies) that aren't tickers, speaker names, or generic terms. Examples: "batteries", "Brazil", "tariffs", "LSD treatments".
 
 IMPORTANT: Today's date is ${currentDate}. 
 - When user says "last week", calculate the date range from 7 days ago to today.
@@ -1747,6 +1759,10 @@ Return ONLY the JSON object, no explanation.`;
         eventTypes: [],
         scope: "focus_stocks",
         needsChart: false,
+        isFutureOutlook: false,
+        needsDeepAnalysis: false,
+        isBiggestMoversQuery: false,
+        topicKeywords: [],
         dataNeeded: ["stock_prices"]
       };
     }
@@ -1807,8 +1823,8 @@ Top Holders:`;
       // Use AI-detected form types if available, otherwise fetch all
       const formTypes = queryIntent.formTypes && queryIntent.formTypes.length > 0 ? queryIntent.formTypes : null;
       
-      // Determine if we should fetch full content (for deep analysis queries)
-      const needsDeepAnalysis = /analyze|analysis|roadmap|strategy|plan|insights?|details?|review/i.test(message);
+      // Use AI to determine if we should fetch full content (for deep analysis queries)
+      const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
       
       // Use date range if provided by AI classification
       const dateRange = queryIntent.dateRange || null;
@@ -1991,22 +2007,12 @@ Return ONLY a JSON array of 15-25 search strings. No explanation.`;
       }
       if (category === 'policy') macroFilters.limit = 50;
       
-      // Extract keywords from message for text search (e.g., "Brazil", "South Korea", "batteries", "tariffs")
-      // This helps find relevant content beyond just speaker/date filters
-      const commonWords = new Set(['what', 'when', 'where', 'how', 'did', 'does', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but', 'about', 'happened', 'happen', 'say', 'said', 'discuss', 'discussed', 'talk', 'talked', 'stock', 'market', 'markets', 'last', 'week', 'weeks', 'month', 'months', 'year', 'years', 'today', 'yesterday', 'recently', 'current', 'currently', 'press', 'with', 'from', 'that', 'this', 'have', 'were', 'been', 'trump', 'biden', 'hassett', 'yellen', 'powell', 'past', 'future', 'ago']);
-      const words = message.toLowerCase()
-        .replace(/[^a-z\s]/g, ' ')  // Remove all non-letter characters except spaces
-        .split(/\s+/)
-        .filter(word => 
-          word.length > 3 && 
-          !commonWords.has(word) && 
-          !selectedTickers.some(t => word === t.toLowerCase())
-        );
-      
-      // If we have meaningful keywords, add them as a text search
-      // Example: "What did Trump say about South Korea and batteries?" → textSearch: "south korea batteries"
-      if (words.length > 0) {
-        macroFilters.textSearch = words.join(' ');
+      // Use AI-extracted topic keywords for text search
+      // AI identifies meaningful entities (countries, products, policies) automatically
+      // Example: "What did Trump say about South Korea and batteries?" → topicKeywords: ["South Korea", "batteries"]
+      if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
+        macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
+        console.log('Using AI-extracted topic keywords for search:', queryIntent.topicKeywords);
       }
       
       console.log(`Fetching ${category} data with filters:`, macroFilters);
@@ -2048,6 +2054,115 @@ Return ONLY a JSON array of 15-25 search strings. No explanation.`;
     // Stock prices will be fetched during card generation (STEP 5) to avoid duplication
     
     // Events will be fetched during card generation (STEP 4) to avoid duplication
+
+    // STEP 2.5: EXTRACT UPCOMING DATES FOR FUTURE OUTLOOK QUERIES
+    let upcomingDatesContext = "";
+    
+    if (queryIntent.isFutureOutlook) {
+      console.log('Future outlook query detected - extracting upcoming dates from data');
+      const upcomingDates = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Extract dates from events
+      for (const ticker of tickersToQuery.slice(0, 5)) {
+        try {
+          const eventFilters = {
+            query: {
+              ticker: { $regex: new RegExp(`^${ticker}$`, 'i') },
+              actualDateTime_et: { $gte: today.toISOString() }
+            },
+            sort: { actualDateTime_et: 1 },
+            limit: 10
+          };
+          
+          const eventsResult = await DataConnector.getEvents(eventFilters);
+          
+          if (eventsResult.success && eventsResult.data.length > 0) {
+            eventsResult.data.forEach(event => {
+              const eventDate = new Date(event.actualDateTime_et);
+              const daysUntil = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
+              
+              upcomingDates.push({
+                date: event.actualDateTime_et.split('T')[0],
+                daysUntil,
+                ticker: event.ticker,
+                type: 'event',
+                description: `${event.type}: ${event.title}`,
+                importance: event.impactRating || 'medium'
+              });
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching events for date extraction (${ticker}):`, error);
+        }
+      }
+      
+      // Extract dates from SEC filings (look for recently filed documents that might indicate upcoming events)
+      // Recent 8-Ks often announce material events with future implications
+      for (const ticker of tickersToQuery.slice(0, 3)) {
+        try {
+          const recentFilings = await DataConnector.getSecFilings(ticker, ['8-K', '10-Q', '10-K'], null, 5);
+          
+          if (recentFilings.success && recentFilings.data.length > 0) {
+            recentFilings.data.forEach(filing => {
+              const filingDate = new Date(filing.acceptance_datetime);
+              const daysAgo = Math.ceil((today - filingDate) / (1000 * 60 * 60 * 24));
+              
+              // Only include recent filings (within last 30 days) as they may contain forward-looking statements
+              if (daysAgo <= 30) {
+                upcomingDates.push({
+                  date: filing.acceptance_datetime.split('T')[0],
+                  daysAgo,
+                  ticker: filing.ticker,
+                  type: 'sec_filing',
+                  description: `${filing.form_type} filing - may contain forward guidance`,
+                  formType: filing.form_type
+                });
+              }
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching SEC filings for date extraction (${ticker}):`, error);
+        }
+      }
+      
+      // Sort upcoming events by date
+      upcomingDates.sort((a, b) => {
+        if (a.daysUntil !== undefined && b.daysUntil !== undefined) {
+          return a.daysUntil - b.daysUntil;
+        }
+        return 0;
+      });
+      
+      // Build context string with upcoming dates
+      if (upcomingDates.length > 0) {
+        upcomingDatesContext = "\n\n═══ KEY UPCOMING DATES ═══\n";
+        upcomingDatesContext += "The following dates are important for the requested analysis:\n\n";
+        
+        const upcomingEvents = upcomingDates.filter(d => d.type === 'event');
+        if (upcomingEvents.length > 0) {
+          upcomingDatesContext += "UPCOMING EVENTS:\n";
+          upcomingEvents.forEach(item => {
+            upcomingDatesContext += `• ${item.date} (${item.daysUntil} days) - ${item.ticker}: ${item.description}\n`;
+          });
+          upcomingDatesContext += "\n";
+        }
+        
+        const recentFilings = upcomingDates.filter(d => d.type === 'sec_filing');
+        if (recentFilings.length > 0) {
+          upcomingDatesContext += "RECENT SEC FILINGS (may contain forward guidance):\n";
+          recentFilings.slice(0, 5).forEach(item => {
+            upcomingDatesContext += `• ${item.date} (${item.daysAgo} days ago) - ${item.ticker}: ${item.description}\n`;
+          });
+        }
+        
+        console.log(`Extracted ${upcomingDates.length} key dates for future outlook analysis`);
+      } else {
+        upcomingDatesContext = "\n\n═══ NO UPCOMING DATES FOUND ═══\nNo scheduled events or recent filings found in the database. Analysis should focus on historical trends and general market conditions.\n";
+        console.log('No upcoming dates found for future outlook query');
+      }
+    }
 
     // STEP 3: PRE-GENERATE EVENT CARDS (BEFORE AI CALL)
     const dataCards = [];
@@ -2297,8 +2412,8 @@ Return ONLY a JSON array of 15-25 search strings. No explanation.`;
     
     // STEP 4: GENERATE STOCK CARDS (biggest movers, specific stock mentions, etc.)
     
-    // Use AI intent to detect movers query
-    const isBiggestMoversQuery = queryIntent.intent === 'stock_price' && queryIntent.scope === 'focus_stocks' && /mover/i.test(message);
+    // Use AI classification to detect movers query
+    const isBiggestMoversQuery = queryIntent.isBiggestMoversQuery || false;
     if (isBiggestMoversQuery && selectedTickers && selectedTickers.length > 0) {
       try {
         const stockDataPromises = selectedTickers.map(async (ticker) => {
@@ -2780,7 +2895,7 @@ CRITICAL CONSTRAINTS:
 5. Never fabricate quotes, statistics, or data points
 6. If data seems contradictory, acknowledge it rather than hiding the discrepancy
 
-${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${eventCardsContext}`
+${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}`
       },
       ...loadedHistory || [],
       {
@@ -2791,41 +2906,84 @@ ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dat
 
     console.log("Calling OpenAI API with", messages.length, "messages");
 
-    // STEP 7: CALL OPENAI
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Cheaper and faster
-      messages,
-      temperature: 0.7,
-      max_tokens: 5000 // Increased token budget for detailed responses
-    });
+    // STEP 7: CALL OPENAI WITH STREAMING
+    // Set up Server-Sent Events (SSE) headers for streaming
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
 
-    const assistantMessage = completion.choices[0].message;
-    
-    // Save messages to database if conversationId provided
+    // Send initial metadata (dataCards, eventData, conversationId)
     let finalConversationId = conversationId;
     let newConversation = null;
     
+    if (userId && !conversationId) {
+      try {
+        const { data: conv, error: convError } = await supabase
+          .from('conversations')
+          .insert([{
+            user_id: userId,
+            title: ConversationManager.generateTitle(message),
+            metadata: { selectedTickers }
+          }])
+          .select()
+          .single();
+        
+        if (convError) throw convError;
+        finalConversationId = conv.id;
+        newConversation = conv;
+        console.log('Created new conversation:', finalConversationId);
+      } catch (error) {
+        console.error('Error creating conversation:', error);
+      }
+    }
+
+    // Send metadata first
+    res.write(`data: ${JSON.stringify({
+      type: 'metadata',
+      dataCards,
+      eventData,
+      conversationId: finalConversationId,
+      newConversation: newConversation,
+      timestamp: new Date().toISOString()
+    })}\n\n`);
+
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+      temperature: 0.7,
+      max_tokens: 5000,
+      stream: true // Enable streaming
+    });
+
+    let fullResponse = '';
+    let finishReason = null;
+    let model = null;
+
+    // Stream chunks to client
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      if (content) {
+        fullResponse += content;
+        res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
+      }
+      
+      if (chunk.choices[0]?.finish_reason) {
+        finishReason = chunk.choices[0].finish_reason;
+      }
+      
+      if (chunk.model) {
+        model = chunk.model;
+      }
+    }
+
+    // Send completion signal
+    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+    res.end();
+    
+    // Save messages to database after streaming completes
     if (userId) {
       try {
-        // Create new conversation if needed
-        if (!conversationId) {
-          const { data: conv, error: convError } = await supabase
-            .from('conversations')
-            .insert([{
-              user_id: userId,
-              title: ConversationManager.generateTitle(message),
-              metadata: { selectedTickers }
-            }])
-            .select()
-            .single();
-          
-          if (convError) throw convError;
-          finalConversationId = conv.id;
-          newConversation = conv;
-          console.log('Created new conversation:', finalConversationId);
-        }
-        
-        // Save user message and assistant response
         const messagesToSave = [
           {
             conversation_id: finalConversationId,
@@ -2841,12 +2999,12 @@ ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dat
           {
             conversation_id: finalConversationId,
             role: 'assistant',
-            content: assistantMessage.content,
+            content: fullResponse,
             data_cards: dataCards.length > 0 ? dataCards : null,
-            token_count: completion.usage?.total_tokens || ConversationManager.estimateTokens(assistantMessage.content),
+            token_count: ConversationManager.estimateTokens(fullResponse),
             metadata: {
-              model: completion.model,
-              finish_reason: completion.choices[0].finish_reason
+              model: model || 'gpt-4o-mini',
+              finish_reason: finishReason
             }
           }
         ];
@@ -2860,18 +3018,8 @@ ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dat
         
       } catch (error) {
         console.error('Error saving conversation:', error);
-        // Don't fail the request if saving fails - user still gets response
       }
     }
-
-    res.json({
-      response: assistantMessage.content,
-      dataCards,
-      eventData,
-      conversationId: finalConversationId,
-      newConversation: newConversation,
-      timestamp: new Date().toISOString()
-    });
 
   } catch (error) {
     console.error('Chat error:', error);
