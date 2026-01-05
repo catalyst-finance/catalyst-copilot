@@ -1335,14 +1335,14 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     })}\n\n`);
 
     // Send final thinking phase before OpenAI
-    sendThinking('synthesizing', 'Analyzing the data and preparing your answer...');
+    sendThinking('synthesizing', 'Analyzing the data and preparing a response..');
 
     // Call OpenAI with text-only streaming (SEC.gov blocks image downloads)
     const stream = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages,
       temperature: 0.7,
-      max_tokens: 10000,
+      max_tokens: 20000,
       stream: true
     });
 

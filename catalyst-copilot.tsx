@@ -79,45 +79,8 @@ interface CatalystCopilotProps {
 
 // Markdown Renderer Component
 function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void }) {
-  // Split into main content and sources if sources exist
-  const sourcesMatch = text.match(/For more detailed insights.*?sources:\s*([\s\S]*)/i);
-  const mainContent = sourcesMatch ? text.substring(0, sourcesMatch.index).trim() : text;
-  const sourcesText = sourcesMatch ? sourcesMatch[1].trim() : null;
-  
-  // Extract sentences that talk about sources/links into a separate section
-  const extractSourceContext = (content: string) => {
-    // Extract all links from the content
-    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-    const links: { text: string; url: string }[] = [];
-    let match;
-    
-    while ((match = linkRegex.exec(content)) !== null) {
-      links.push({
-        text: match[1],
-        url: match[2]
-      });
-    }
-    
-    // Remove sentences that talk about viewing/referring to links
-    const sentences = content.split(/(?<=[.!?])\s+/);
-    const cleanedSentences = sentences.filter(sentence => {
-      // Check if sentence contains a link
-      const hasLink = /\[([^\]]+)\]\(([^)]+)\)/g.test(sentence);
-      
-      // Check if sentence is about links/sources/viewing content
-      const isAboutLinks = /\b(for more details|for more|you can view|view the|refer to|you can refer|following links?|press briefings?|for more context|available through|see the|check out|find more|more information|full remarks|complete transcript)\b/i.test(sentence);
-      
-      // Filter out sentences that both have links AND talk about viewing them
-      return !(hasLink && isAboutLinks);
-    });
-    
-    return {
-      mainText: cleanedSentences.join(' ').trim(),
-      extractedLinks: links
-    };
-  };
-  
-  const { mainText, extractedLinks } = extractSourceContext(mainContent);
+  // Don't extract sources into a separate section - keep everything inline
+  const mainText = text;
   
   const formatRollCallLink = (linkText: string, url: string) => {
     // Check if this is a Roll Call URL
@@ -259,6 +222,18 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       currentText = currentText.replace(/`\[([^\]]+)\]\(([^)]+)\)`/g, '[$1]($2)');
       currentText = currentText.replace(/`\[([^\]]+)\]`/g, '[$1]');
       
+      // Handle inline IMAGE_CARD markers by collecting them and removing from text
+      const imageCardRegex = /\[IMAGE_CARD:([^\]]+)\]/g;
+      const imageCardIds: string[] = [];
+      let imageMatch;
+      
+      while ((imageMatch = imageCardRegex.exec(currentText)) !== null) {
+        imageCardIds.push(imageMatch[1]);
+      }
+      
+      // Remove IMAGE_CARD markers from text
+      currentText = currentText.replace(imageCardRegex, '').trim();
+      
       // First, parse [text](url) patterns - these become clickable blue badges (for sources with URLs)
       const linkWithBracketRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
       let segments: (string | JSX.Element)[] = [];
@@ -390,6 +365,23 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         }
       });
       
+      // Add image cards at the end if any were found inline
+      if (imageCardIds.length > 0) {
+        imageCardIds.forEach(imageId => {
+          const matchingCard = dataCards?.find(card => 
+            card.type === 'image' && card.data && card.data.id === imageId
+          );
+          
+          if (matchingCard) {
+            finalParts.push(
+              <div key={`inline-image-card-${imageId}-${key++}`} className="my-3">
+                <DataCardComponent card={matchingCard} onEventClick={onEventClick} />
+              </div>
+            );
+          }
+        });
+      }
+      
       return finalParts.length > 0 ? finalParts : currentText;
     };
     
@@ -478,24 +470,8 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         insertImageCard(imageCardMatch[1]);
       } else if (trimmedLine) {
         flushList();
-        // Regular paragraph text - remove any inline IMAGE_CARD markers and insert them after the paragraph
-        let cleanText = trimmedLine;
-        const inlineImageMatches = Array.from(trimmedLine.matchAll(/\[IMAGE_CARD:([^\]]+)\]/g));
-        
-        if (inlineImageMatches.length > 0) {
-          // Remove markers from the text
-          cleanText = trimmedLine.replace(/\[IMAGE_CARD:[^\]]+\]/g, '').trim();
-          currentParagraph.push(cleanText);
-          
-          // Flush paragraph and insert image cards
-          flushParagraph();
-          inlineImageMatches.forEach(match => {
-            insertImageCard(match[1]);
-          });
-        } else {
-          // Regular paragraph text
-          currentParagraph.push(trimmedLine);
-        }
+        // Regular paragraph text - keep IMAGE_CARD markers inline for now
+        currentParagraph.push(trimmedLine);
       } else {
         // Empty line - flush current paragraph
         flushParagraph();
@@ -529,47 +505,6 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
   return (
     <div className="space-y-0.5">
       <div>{renderContent(mainText)}</div>
-      
-      {sourcesText && (
-        <div className="mt-4 pt-3 border-t border-border/50">
-          <p className="text-xs font-medium text-muted-foreground mb-2 text-[14px]">Sources:</p>
-          <div className="space-y-1.5">
-            {parseSources(sourcesText).map((source, idx) => (
-              <a
-                key={idx}
-                href={source.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-xs text-blue-500 hover:underline hover:text-blue-400 transition-colors text-[14px]"
-              >
-                {source.title}
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {extractedLinks.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-border/50">
-          <p className="text-xs font-medium text-muted-foreground mb-2 text-[14px]">Sources:</p>
-          <div className="space-y-1.5">
-            {extractedLinks.map((link, idx) => {
-              const formattedText = formatRollCallLink(link.text, link.url);
-              return (
-                <a
-                  key={idx}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-xs text-blue-500 hover:underline hover:text-blue-400 transition-colors text-[14px]"
-                >
-                  {formattedText}
-                </a>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
