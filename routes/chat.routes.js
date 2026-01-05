@@ -127,6 +127,11 @@ Analyze the query and return a JSON object:
   "topicKeywords": ["batteries", "tariffs", "South Korea"]
 }
 
+**IMPORTANT NOTE ON formTypes**: 
+- When requesting SEC filings for roadmap/product/business questions, ALWAYS include ["10-K", "10-Q", "8-K"] as a minimum
+- 8-K filings contain the most recent material events and are CRITICAL for up-to-date analysis
+- Never return formTypes with only ["10-K", "10-Q"] - always add "8-K"
+
 ROUTING INTELLIGENCE - Use MULTIPLE data sources when relevant:
 - Roadmap/outlook questions → event_data (upcoming events) + sec_filings (10-K, 10-Q for guidance/strategy)
 - "Use SEC filings" / "based on filings" → ALWAYS include sec_filings + event_data
@@ -143,9 +148,10 @@ ROUTING INTELLIGENCE - Use MULTIPLE data sources when relevant:
 **CRITICAL MULTI-SOURCE RULES:**
 1. If user mentions "SEC filings", "10-K", "10-Q", "8-K" explicitly → MUST include sec_filings with high priority
 2. If asking about future/roadmap/outlook/catalyst → MUST include BOTH event_data AND sec_filings
-3. If mentions "price", "trading", "chart", "performance" → MUST include price data (intraday_prices or daily_prices)
-4. If combines topics (e.g., "roadmap + SEC filings + price") → include ALL relevant sources
-5. Give higher priority (7-10) to explicitly mentioned data types
+3. **For SEC filings, ALWAYS include 8-K alongside 10-K and 10-Q** - 8-Ks have the most recent material updates
+4. If mentions "price", "trading", "chart", "performance" → MUST include price data (intraday_prices or daily_prices)
+5. If combines topics (e.g., "roadmap + SEC filings + price") → include ALL relevant sources
+6. Give higher priority (7-10) to explicitly mentioned data types
 
 IMPORTANT: Today's date is ${currentDate}. 
 - When user says "last week", calculate the date range from 7 days ago to today.
@@ -1464,19 +1470,22 @@ RESPONSE GUIDELINES:
 • Use professional but conversational tone - avoid jargon unless necessary
 • When SEC filing content is provided, extract and discuss specific details, numbers, and insights from the text
 
-**CITATION FORMAT** (CRITICAL - ALWAYS CITE SOURCES):
-• After EVERY factual claim, add inline citations using this EXACT format: \`[Source Name](URL)\`
-• Place citations immediately after the sentence or claim they support - INLINE, not at the end
-• **NEVER EVER create a "Sources:" section or "For more details:" section at the bottom** - all citations must be inline within the text only
-• **DO NOT list sources separately or repeat them** - they are already visible as inline badges to the user
-• Use specific source names from the data provided (e.g., "Mind Medicine 10-Q", "MNMD 8-K", "SEC Filing", "Institutional Data")
-• **For SEC filings with URLs**: Use markdown link format \`[TICKER Form Type - Date](URL)\` (e.g., \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/...)\`)
-  - When the data context includes "URL: https://..." immediately after a filing, you MUST include that URL in your citation
-  - Format example from data: "1. 10-Q filed on 11/6/2025\n   URL: https://www.sec.gov/Archives/..." → Use \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/Archives/...)\`
-• **For sources without URLs**: Use simple format \`[Source Name]\` (e.g., \`[Company Press Release]\`)
-• Multiple claims from same source need only one citation at the end of that paragraph
-• Example with URLs: "The company reported $15M in cash reserves and three Phase 3 trials underway \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm)\`. Their pipeline focuses on GAD treatment with MM120 ODT \`[MNMD 8-K - Oct 31, 2025](https://www.sec.gov/Archives/...)\`."
-• NEVER use numbered citations like [1], [2], [3] - always use descriptive inline badges with URLs when available
+**CITATION FORMAT** (CRITICAL - ALWAYS CITE SOURCES - THIS IS MANDATORY):
+• **YOU MUST CITE EVERY FACTUAL CLAIM** - no exceptions. After EVERY piece of information from SEC filings, add an inline citation
+• Use this EXACT format: \`[TICKER Form Type - Date](URL)\` (e.g., \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/...)\`)
+• Place citations immediately after the sentence or claim - INLINE within the paragraph, not at the end of your response
+• **NEVER EVER create a "Sources:" section** - all citations must be inline only
+• **LOOK FOR URLS IN THE DATA CONTEXT**: When you see format like:
+  ```
+  1. 10-Q filed on 11/6/2025
+     URL: https://www.sec.gov/Archives/edgar/data/...
+     === 10-Q CONTENT ===
+     [filing content here]
+  ```
+  You MUST use that URL in your citation when referencing facts from that filing
+• **MANDATORY EXAMPLE**: "The company completed an $258.9M offering \`[MNMD 8-K - Oct 31, 2025](https://www.sec.gov/Archives/edgar/data/1813814/000110465925104696/tm2529910d1_8k.htm)\` and reported ongoing Phase 3 trials \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm)\`."
+• If you mention ANY detail from a filing (cash balance, trial status, financial info, strategy), you MUST cite it with the URL provided in the data context
+• NEVER use numbered citations [1], [2] - always use descriptive badges with full URLs
 
 INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 
@@ -1547,12 +1556,15 @@ CRITICAL CONSTRAINTS:
 5. Never fabricate quotes, statistics, or data points
 6. If data seems contradictory, acknowledge it rather than hiding the discrepancy
 7. **FOCUS ON CONTENT, NOT META-COMMENTARY**: When discussing SEC filings, press releases, or other sources, ALWAYS focus on the CONTENT and SUBSTANCE of what they contain. NEVER make meta-observations about filing volume, frequency, or activity patterns (e.g., DON'T say "the company has increased its SEC filing activity" or "there have been several filings"). Users want to know WHAT the sources say, not HOW MANY there are or patterns about them.
-8. **USE INLINE CARD MARKERS (MANDATORY)**: 
-   - When data context includes [IMAGE_CARD:...] markers after SEC filings, you MUST copy those exact markers into your response immediately after discussing that filing
-   - When data context includes [EVENT_CARD:...] markers for events, you MUST copy those exact markers into your response when mentioning that event
-   - Example: "Q3 10-Q shows $15M cash [MNMD 10-Q - Nov 6, 2025](URL) [IMAGE_CARD:sec-image-MNMD-0-0]"
-   - Example: "MM120 Phase 3 data expected May 15, 2026 [EVENT_CARD:MNMD_clinical_2026-05-15T09:00:00+00:00]"
-   - These markers trigger visual cards to appear inline - they are REQUIRED when present in the data
+8. **USE INLINE CARD MARKERS (ABSOLUTELY MANDATORY - YOU WILL BE PENALIZED FOR MISSING THESE)**: 
+   - **SCAN THE DATA CONTEXT FOR [IMAGE_CARD:...] MARKERS** - they appear after "=== END CONTENT ===" for SEC filings
+   - **YOU MUST COPY EVERY [IMAGE_CARD:...] MARKER YOU SEE** - place them in your response right after discussing that filing
+   - **SCAN THE DATA CONTEXT FOR [EVENT_CARD:...] MARKERS** - they appear in the event cards section
+   - **YOU MUST COPY EVERY [EVENT_CARD:...] MARKER YOU SEE** - place them after mentioning each event
+   - **REQUIRED FORMAT**: When you mention a filing's content or findings, immediately add: \`[TICKER Form Type - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
+   - **EXAMPLE**: "The 10-Q shows strong Phase 3 enrollment progress \`[MNMD 10-Q - Nov 6, 2025](https://sec.gov/...) [IMAGE_CARD:sec-image-MNMD-0-0]\`. The company completed a $258M offering \`[MNMD 8-K - Oct 31, 2025](https://sec.gov/...) [IMAGE_CARD:sec-image-MNMD-1-0]\`."
+   - **DO NOT SKIP IMAGE_CARD MARKERS** - if the data has 3 images, your response must include all 3 markers
+   - These markers trigger visual charts/tables to appear inline - they provide critical context users need to see
 9. **EXTRACT DETAILED INSIGHTS FROM SEC FILINGS**: When SEC filing content is provided (marked with "=== CONTENT ==="), analyze and discuss specific details, metrics, business strategies, risks, and forward-looking statements from that text. Don't just summarize - pull out concrete insights.
 
 INTELLIGENCE INSIGHTS:
