@@ -77,7 +77,6 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // STEP 1: AI-POWERED QUERY CLASSIFICATION
-    sendThinking('analyzing', 'Reading your question and understanding what you need...');
     const currentDate = new Date().toISOString().split('T')[0];
     const classificationPrompt = `You are an intelligent query router for a multi-database financial data system. Analyze the user's question and intelligently determine which data sources and collections to query.
 
