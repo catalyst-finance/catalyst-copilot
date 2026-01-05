@@ -694,8 +694,15 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        console.log('📦 Received chunk (length:', chunk.length, '):', chunk.substring(0, 100));
+        
+        buffer += chunk;
+        console.log('📚 Buffer before parse (length:', buffer.length, '):', buffer.substring(0, 150));
+        
         const { messages: completeMessages, remaining } = parseSSEStream(buffer);
+        console.log('✅ Found', completeMessages.length, 'complete messages, remaining buffer length:', remaining.length);
+        
         buffer = remaining;
 
         processMessages(completeMessages);
