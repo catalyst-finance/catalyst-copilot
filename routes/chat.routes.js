@@ -646,11 +646,17 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       const requestedEventTypes = queryIntent.eventTypes || [];
       const isFocusOnlyQuery = queryIntent.scope === 'focus_stocks';
       const isOutsideFocusQuery = queryIntent.scope === 'outside_focus';
+      const isSpecificTickersQuery = queryIntent.scope === 'specific_tickers';
       
       let tickersForEvents = [];
       
       if (isFocusOnlyQuery) {
         tickersForEvents = selectedTickers || [];
+      } else if (isSpecificTickersQuery) {
+        // When user asks about specific tickers (e.g., "What is the roadmap for MNMD?"), 
+        // use ONLY those tickers for events, not the portfolio
+        tickersForEvents = queryIntent.tickers || [];
+        console.log(`💭 Thinking: Fetching events for specifically requested tickers: ${tickersForEvents.join(', ')}`);
       } else if (isOutsideFocusQuery) {
         try {
           const eventsQuery = { 
