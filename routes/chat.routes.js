@@ -1240,6 +1240,14 @@ RESPONSE GUIDELINES:
 • When event cards are shown, mention ALL events briefly - users will see every card
 • Use professional but conversational tone - avoid jargon unless necessary
 
+**CITATION FORMAT** (CRITICAL - ALWAYS CITE SOURCES):
+• After EVERY factual claim, add inline citations using this EXACT format: `[Source Name]`
+• Place citations immediately after the sentence or claim they support
+• Use specific source names from the data provided (e.g., "Mind Medicine 10-Q", "MNMD 8-K", "SEC Filing", "Institutional Data")
+• For SEC filings: Use format `[TICKER Form Type - Date]` (e.g., `[MNMD 10-Q - Nov 6, 2025]`)
+• Multiple claims from same source need only one citation at the end of that paragraph
+• Example: "The company reported $15M in cash reserves and three Phase 3 trials underway `[MNMD 10-Q - Nov 6, 2025]`. Their pipeline focuses on GAD treatment with MM120 ODT `[MNMD 8-K - Oct 31, 2025]`."
+
 INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 
 **ROADMAP queries** (roadmap, timeline, plan, outlook, future):
