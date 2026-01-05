@@ -1640,8 +1640,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                     {msg.dataCards && msg.dataCards.filter(card => {
                       // Exclude event cards (they're inline)
                       if (card.type === 'event') return false;
-                      // Exclude image cards that are referenced inline
-                      if (card.type === 'image' && msg.content.includes(`[IMAGE_CARD:${card.data.id}]`)) return false;
+                      // Exclude image cards completely - they should only appear inline
+                      if (card.type === 'image') return false;
                       return true;
                     }).length > 0 && (
                       <motion.div 
@@ -1652,7 +1652,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                       >
                         {msg.dataCards.filter(card => {
                           if (card.type === 'event') return false;
-                          if (card.type === 'image' && msg.content.includes(`[IMAGE_CARD:${card.data.id}]`)) return false;
+                          if (card.type === 'image') return false;
                           return true;
                         }).map((card, index) => (
                           <motion.div
@@ -1693,8 +1693,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                 {streamingDataCards.filter(card => {
                   // Exclude event cards (they're inline)
                   if (card.type === 'event') return false;
-                  // Exclude image cards that are referenced inline
-                  if (card.type === 'image' && streamedContent.includes(`[IMAGE_CARD:${card.data.id}]`)) return false;
+                  // Exclude image cards completely - they should only appear inline
+                  if (card.type === 'image') return false;
                   return true;
                 }).length > 0 && (
                   <motion.div 
@@ -1705,7 +1705,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   >
                     {streamingDataCards.filter(card => {
                       if (card.type === 'event') return false;
-                      if (card.type === 'image' && streamedContent.includes(`[IMAGE_CARD:${card.data.id}]`)) return false;
+                      if (card.type === 'image') return false;
                       return true;
                     }).map((card, index) => (
                       <motion.div
