@@ -605,34 +605,34 @@ class DataConnector {
       // Parse HTML and extract text content
       const $ = cheerio.load(html);
       
-      // TEMPORARILY DISABLED: Extract image URLs from the filing (testing if images cause JSON parse errors)
+      // Extract image URLs from the filing (charts, tables, diagrams)
       const imageUrls = [];
-      // const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
-      // 
-      // $('img').each((i, el) => {
-      //   let src = $(el).attr('src');
-      //   if (src) {
-      //     // Convert relative URLs to absolute
-      //     if (!src.startsWith('http')) {
-      //       src = baseUrl + src;
-      //     }
-      //     // Filter out tiny images (likely icons) and keep substantive ones
-      //     const alt = $(el).attr('alt') || '';
-      //     const width = parseInt($(el).attr('width')) || 0;
-      //     const height = parseInt($(el).attr('height')) || 0;
-      //     
-      //     // Keep images that are likely charts/tables (larger images or with meaningful alt text)
-      //     if (width > 200 || height > 100 || alt.length > 5 || src.includes('img')) {
-      //       imageUrls.push({
-      //         url: src,
-      //         alt: alt,
-      //         context: $(el).parent().text().substring(0, 100).trim()
-      //       });
-      //     }
-      //   }
-      // });
+      const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
       
-      console.log(`Found ${imageUrls.length} images in SEC filing (image extraction disabled for testing)`);
+      $('img').each((i, el) => {
+        let src = $(el).attr('src');
+        if (src) {
+          // Convert relative URLs to absolute
+          if (!src.startsWith('http')) {
+            src = baseUrl + src;
+          }
+          // Filter out tiny images (likely icons) and keep substantive ones
+          const alt = $(el).attr('alt') || '';
+          const width = parseInt($(el).attr('width')) || 0;
+          const height = parseInt($(el).attr('height')) || 0;
+          
+          // Keep images that are likely charts/tables (larger images or with meaningful alt text)
+          if (width > 200 || height > 100 || alt.length > 5 || src.includes('img')) {
+            imageUrls.push({
+              url: src,
+              alt: alt,
+              context: $(el).parent().text().substring(0, 100).trim()
+            });
+          }
+        }
+      });
+      
+      console.log(`Found ${imageUrls.length} images in SEC filing`);
       
       // Remove script and style tags
       $('script, style, noscript').remove();
