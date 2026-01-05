@@ -317,6 +317,8 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                 if (needsDeepAnalysis && substantiveFilings.length > 0) {
                   const filingsToAnalyze = substantiveFilings.slice(0, 3);
                   
+                  sendThinking('retrieving', `Fetching content from ${filingsToAnalyze.length} SEC filing(s)...`);
+                  
                   for (let i = 0; i < filingsToAnalyze.length; i++) {
                     const filing = filingsToAnalyze[i];
                     const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
@@ -325,7 +327,6 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                     dataContext += `   URL: ${filing.url}\n`;
                     
                     if (filing.url) {
-                      sendThinking('retrieving', `Fetching ${filing.form_type} filing content from SEC.gov...`);
                       const contentResult = await DataConnector.fetchSecFilingContent(
                         filing.url, 
                         uniqueKeywords, 
@@ -336,8 +337,6 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                         dataContext += `\n   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
                         
                         if (contentResult.images && contentResult.images.length > 0) {
-                          sendThinking('retrieving', `Extracting images and charts from ${filing.form_type}...`);
-                          
                           contentResult.images.slice(0, 5).forEach((img, idx) => {
                             dataCards.push({
                               type: 'image',
@@ -357,6 +356,11 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                         }
                       }
                     }
+                  }
+                  
+                  const totalImages = dataCards.filter(c => c.type === 'image' && c.data.ticker === ticker).length;
+                  if (totalImages > 0) {
+                    sendThinking('retrieving', `Extracted ${totalImages} image(s) from ${ticker} filings...`);
                   }
                 } else {
                   secResult.data.slice(0, 5).forEach((filing, i) => {
