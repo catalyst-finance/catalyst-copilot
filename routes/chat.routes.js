@@ -1475,14 +1475,11 @@ RESPONSE GUIDELINES:
 • Use this EXACT format: \`[TICKER Form Type - Date](URL)\` (e.g., \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/...)\`)
 • Place citations immediately after the sentence or claim - INLINE within the paragraph, not at the end of your response
 • **NEVER EVER create a "Sources:" section** - all citations must be inline only
-• **LOOK FOR URLS IN THE DATA CONTEXT**: When you see format like:
-  ```
-  1. 10-Q filed on 11/6/2025
-     URL: https://www.sec.gov/Archives/edgar/data/...
-     === 10-Q CONTENT ===
-     [filing content here]
-  ```
-  You MUST use that URL in your citation when referencing facts from that filing
+• **LOOK FOR URLS IN THE DATA CONTEXT**: When you see this pattern in the data:
+  "1. 10-Q filed on 11/6/2025"
+  "   URL: https://www.sec.gov/Archives/edgar/data/..."
+  "   === 10-Q CONTENT ==="
+  You MUST extract that URL and use it in your citation when referencing facts from that filing
 • **MANDATORY EXAMPLE**: "The company completed an $258.9M offering \`[MNMD 8-K - Oct 31, 2025](https://www.sec.gov/Archives/edgar/data/1813814/000110465925104696/tm2529910d1_8k.htm)\` and reported ongoing Phase 3 trials \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm)\`."
 • If you mention ANY detail from a filing (cash balance, trial status, financial info, strategy), you MUST cite it with the URL provided in the data context
 • NEVER use numbered citations [1], [2] - always use descriptive badges with full URLs
