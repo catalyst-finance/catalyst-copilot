@@ -541,9 +541,11 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
       return JSON.parse(cleanData);
     } catch (error) {
       console.error('❌ SSE JSON parse error:', error);
-      console.error('Raw data (first 200 chars):', rawData.substring(0, 200));
-      console.error('Clean data (first 200 chars):', rawData.trim().substring(6).substring(0, 200));
-      console.error('Full length:', rawData.length);
+      console.error('📝 Raw message (first 200 chars):', rawData.substring(0, 200));
+      console.error('🧹 After cleaning (first 200 chars):', cleanData.substring(0, 200));
+      console.error('📏 Raw length:', rawData.length, 'Clean length:', cleanData.length);
+      console.error('🔍 Full raw message:', rawData);
+      console.error('🔍 Full clean message:', cleanData);
       return null;
     }
   };
