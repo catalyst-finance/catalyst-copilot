@@ -661,20 +661,38 @@ class DataConnector {
       //   - file_size (string): "5.29 KB"
       //   - source (string): "sec_filings"
       //   - enriched (boolean): Whether data is enriched
+      //   - summary (string): AI-generated summary if enriched
+      //   - key_points (array): Important points from filing if enriched
       //   - inserted_at (date): Timestamp
       
       let query = {
         ticker: symbol.toUpperCase()
       };
       
+      // Support both single form type and array of form types
       if (formType) {
-        query.form_type = formType;
+        if (Array.isArray(formType)) {
+          query.form_type = { $in: formType };
+        } else {
+          query.form_type = formType;
+        }
       }
       
       const data = await collection.find(query)
         .sort({ acceptance_datetime: -1 })
         .limit(limit)
         .toArray();
+      
+      if (!data || data.length === 0) {
+        return {
+          success: true,
+          data: [],
+          count: 0,
+          message: `No SEC filings found for ${symbol}${formType ? ` of type ${Array.isArray(formType) ? formType.join(', ') : formType}` : ''}`,
+          source: 'mongodb',
+          type: 'sec_filings'
+        };
+      }
       
       return {
         success: true,
@@ -1535,16 +1553,17 @@ app.post('/chat', optionalAuth, async (req, res) => {
     const classificationPrompt = `You are a query classifier for a financial data API. Analyze the user's question and return a JSON object with the following structure:
 
 {
-  "intent": "stock_price" | "events" | "institutional" | "macro_economic" | "government_policy" | "market_news" | "general",
+  "intent": "stock_price" | "events" | "institutional" | "sec_filings" | "macro_economic" | "government_policy" | "market_news" | "general",
   "tickers": ["TSLA", "AAPL"],  // Array of stock tickers mentioned (empty if none)
   "timeframe": "current" | "historical" | "upcoming" | "specific_date",
   "date": "YYYY-MM-DD" or null,  // Specific date if mentioned
   "dateRange": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"} or null,
   "speaker": "hassett" | "biden" | "trump" | "yellen" | "powell" | null,  // For government policy queries
   "eventTypes": ["earnings", "fda", "product", "merger", "legal", "regulatory"],  // Specific event types requested
+  "formTypes": ["10-K", "10-Q", "8-K", "4", "S-1", "13F"],  // Specific SEC form types requested
   "scope": "focus_stocks" | "outside_focus" | "all_stocks" | "specific_tickers",
   "needsChart": true | false,  // Set to true if user asks about intraday trading, today's price action, or wants to see price movement
-  "dataNeeded": ["stock_prices", "events", "institutional", "macro", "policy", "news"]  // What data sources to query
+  "dataNeeded": ["stock_prices", "events", "institutional", "sec_filings", "macro", "policy", "news"]  // What data sources to query
 }
 
 IMPORTANT: Set needsChart=true when user asks "How did [stock] trade today?" or similar intraday questions.
@@ -1641,16 +1660,40 @@ Top Holders:`;
     
     // FETCH SEC FILINGS DATA
     if (queryIntent.dataNeeded.includes('sec_filings') && tickersToQuery.length > 0) {
+      // Use AI-detected form types if available, otherwise fetch all
+      const formTypes = queryIntent.formTypes && queryIntent.formTypes.length > 0 ? queryIntent.formTypes : null;
+      
       for (const ticker of tickersToQuery.slice(0, 3)) {
         try {
-          const secResult = await DataConnector.getSecFilings(ticker);
+          const secResult = await DataConnector.getSecFilings(ticker, formTypes, 10);
           if (secResult.success && secResult.data.length > 0) {
-            dataContext += `\n\n${ticker} Recent SEC Filings:\n`;
+            dataContext += `\n\n${ticker} Recent SEC Filings${formTypes ? ` (${Array.isArray(formTypes) ? formTypes.join(', ') : formTypes})` : ''}:\n`;
             secResult.data.slice(0, 5).forEach((filing, i) => {
               const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+              const reportDate = filing.report_date ? ` (Period: ${filing.report_date})` : '';
               const size = filing.file_size || 'N/A';
-              dataContext += `${i + 1}. ${filing.form_type} filed on ${date} (${size})\n   URL: ${filing.url}\n`;
+              const enrichedIndicator = filing.enriched ? ' ✓' : '';
+              
+              dataContext += `${i + 1}. ${filing.form_type}${enrichedIndicator} filed on ${date}${reportDate} (${size})\n`;
+              
+              // Include summary if enriched (limit to 200 chars for token efficiency)
+              if (filing.enriched && filing.summary) {
+                const shortSummary = filing.summary.length > 200 ? filing.summary.substring(0, 200) + '...' : filing.summary;
+                dataContext += `   Summary: ${shortSummary}\n`;
+              }
+              
+              // Include key points if available (limit to 3 points)
+              if (filing.enriched && filing.key_points && Array.isArray(filing.key_points)) {
+                const limitedPoints = filing.key_points.slice(0, 3);
+                if (limitedPoints.length > 0) {
+                  dataContext += `   Key Points: ${limitedPoints.join('; ')}\n`;
+                }
+              }
+              
+              dataContext += `   URL: ${filing.url}\n`;
             });
+          } else if (secResult.message) {
+            dataContext += `\n\n${secResult.message}`;
           }
         } catch (error) {
           console.error(`Error fetching SEC filings for ${ticker}:`, error);
@@ -2392,14 +2435,23 @@ DATA SOURCES AT YOUR DISPOSAL:
       • institutional_holdings.holders[] (owner, shares, marketValue, percent)
       • USE: Smart money flow analysis, position changes, top holder identification
    
-   B. GOVERNMENT POLICY (government_policy collection)
+   B. SEC FILINGS (sec_filings collection)
+      • ticker, form_type, acceptance_datetime, publication_date, report_date
+      • url (direct link to SEC.gov filing), file_size
+      • enriched (boolean), summary (AI-generated), key_points (array)
+      • access_number, file_number, source, inserted_at
+      • FORM TYPES: 10-K (annual), 10-Q (quarterly), 8-K (material events), 4 (insider trading), S-1 (IPO), 13F (institutional holdings)
+      • USE: Corporate disclosure tracking, material event analysis, insider activity monitoring
+      • ENRICHMENT: Some filings have AI summaries and key points for quick understanding
+   
+   C. GOVERNMENT POLICY (government_policy collection)
       • date, url, title
       • participants[] (array of speaker names)
       • turns[] (speaker, text)
       • inserted_at
       • USE: Policy transcript search, speaker quotes, administration priorities
    
-   C. MACRO ECONOMICS (macro_economics collection)
+   D. MACRO ECONOMICS (macro_economics collection)
       • date, title, description, url
       • author, country, category
       • importance (1-3 scale)
@@ -2425,6 +2477,10 @@ Source: [transcript URL]"
 
 Q: "What are the biggest movers in my watchlist?"
 A: "Your top movers today: 1) NVDA +3.2% on AI chip demand, 2) TSLA -2.2% on profit-taking, 3) AAPL +1.1% ahead of earnings. NVDA leads with institutional buying (52 holders increasing positions Q4), while TSLA shows distribution (45 holders decreasing)."
+
+Q: "Has Apple filed any recent 10-Ks?"
+A: "Yes, Apple filed their latest 10-K annual report on December 29, 2025 covering the fiscal year ending September 30, 2025. The filing shows record revenue of $395B (+8% YoY) with Services segment growing 15%. Key risks highlighted include supply chain dependencies and ongoing antitrust investigations.
+Filing: [SEC.gov link]"
 
 RESPONSE GUIDELINES:
 • Lead with the most important insight or answer

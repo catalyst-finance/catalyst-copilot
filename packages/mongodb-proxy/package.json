@@ -1,0 +1,10 @@
+{
+  "name": "mongodb-proxy",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "MongoDB proxy function for Catalyst Copilot",
+  "main": "index.js",
+  "dependencies": {
+    "mongodb": "^6.3.0"
+  }
+}
