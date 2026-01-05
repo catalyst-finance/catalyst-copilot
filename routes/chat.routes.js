@@ -1087,85 +1087,61 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     // Send final thinking phase before OpenAI
     sendThinking('synthesizing', hasImages ? 'Analyzing charts and data visually...' : 'Analyzing the data and preparing your answer...');
 
-    let fullResponse = '';
-    let finishReason = null;
-    let model = null;
-
+    let stream;
+    let useImages = hasImages;
+    
     try {
-      const stream = await openai.chat.completions.create({
-        model: hasImages ? "gpt-4o" : "gpt-4o-mini", // Use gpt-4o for vision, gpt-4o-mini otherwise
+      stream = await openai.chat.completions.create({
+        model: useImages ? "gpt-4o" : "gpt-4o-mini", // Use gpt-4o for vision, gpt-4o-mini otherwise
         messages,
         temperature: 0.7,
         max_tokens: 5000,
         stream: true
       });
-
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || '';
-        if (content) {
-          fullResponse += content;
-          res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
-        }
+    } catch (imageError) {
+      // If image download fails, retry without images
+      if (imageError.code === 'invalid_image_url' && useImages) {
+        console.log('⚠️ Image download failed, retrying without images:', imageError.message);
+        sendThinking('synthesizing', 'Image unavailable, analyzing text content...');
         
-        if (chunk.choices[0]?.finish_reason) {
-          finishReason = chunk.choices[0].finish_reason;
-        }
-        
-        if (chunk.model) {
-          model = chunk.model;
-        }
-      }
-    } catch (openaiError) {
-      console.error('OpenAI API error:', openaiError.message);
-      
-      // If error is due to image issues, retry without images
-      if (hasImages && openaiError.message && openaiError.message.includes('image')) {
-        console.log('Retrying without images due to image error...');
-        sendThinking('retrieving', 'Image analysis failed, analyzing text content instead...');
-        
-        // Remove images from messages and retry
-        const messagesWithoutImages = [
+        // Rebuild messages without images
+        const textOnlyMessages = [
           { role: "system", content: systemPrompt },
           ...loadedHistory || [],
           { role: "user", content: message }
         ];
         
-        try {
-          const fallbackStream = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: messagesWithoutImages,
-            temperature: 0.7,
-            max_tokens: 5000,
-            stream: true
-          });
-
-          for await (const chunk of fallbackStream) {
-            const content = chunk.choices[0]?.delta?.content || '';
-            if (content) {
-              fullResponse += content;
-              res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
-            }
-            
-            if (chunk.choices[0]?.finish_reason) {
-              finishReason = chunk.choices[0].finish_reason;
-            }
-            
-            if (chunk.model) {
-              model = chunk.model;
-            }
-          }
-        } catch (fallbackError) {
-          console.error('Fallback API error:', fallbackError.message);
-          fullResponse += '\n\n[Error: Unable to complete analysis due to technical issues. Please try again.]';
-          finishReason = 'error';
-          model = 'gpt-4o-mini';
-        }
+        stream = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: textOnlyMessages,
+          temperature: 0.7,
+          max_tokens: 5000,
+          stream: true
+        });
+        
+        useImages = false;
       } else {
-        // For non-image errors, add error message to response
-        console.error('Non-image API error, continuing with error message');
-        fullResponse += '\n\n[Error: Unable to complete analysis due to technical issues. Please try again.]';
-        finishReason = 'error';
-        model = hasImages ? "gpt-4o" : "gpt-4o-mini";
+        throw imageError; // Re-throw if it's not an image error
+      }
+    }
+
+    let fullResponse = '';
+    let finishReason = null;
+    let model = null;
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      if (content) {
+        fullResponse += content;
+        res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
+      }
+      
+      if (chunk.choices[0]?.finish_reason) {
+        finishReason = chunk.choices[0].finish_reason;
+      }
+      
+      if (chunk.model) {
+        model = chunk.model;
       }
     }
 
@@ -1214,10 +1190,23 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
 
   } catch (error) {
     console.error('Chat error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      details: error.message 
-    });
+    
+    // Check if SSE headers already sent
+    if (res.headersSent) {
+      // Send error through SSE stream
+      res.write(`data: ${JSON.stringify({ 
+        type: 'error', 
+        error: 'An error occurred while processing your request',
+        details: error.message 
+      })}\n\n`);
+      res.end();
+    } else {
+      // Headers not sent yet, can use regular JSON response
+      res.status(500).json({ 
+        error: 'Internal server error',
+        details: error.message 
+      });
+    }
   }
 });
 
