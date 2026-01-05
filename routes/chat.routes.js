@@ -1191,6 +1191,47 @@ RESPONSE GUIDELINES:
 • When event cards are shown, mention ALL events briefly - users will see every card
 • Use professional but conversational tone - avoid jargon unless necessary
 
+INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
+
+**ROADMAP queries** (roadmap, timeline, plan, outlook, future):
+• Structure as chronological timeline with clear phases
+• Use format: "**Q1 2026**", "**Q2 2026**", etc. or "**Phase 1**", "**Phase 2**"
+• List specific milestones under each period
+• Example:
+  **Q1 2026**
+  • FDA submission for MM120 expected
+  • Phase 3 trial enrollment completion
+  
+  **Q2 2026**
+  • Top-line data readout anticipated
+
+**COMPARISON queries** (compare, versus, vs, difference between):
+• Structure as side-by-side comparison
+• Use format: "**[Company A]**" then list points, then "**[Company B]**" then list points
+• Highlight key differences explicitly
+
+**RANKING queries** (top, best, highest, most, biggest):
+• Use numbered list format: 1. 2. 3.
+• Start each item with the metric/value, then explanation
+• Example: "1. **AAPL - $500B market cap** - Largest by market value..."
+
+**PROS/CONS queries** (pros and cons, advantages and disadvantages, risks and opportunities):
+• Structure with clear sections
+• Use format: "**Pros:**" followed by bullet points, then "**Cons:**" followed by bullet points
+
+**SUMMARY queries** (summarize, overview, key points, tldr):
+• Lead with 1-2 sentence executive summary
+• Follow with concise bullet points of key takeaways
+• Keep ultra-brief - maximum 5 bullets
+
+**ANALYSIS queries** (analyze, explain, tell me about):
+• Structure with thematic sections using **BOLD** headers
+• Break into digestible chunks with clear logical flow
+
+**DEFAULT for other queries**:
+• Use natural paragraphs with clear topic flow
+• Add section breaks with **BOLD** headers when covering multiple topics
+
 FORMATTING RULES (CRITICAL - ALWAYS FOLLOW):
 • Break information into SHORT paragraphs (2-3 sentences max per paragraph)
 • Add blank lines between paragraphs for readability
