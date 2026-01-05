@@ -854,6 +854,27 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       }
     }
     
+    // STEP 3.5: BUILD IMAGE CARDS CONTEXT FOR INLINE PLACEMENT
+    let imageCardsContext = "";
+    const imageCards = dataCards.filter(card => card.type === 'image');
+    
+    if (imageCards.length > 0) {
+      imageCardsContext = `\n\n**CRITICAL - SEC FILING IMAGES TO DISPLAY INLINE:**\nYou have ${imageCards.length} SEC filing image(s) available. When you cite an SEC filing, insert the corresponding image marker IMMEDIATELY after the citation.\n\n`;
+      
+      imageCards.forEach((card, index) => {
+        const img = card.data;
+        imageCardsContext += `Image ${index + 1}: ${img.ticker} ${img.filingType} (${img.filingDate})\n`;
+        imageCardsContext += `   Title: ${img.title}\n`;
+        imageCardsContext += `   Marker to use: [IMAGE_CARD:${img.id}]\n`;
+        imageCardsContext += `   Insert this marker right after citing content from the ${img.filingDate} ${img.filingType} filing.\n\n`;
+      });
+      
+      imageCardsContext += `\n**IMPORTANT**: Place [IMAGE_CARD:id] markers INLINE after the relevant SEC filing citation, NOT at the end of your response. Example:\n`;
+      imageCardsContext += `"The company reported strong cash reserves [MNMD 10-Q - Nov 6, 2025](url).\n[IMAGE_CARD:sec-image-MNMD-xxx-0]\n\nMoving on to clinical trials..."\n`;
+      
+      console.log(`📷 Image Cards Context Built: ${imageCards.length} images with inline markers`);
+    }
+    
     // STEP 4: GENERATE STOCK CARDS
     const isBiggestMoversQuery = queryIntent.isBiggestMoversQuery || false;
     
@@ -1276,7 +1297,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     }
 
     // STEP 6: PREPARE SYSTEM PROMPT (truncated for brevity - full prompt in original)
-    const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext);
+    const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, imageCardsContext, intelligenceContext);
 
     // Build messages array (text-only - SEC.gov blocks image downloads)
     const messages = [
@@ -1439,7 +1460,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
 /**
  * Build the system prompt for OpenAI
  */
-function buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext = '') {
+function buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, imageCardsContext = '', intelligenceContext = '') {
   return `You are Catalyst Copilot, a financial AI assistant specializing in connecting market data, institutional activity, and policy developments.
 
 ROLE & EXPERTISE:
@@ -1550,7 +1571,7 @@ INTELLIGENCE INSIGHTS:
 • Include suggested follow-up questions at the end if provided
 • If query was decomposed into sub-queries, ensure all aspects are addressed
 
-${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${intelligenceContext}`;
+${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${imageCardsContext}${intelligenceContext}`;
 }
 
 module.exports = router;

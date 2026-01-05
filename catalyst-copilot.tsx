@@ -233,6 +233,23 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       }
     };
     
+    const insertImageCard = (imageId: string) => {
+      // Find the matching image card
+      if (dataCards) {
+        const imageCard = dataCards.find(card => 
+          card.type === 'image' && (card.data.id === imageId || card.data.id?.toString() === imageId)
+        );
+        
+        if (imageCard) {
+          elements.push(
+            <div key={`image-card-${imageId}-${elements.length}`} className="my-3">
+              <DataCardComponent card={imageCard} onEventClick={onEventClick} />
+            </div>
+          );
+        }
+      }
+    };
+    
     const parseInlineFormatting = (line: string) => {
       const parts: (string | JSX.Element)[] = [];
       let currentText = line;
@@ -274,58 +291,26 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         segments.push(currentText);
       }
       
-      // Parse source citations in brackets [Source Text] or [Source Text](URL) and convert to badges
+      // Parse source citations in brackets [Source Text] and convert to badges
       // Strip backticks from around brackets: `[Source]` → [Source]
       const sourceSegments: (string | JSX.Element)[] = [];
       segments.forEach((segment) => {
         if (typeof segment === 'string') {
           // Strip backticks from around any bracket pattern
           let cleanedSegment = segment.replace(/`\[([^\]]+)\]`/g, '[$1]');
-          // Also strip backticks from markdown link format: `[text](url)` → [text](url)
-          cleanedSegment = cleanedSegment.replace(/`\[([^\]]+)\]\(([^)]+)\)`/g, '[$1]($2)');
           
-          // Match [text](url) pattern first (citations with URLs)
-          const sourceWithUrlRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+          // Match any [text] pattern that isn't a markdown link (those are already parsed)
+          const sourceRegex = /\[([^\]]+)\]/g;
           let sourceLastIndex = 0;
           let sourceMatch;
           const sourceParts: (string | JSX.Element)[] = [];
           
-          while ((sourceMatch = sourceWithUrlRegex.exec(cleanedSegment)) !== null) {
+          while ((sourceMatch = sourceRegex.exec(cleanedSegment)) !== null) {
             if (sourceMatch.index > sourceLastIndex) {
               sourceParts.push(cleanedSegment.substring(sourceLastIndex, sourceMatch.index));
             }
             
             const sourceText = sourceMatch[1];
-            const sourceUrl = sourceMatch[2];
-            
-            sourceParts.push(
-              <a
-                key={`source-${key++}`}
-                href={sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-xs font-medium border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <FileText className="w-3 h-3" />
-                {sourceText}
-              </a>
-            );
-            sourceLastIndex = sourceMatch.index + sourceMatch[0].length;
-          }
-          
-          // Now match [text] pattern without URLs (remaining brackets)
-          const remainingText = cleanedSegment.substring(sourceLastIndex);
-          const sourceOnlyRegex = /\[([^\]]+)\]/g;
-          let sourceOnlyLastIndex = 0;
-          let sourceOnlyMatch;
-          
-          while ((sourceOnlyMatch = sourceOnlyRegex.exec(remainingText)) !== null) {
-            if (sourceOnlyMatch.index > sourceOnlyLastIndex) {
-              sourceParts.push(remainingText.substring(sourceOnlyLastIndex, sourceOnlyMatch.index));
-            }
-            
-            const sourceText = sourceOnlyMatch[1];
             
             sourceParts.push(
               <span key={`source-${key++}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-xs font-medium border border-blue-500/20">
@@ -333,11 +318,11 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
                 {sourceText}
               </span>
             );
-            sourceOnlyLastIndex = sourceOnlyMatch.index + sourceOnlyMatch[0].length;
+            sourceLastIndex = sourceMatch.index + sourceMatch[0].length;
           }
           
-          if (sourceOnlyLastIndex < remainingText.length) {
-            sourceParts.push(remainingText.substring(sourceOnlyLastIndex));
+          if (sourceLastIndex < cleanedSegment.length) {
+            sourceParts.push(cleanedSegment.substring(sourceLastIndex));
           }
           
           if (sourceParts.length > 0) {
@@ -387,14 +372,16 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
     lines.forEach((line, index) => {
       const trimmedLine = line.trim();
       
-      // Check for EVENT_CARD marker
+      // Check for EVENT_CARD marker - but handle it differently if it's in a list item
       const eventCardMatch = trimmedLine.match(/\[EVENT_CARD:([^\]]+)\]/);
-      if (eventCardMatch) {
-        flushParagraph();
-        flushList();
-        insertEventCard(eventCardMatch[1]);
-        return; // Skip this line, it's just a marker
-      }
+      const hasEventCard = eventCardMatch !== null;
+      
+      // Check for IMAGE_CARD marker
+      const imageCardMatch = trimmedLine.match(/\[IMAGE_CARD:([^\]]+)\]/);
+      const hasImageCard = imageCardMatch !== null;
+      
+      // Check if this is a list item (with or without event card)
+      const isListItem = trimmedLine.match(/^\d+\.\s+/) || trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ');
       
       if (line.startsWith('### ')) {
         flushParagraph();
@@ -420,8 +407,8 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
             {parseInlineFormatting(line.substring(2))}
           </h1>
         );
-      } else if (trimmedLine.match(/^\*\*[^*]+\*\*$/) && trimmedLine.length < 50) {
-        // Detect bold text on its own line as a subheading (e.g., **Q4 2025**)
+      } else if (trimmedLine.match(/^\*\*[^*]+\*\*$/) && trimmedLine.length < 100) {
+        // Detect bold text on its own line as a subheading (e.g., **Q4 2025**, **2026 Roadmap**)
         flushParagraph();
         flushList();
         elements.push(
@@ -429,11 +416,44 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
             {parseInlineFormatting(trimmedLine)}
           </h3>
         );
-      } else if (trimmedLine.match(/^\d+\.\s+\*\*/) || trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ')) {
+      } else if (isListItem) {
         flushParagraph();
-        // List item
-        const itemText = trimmedLine.replace(/^(\d+\.\s+|-\s+|•\s+)/, '');
+        // List item - extract text and remove EVENT_CARD/IMAGE_CARD markers if present
+        let itemText = trimmedLine.replace(/^(\d+\.\s+|-\s+|•\s+)/, '');
+        
+        if (hasEventCard) {
+          // Remove the EVENT_CARD marker from the text
+          itemText = itemText.replace(/\[EVENT_CARD:[^\]]+\]/, '').trim();
+        }
+        
+        if (hasImageCard) {
+          // Remove the IMAGE_CARD marker from the text
+          itemText = itemText.replace(/\[IMAGE_CARD:[^\]]+\]/, '').trim();
+        }
+        
         currentList.push(itemText);
+        
+        // If there's an event card, flush the list and insert it
+        if (hasEventCard && eventCardMatch) {
+          flushList();
+          insertEventCard(eventCardMatch[1]);
+        }
+        
+        // If there's an image card, flush the list and insert it
+        if (hasImageCard && imageCardMatch) {
+          flushList();
+          insertImageCard(imageCardMatch[1]);
+        }
+      } else if (hasImageCard && imageCardMatch) {
+        // Image card on its own line (not in a list item)
+        flushParagraph();
+        flushList();
+        insertImageCard(imageCardMatch[1]);
+      } else if (hasEventCard && eventCardMatch) {
+        // Event card on its own line (not in a list item)
+        flushParagraph();
+        flushList();
+        insertEventCard(eventCardMatch[1]);
       } else if (trimmedLine) {
         flushList();
         // Regular paragraph text
@@ -1034,13 +1054,20 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     setEditingMessageId(null);
     setEditingValue('');
     setIsTyping(true);
+    setIsStreaming(true);
+    setThinkingSteps([]);
+    setStreamedContent('');
+    setStreamingDataCards([]);
+    setThinkingCollapsed(false);
 
     try {
       const response = await fetch('https://catalyst-copilot-2nndy.ondigitalocean.app/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
         },
+        credentials: 'omit',
         body: JSON.stringify({
           message: editingValue,
           conversationHistory: messagesBeforeEdit.map(m => ({ role: m.role, content: m.content })),
@@ -1054,60 +1081,91 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
         throw new Error(`Failed to get response from AI: ${response.status} ${errorText}`);
       }
 
-      const data = await response.json();
+      // Handle as SSE stream
+      console.log('📡 SSE stream handler initialized (edit mode)');
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let collectedThinking: ThinkingStep[] = [];
+      let collectedContent = '';
+      let collectedDataCards: DataCard[] = [];
+      let eventData: Record<string, any> = {};
+      
+      // Helper to process a batch of messages
+      const processMessages = (msgs: string[]) => {
+        for (const messageBlock of msgs) {
+          const trimmedBlock = messageBlock.trim();
+          
+          // Skip empty blocks and comments
+          if (!trimmedBlock || trimmedBlock.startsWith(':')) continue;
+          
+          // Process the entire message block as one SSE message
+          if (trimmedBlock.startsWith('data: ')) {
+            const data = processSSEData(trimmedBlock);
+            if (!data || !data.type) continue;
 
-      // Detect if this is an event listing query where user expects data cards
-      const isEventListingQuery = /what are.*event|list.*event|show.*event|upcoming event|legal.*event|regulatory.*event/i.test(editingValue);
+            console.log('📥 SSE (edit):', data.type);
 
-      const tickersInResponse = new Set<string>();
-      const tickerPattern = /\b([A-Z]{2,5})\b/g;
-      const tickerMatches = data.response.match(tickerPattern);
-      if (tickerMatches) {
-        const excludeWords = ['AI', 'US', 'IT', 'CEO', 'CFO', 'CTO', 'IPO', 'ETF', 'REIT', 'SEC', 'FDA', 'FTC', 'DOJ'];
-        tickerMatches.forEach((ticker: string) => {
-          if (!excludeWords.includes(ticker) && ticker.length >= 2 && ticker.length <= 5) {
-            tickersInResponse.add(ticker);
+            switch (data.type) {
+              case 'metadata':
+                if (data.dataCards) {
+                  collectedDataCards = data.dataCards;
+                  setStreamingDataCards(data.dataCards);
+                }
+                if (data.eventData) {
+                  eventData = data.eventData;
+                }
+                break;
+
+              case 'thinking':
+                const newStep = { phase: data.phase || 'thinking', content: data.content };
+                collectedThinking.push(newStep);
+                setThinkingSteps(prev => [...prev, newStep]);
+                break;
+
+              case 'content':
+                collectedContent += data.content;
+                setStreamedContent(prev => prev + data.content);
+                break;
+
+              case 'done':
+                const aiMessage: Message = {
+                  id: `ai-${Date.now()}`,
+                  role: 'assistant',
+                  content: collectedContent,
+                  dataCards: collectedDataCards,
+                  eventData: eventData,
+                  thinkingSteps: collectedThinking,
+                  timestamp: new Date()
+                };
+                setMessages(prev => [...prev, aiMessage]);
+                setIsStreaming(false);
+                setThinkingSteps([]);
+                setStreamedContent('');
+                setStreamingDataCards([]);
+                break;
+            }
           }
-        });
-      }
-
-      // For event listing queries, also extract tickers from data cards themselves
-      if (isEventListingQuery && data.dataCards && data.dataCards.length > 0) {
-        data.dataCards.forEach((card: DataCard) => {
-          if (card.type === 'event' && card.data?.ticker) {
-            tickersInResponse.add(card.data.ticker);
-          }
-        });
-      }
-
-      if (tickersInResponse.size === 0 && selectedTickers.length > 0) {
-        selectedTickers.forEach(ticker => tickersInResponse.add(ticker));
-      }
-
-      let filteredDataCards = data.dataCards || [];
-      // Skip filtering for event listing queries - show all cards the backend returned
-      if (!isEventListingQuery && tickersInResponse.size > 0 && filteredDataCards.length > 0) {
-        filteredDataCards = filteredDataCards.filter((card: DataCard) => {
-          if (card.type === 'event' && card.data?.ticker) {
-            return tickersInResponse.has(card.data.ticker);
-          }
-          if (card.type === 'stock' && card.data?.ticker) {
-            return tickersInResponse.has(card.data.ticker);
-          }
-          return true;
-        });
-      }
-
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
-        role: 'assistant',
-        content: data.response,
-        dataCards: filteredDataCards,
-        eventData: data.eventData || {},
-        timestamp: new Date()
+        }
       };
 
-      setMessages(prev => [...prev, aiMessage]);
+      // Continue reading the stream
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        console.log('📦 Received chunk (edit mode, length:', chunk.length, ')');
+        
+        buffer += chunk;
+        
+        const { messages: completeMessages, remaining } = parseSSEStream(buffer);
+        console.log('✅ Found', completeMessages.length, 'complete messages (edit mode)');
+        
+        buffer = remaining;
+
+        processMessages(completeMessages);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
@@ -1117,6 +1175,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
+      setIsStreaming(false);
     } finally {
       setIsTyping(false);
     }
@@ -1539,15 +1598,15 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                       </div>
                     )}
 
-                    {/* Render non-event cards at the bottom (stock cards, charts, etc.) */}
-                    {msg.dataCards && msg.dataCards.filter(card => card.type !== 'event').length > 0 && (
+                    {/* Render non-event/non-image cards at the bottom (stock cards, charts, etc.) */}
+                    {msg.dataCards && msg.dataCards.filter(card => card.type !== 'event' && card.type !== 'image').length > 0 && (
                       <motion.div 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3, delay: 0.1 }}
                         className="space-y-2"
                       >
-                        {msg.dataCards.filter(card => card.type !== 'event').map((card, index) => (
+                        {msg.dataCards.filter(card => card.type !== 'event' && card.type !== 'image').map((card, index) => (
                           <motion.div
                             key={index}
                             initial={{ opacity: 0, x: -20 }}
@@ -1582,15 +1641,15 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
                 </motion.div>
 
-                {/* Streaming Non-Event Data Cards - Show First (stock cards, charts, etc.) */}
-                {streamingDataCards.filter(card => card.type !== 'event').length > 0 && (
+                {/* Streaming Non-Event/Non-Image Data Cards - Show First (stock cards, charts, etc.) */}
+                {streamingDataCards.filter(card => card.type !== 'event' && card.type !== 'image').length > 0 && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.1 }}
                     className="space-y-2"
                   >
-                    {streamingDataCards.filter(card => card.type !== 'event').map((card, index) => (
+                    {streamingDataCards.filter(card => card.type !== 'event' && card.type !== 'image').map((card, index) => (
                       <motion.div
                         key={index}
                         initial={{ opacity: 0, x: -20 }}
