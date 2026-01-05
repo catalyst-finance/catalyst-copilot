@@ -965,6 +965,15 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     console.log("Calling OpenAI API with", messages.length, "messages");
 
     // STEP 7: CALL OPENAI WITH STREAMING
+    // Set CORS headers explicitly for SSE
+    const origin = req.headers.origin;
+    if (origin && (origin.endsWith('.figma.site') || origin === 'https://www.figma.com' || origin === 'https://figma.com')) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Cache-Control, Connection');
+    }
+    
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
