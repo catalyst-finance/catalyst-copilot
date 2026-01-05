@@ -407,10 +407,11 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                         
                         if (contentResult.images && contentResult.images.length > 0) {
                           contentResult.images.slice(0, 5).forEach((img, idx) => {
+                            const imageId = `sec-image-${ticker}-${filing.accession_number || i}-${idx}`;
                             dataCards.push({
                               type: 'image',
                               data: {
-                                id: `sec-image-${ticker}-${filing.accession_number || i}-${idx}`,
+                                id: imageId,
                                 ticker: ticker,
                                 source: 'sec_filing',
                                 title: img.alt || 'Chart/Diagram from SEC Filing',
@@ -421,6 +422,8 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                                 filingUrl: filing.url
                               }
                             });
+                            // Add inline marker immediately after the filing content
+                            dataContext += `   [IMAGE_CARD:${imageId}]\n`;
                           });
                         }
                       }
@@ -854,27 +857,6 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       }
     }
     
-    // STEP 3.5: BUILD IMAGE CARDS CONTEXT FOR INLINE PLACEMENT
-    let imageCardsContext = "";
-    const imageCards = dataCards.filter(card => card.type === 'image');
-    
-    if (imageCards.length > 0) {
-      imageCardsContext = `\n\n**CRITICAL - SEC FILING IMAGES TO DISPLAY INLINE:**\nYou have ${imageCards.length} SEC filing image(s) available. When you cite an SEC filing, insert the corresponding image marker IMMEDIATELY after the citation.\n\n`;
-      
-      imageCards.forEach((card, index) => {
-        const img = card.data;
-        imageCardsContext += `Image ${index + 1}: ${img.ticker} ${img.filingType} (${img.filingDate})\n`;
-        imageCardsContext += `   Title: ${img.title}\n`;
-        imageCardsContext += `   Marker to use: [IMAGE_CARD:${img.id}]\n`;
-        imageCardsContext += `   Insert this marker right after citing content from the ${img.filingDate} ${img.filingType} filing.\n\n`;
-      });
-      
-      imageCardsContext += `\n**IMPORTANT**: Place [IMAGE_CARD:id] markers INLINE after the relevant SEC filing citation, NOT at the end of your response. Example:\n`;
-      imageCardsContext += `"The company reported strong cash reserves [MNMD 10-Q - Nov 6, 2025](url).\n[IMAGE_CARD:sec-image-MNMD-xxx-0]\n\nMoving on to clinical trials..."\n`;
-      
-      console.log(`📷 Image Cards Context Built: ${imageCards.length} images with inline markers`);
-    }
-    
     // STEP 4: GENERATE STOCK CARDS
     const isBiggestMoversQuery = queryIntent.isBiggestMoversQuery || false;
     
@@ -1297,7 +1279,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     }
 
     // STEP 6: PREPARE SYSTEM PROMPT (truncated for brevity - full prompt in original)
-    const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, imageCardsContext, intelligenceContext);
+    const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext);
 
     // Build messages array (text-only - SEC.gov blocks image downloads)
     const messages = [
@@ -1460,7 +1442,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
 /**
  * Build the system prompt for OpenAI
  */
-function buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, imageCardsContext = '', intelligenceContext = '') {
+function buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext = '') {
   return `You are Catalyst Copilot, a financial AI assistant specializing in connecting market data, institutional activity, and policy developments.
 
 ROLE & EXPERTISE:
@@ -1473,11 +1455,13 @@ ROLE & EXPERTISE:
 RESPONSE GUIDELINES:
 • Lead with the most important insight or answer
 • Connect multiple data points to tell a cohesive story
-• Cite specific numbers, dates, percentages, and sources
+• Cite specific numbers, dates, percentages, and sources from SEC filings
 • Flag contradictions or unusual patterns when they appear
-• Keep responses under 150 words unless discussing multiple events
+• Keep responses under 150 words unless discussing multiple events or SEC filing details
 • When event cards are shown, mention ALL events briefly - users will see every card
+• When SEC filing images are available ([IMAGE_CARD:...] markers), place them immediately after discussing that filing
 • Use professional but conversational tone - avoid jargon unless necessary
+• When SEC filing content is provided, extract and discuss specific details, numbers, and insights from the text
 
 **CITATION FORMAT** (CRITICAL - ALWAYS CITE SOURCES):
 • After EVERY factual claim, add inline citations using this EXACT format: \`[Source Name](URL)\`
@@ -1561,6 +1545,8 @@ CRITICAL CONSTRAINTS:
 5. Never fabricate quotes, statistics, or data points
 6. If data seems contradictory, acknowledge it rather than hiding the discrepancy
 7. **FOCUS ON CONTENT, NOT META-COMMENTARY**: When discussing SEC filings, press releases, or other sources, ALWAYS focus on the CONTENT and SUBSTANCE of what they contain. NEVER make meta-observations about filing volume, frequency, or activity patterns (e.g., DON'T say "the company has increased its SEC filing activity" or "there have been several filings"). Users want to know WHAT the sources say, not HOW MANY there are or patterns about them.
+8. **USE INLINE IMAGE MARKERS**: When SEC filing content includes [IMAGE_CARD:...] markers, place them in your response immediately after discussing that specific filing. Example: "The Q3 10-Q shows $15M cash reserves [IMAGE_CARD:sec-image-MNMD-0-0]. This positions them well for..."
+9. **EXTRACT DETAILED INSIGHTS FROM SEC FILINGS**: When SEC filing content is provided (marked with "=== CONTENT ==="), analyze and discuss specific details, metrics, business strategies, risks, and forward-looking statements from that text. Don't just summarize - pull out concrete insights.
 
 INTELLIGENCE INSIGHTS:
 • If confidence level is provided, acknowledge data quality in your response
@@ -1571,7 +1557,7 @@ INTELLIGENCE INSIGHTS:
 • Include suggested follow-up questions at the end if provided
 • If query was decomposed into sub-queries, ensure all aspects are addressed
 
-${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${imageCardsContext}${intelligenceContext}`;
+${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${intelligenceContext}`;
 }
 
 module.exports = router;

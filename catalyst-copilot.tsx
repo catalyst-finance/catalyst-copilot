@@ -237,7 +237,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       // Find the matching image card
       if (dataCards) {
         const imageCard = dataCards.find(card => 
-          card.type === 'image' && (card.data.id === imageId || card.data.id?.toString() === imageId)
+          card.type === 'image' && card.data.id === imageId
         );
         
         if (imageCard) {
@@ -425,7 +425,6 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
           // Remove the EVENT_CARD marker from the text
           itemText = itemText.replace(/\[EVENT_CARD:[^\]]+\]/, '').trim();
         }
-        
         if (hasImageCard) {
           // Remove the IMAGE_CARD marker from the text
           itemText = itemText.replace(/\[IMAGE_CARD:[^\]]+\]/, '').trim();
@@ -438,26 +437,41 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
           flushList();
           insertEventCard(eventCardMatch[1]);
         }
-        
         // If there's an image card, flush the list and insert it
         if (hasImageCard && imageCardMatch) {
           flushList();
           insertImageCard(imageCardMatch[1]);
         }
-      } else if (hasImageCard && imageCardMatch) {
-        // Image card on its own line (not in a list item)
-        flushParagraph();
-        flushList();
-        insertImageCard(imageCardMatch[1]);
       } else if (hasEventCard && eventCardMatch) {
         // Event card on its own line (not in a list item)
         flushParagraph();
         flushList();
         insertEventCard(eventCardMatch[1]);
+      } else if (hasImageCard && imageCardMatch) {
+        // Image card on its own line (not in a list item)
+        flushParagraph();
+        flushList();
+        insertImageCard(imageCardMatch[1]);
       } else if (trimmedLine) {
         flushList();
-        // Regular paragraph text
-        currentParagraph.push(trimmedLine);
+        // Regular paragraph text - remove any inline IMAGE_CARD markers and insert them after the paragraph
+        let cleanText = trimmedLine;
+        const inlineImageMatches = Array.from(trimmedLine.matchAll(/\[IMAGE_CARD:([^\]]+)\]/g));
+        
+        if (inlineImageMatches.length > 0) {
+          // Remove markers from the text
+          cleanText = trimmedLine.replace(/\[IMAGE_CARD:[^\]]+\]/g, '').trim();
+          currentParagraph.push(cleanText);
+          
+          // Flush paragraph and insert image cards
+          flushParagraph();
+          inlineImageMatches.forEach(match => {
+            insertImageCard(match[1]);
+          });
+        } else {
+          // Regular paragraph text
+          currentParagraph.push(trimmedLine);
+        }
       } else {
         // Empty line - flush current paragraph
         flushParagraph();
@@ -1598,15 +1612,25 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                       </div>
                     )}
 
-                    {/* Render non-event/non-image cards at the bottom (stock cards, charts, etc.) */}
-                    {msg.dataCards && msg.dataCards.filter(card => card.type !== 'event' && card.type !== 'image').length > 0 && (
+                    {/* Render non-inline cards at the bottom (stock cards, charts that aren't referenced inline) */}
+                    {msg.dataCards && msg.dataCards.filter(card => {
+                      // Exclude event cards (they're inline)
+                      if (card.type === 'event') return false;
+                      // Exclude image cards that are referenced inline
+                      if (card.type === 'image' && msg.content.includes(`[IMAGE_CARD:${card.data.id}]`)) return false;
+                      return true;
+                    }).length > 0 && (
                       <motion.div 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3, delay: 0.1 }}
                         className="space-y-2"
                       >
-                        {msg.dataCards.filter(card => card.type !== 'event' && card.type !== 'image').map((card, index) => (
+                        {msg.dataCards.filter(card => {
+                          if (card.type === 'event') return false;
+                          if (card.type === 'image' && msg.content.includes(`[IMAGE_CARD:${card.data.id}]`)) return false;
+                          return true;
+                        }).map((card, index) => (
                           <motion.div
                             key={index}
                             initial={{ opacity: 0, x: -20 }}
@@ -1641,15 +1665,25 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
                 </motion.div>
 
-                {/* Streaming Non-Event/Non-Image Data Cards - Show First (stock cards, charts, etc.) */}
-                {streamingDataCards.filter(card => card.type !== 'event' && card.type !== 'image').length > 0 && (
+                {/* Streaming Non-Inline Data Cards - Show First (stock cards, charts that aren't referenced inline) */}
+                {streamingDataCards.filter(card => {
+                  // Exclude event cards (they're inline)
+                  if (card.type === 'event') return false;
+                  // Exclude image cards that are referenced inline
+                  if (card.type === 'image' && streamedContent.includes(`[IMAGE_CARD:${card.data.id}]`)) return false;
+                  return true;
+                }).length > 0 && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.1 }}
                     className="space-y-2"
                   >
-                    {streamingDataCards.filter(card => card.type !== 'event' && card.type !== 'image').map((card, index) => (
+                    {streamingDataCards.filter(card => {
+                      if (card.type === 'event') return false;
+                      if (card.type === 'image' && streamedContent.includes(`[IMAGE_CARD:${card.data.id}]`)) return false;
+                      return true;
+                    }).map((card, index) => (
                       <motion.div
                         key={index}
                         initial={{ opacity: 0, x: -20 }}
