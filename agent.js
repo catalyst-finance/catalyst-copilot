@@ -1939,6 +1939,22 @@ Return ONLY a JSON array of 15-25 search strings. No explanation.`;
                         }
                       });
                       dataContext += `   === END IMAGES ===\n\n`;
+                      
+                      // Add image cards for frontend rendering
+                      contentResult.images.slice(0, 5).forEach((img, idx) => {
+                        dataCards.push({
+                          type: 'image',
+                          id: `sec-image-${ticker}-${filing.accession_number}-${idx}`,
+                          ticker: ticker,
+                          source: 'sec_filing',
+                          title: img.alt || 'Chart/Diagram from SEC Filing',
+                          imageUrl: img.url,
+                          context: img.context || null,
+                          filingType: filing.form_type,
+                          filingDate: filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date,
+                          filingUrl: filing.url
+                        });
+                      });
                     }
                   } else {
                     dataContext += `   (Unable to fetch filing content: ${contentResult.error})\n\n`;
