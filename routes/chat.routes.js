@@ -127,16 +127,25 @@ Analyze the query and return a JSON object:
   "topicKeywords": ["batteries", "tariffs", "South Korea"]
 }
 
-ROUTING INTELLIGENCE:
-- Earnings questions → event_data (Supabase) + sec_filings (MongoDB 10-Q, 8-K)
-- FDA/regulatory → event_data + sec_filings (8-K, S-1)
+ROUTING INTELLIGENCE - Use MULTIPLE data sources when relevant:
+- Roadmap/outlook questions → event_data (upcoming events) + sec_filings (10-K, 10-Q for guidance/strategy)
+- "Use SEC filings" / "based on filings" → ALWAYS include sec_filings + event_data
+- Earnings questions → event_data (dates) + sec_filings (10-Q, 8-K for actual results)
+- FDA/regulatory → event_data (trial milestones) + sec_filings (8-K, S-1 for details)
+- Price questions ("how has it performed", "price action", "trading") → intraday_prices or daily_prices (for chart)
 - Ownership/investors → institutional_ownership (MongoDB)
 - Government policy/tariffs → government_policy (MongoDB)
 - Economic indicators → macro_economics (MongoDB)
 - Insider trading → sec_filings (MongoDB, Form 4)
 - Business updates → sec_filings (10-K, 10-Q for detailed info)
-- Stock price movements → finnhub_quote_snapshots or intraday_prices
 - Political statements → government_policy
+
+**CRITICAL MULTI-SOURCE RULES:**
+1. If user mentions "SEC filings", "10-K", "10-Q", "8-K" explicitly → MUST include sec_filings with high priority
+2. If asking about future/roadmap/outlook/catalyst → MUST include BOTH event_data AND sec_filings
+3. If mentions "price", "trading", "chart", "performance" → MUST include price data (intraday_prices or daily_prices)
+4. If combines topics (e.g., "roadmap + SEC filings + price") → include ALL relevant sources
+5. Give higher priority (7-10) to explicitly mentioned data types
 
 IMPORTANT: Today's date is ${currentDate}. 
 - When user says "last week", calculate the date range from 7 days ago to today.
@@ -917,7 +926,11 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
         console.error("Error fetching watchlist movers:", error);
       }
     } else {
-      const shouldShowIntradayChart = queryIntent.needsChart;
+      // Check if price data is requested in dataSources (intraday_prices or daily_prices)
+      const priceDataRequested = (queryIntent.dataSources || []).some(ds => 
+        ['intraday_prices', 'daily_prices', 'finnhub_quote_snapshots'].includes(ds.collection)
+      );
+      const shouldShowIntradayChart = queryIntent.needsChart || priceDataRequested;
       const ticker = queryIntent.tickers && queryIntent.tickers.length > 0 ? queryIntent.tickers[0] : null;
       
       if (ticker && (shouldShowIntradayChart || queryIntent.intent === 'stock_price')) {
