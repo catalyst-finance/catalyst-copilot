@@ -12,10 +12,10 @@ const corsOptions = {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true,
+  credentials: false,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Content-Type']
+  exposedHeaders: ['Content-Type', 'Cache-Control', 'Connection']
 };
 
 module.exports = corsOptions;

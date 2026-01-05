@@ -968,7 +968,10 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
+    
+    console.log('📡 SSE headers sent, starting stream...');
 
     let finalConversationId = conversationId;
     let newConversation = null;
