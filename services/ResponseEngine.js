@@ -417,15 +417,20 @@ Return ONLY valid JSON.`;
         const intradayResult = await DataConnector.getStockData(symbol, 'intraday');
         if (intradayResult.success && intradayResult.data.length > 0) {
           // Transform intraday_prices data to match frontend format
-          // IMPORTANT: timestamp_et is stored as ET timezone (e.g., "2026-01-06T09:30:00")
-          // but without timezone suffix, so JavaScript parses it as UTC
-          // We need to treat it as ET and convert to proper UTC timestamp
+          // CRITICAL FIX: timestamp_et is stored as ET timezone (e.g., "2026-01-06T09:30:00")
+          // WITHOUT a timezone suffix, so JavaScript parses it as LOCAL time (not ET, not UTC)
+          // We need to interpret it as ET time and convert to UTC milliseconds
           chartData = intradayResult.data.map(point => {
-            // Parse timestamp_et as ET (add 5 hours to get UTC, since ET = UTC-5)
-            // e.g., "2026-01-06T09:30:00" in ET = "2026-01-06T14:30:00" in UTC
-            const etTimestamp = new Date(point.timestamp_et).getTime();
-            // Add 5 hours (ET offset) to convert to proper UTC timestamp
-            const utcTimestamp = etTimestamp + (5 * 60 * 60 * 1000);
+            // Parse timestamp_et string as ET time by appending ET timezone offset
+            // During EST (winter): ET is UTC-5, so "2026-01-06T09:30:00" in ET = "2026-01-06T14:30:00Z" in UTC
+            // During EDT (summer): ET is UTC-4, so "2026-04-06T09:30:00" in ET = "2026-04-06T13:30:00Z" in UTC
+            // For January 2026, we're in EST (UTC-5)
+            const etString = point.timestamp_et; // e.g., "2026-01-06T09:30:00"
+            
+            // Append EST offset to create proper UTC timestamp
+            // This treats the string as ET time and converts to UTC
+            const utcString = etString + '-05:00'; // Append EST offset
+            const utcTimestamp = new Date(utcString).getTime();
             
             return {
               timestamp: utcTimestamp,

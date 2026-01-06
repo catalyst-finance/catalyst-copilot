@@ -2677,28 +2677,82 @@ function InlineChartCard({
   }, [symbol]);
 
   useEffect(() => {
-    // Skip fetch if pre-loaded data is already available
+    // Skip chart data fetch if pre-loaded data is already available
     if (preloadedChartData && preloadedChartData.length > 0) {
       console.log(`📊 Using pre-loaded chart data for ${symbol} (${preloadedChartData.length} points)`);
       setChartData(preloadedChartData);
       setIsLoading(false);
       
-      // Set quote data from pre-loaded data (no need to fetch separately)
-      // The chart will use preloadedPreviousClose and currentPrice from last data point
-      if (preloadedPreviousClose) {
-        const lastPoint = preloadedChartData[preloadedChartData.length - 1];
-        const currentPrice = lastPoint?.value || lastPoint?.close || 0;
-        const change = currentPrice - preloadedPreviousClose;
-        const changePercent = preloadedPreviousClose ? (change / preloadedPreviousClose) * 100 : 0;
-        
-        setQuoteData({
-          symbol,
-          close: currentPrice,
-          change,
-          change_percent: changePercent,
-          previous_close: preloadedPreviousClose
-        });
-      }
+      // CRITICAL FIX: Always fetch current real-time quote from stock_quote_now
+      // Pre-loaded chart data may be slightly stale (last point could be from a minute ago)
+      // We need the absolute latest price for accurate display
+      const fetchCurrentQuote = async () => {
+        try {
+          const projectId = 'zwowgkkxwtfzfafmbryy';
+          const publicAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3b3dna2t4d3RmemZhZm1icnl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI2NTMyMDksImV4cCI6MjA0ODIyOTIwOX0.L-gIFKHd1kKxmQc5rShiAmPT0Ih0d9qlnGv7ddMfI3s';
+          
+          // Fetch real-time current quote from stock_quote_now (live price)
+          const currentQuoteParams = new URLSearchParams();
+          currentQuoteParams.append('select', '*');
+          currentQuoteParams.append('symbol', `eq.${symbol}`);
+          currentQuoteParams.append('limit', '1');
+          
+          const currentQuoteUrl = `https://${projectId}.supabase.co/rest/v1/stock_quote_now?${currentQuoteParams}`;
+          
+          const response = await fetch(currentQuoteUrl, {
+            headers: {
+              'apikey': publicAnonKey,
+              'Authorization': `Bearer ${publicAnonKey}`
+            }
+          });
+          
+          if (!response.ok) throw new Error('Failed to fetch current quote');
+          
+          const quotes = await response.json();
+          
+          if (quotes && quotes.length > 0) {
+            const quote = quotes[0];
+            setQuoteData({
+              symbol,
+              close: quote.close,
+              change: quote.change,
+              change_percent: quote.change_percent,
+              previous_close: preloadedPreviousClose || quote.previous_close
+            });
+          } else {
+            // Fallback to last chart point if quote fetch fails
+            const lastPoint = preloadedChartData[preloadedChartData.length - 1];
+            const currentPrice = lastPoint?.value || lastPoint?.close || 0;
+            const change = currentPrice - (preloadedPreviousClose || 0);
+            const changePercent = preloadedPreviousClose ? (change / preloadedPreviousClose) * 100 : 0;
+            
+            setQuoteData({
+              symbol,
+              close: currentPrice,
+              change,
+              change_percent: changePercent,
+              previous_close: preloadedPreviousClose
+            });
+          }
+        } catch (err) {
+          console.error('Error fetching current quote:', err);
+          // Fallback to last chart point if quote fetch fails
+          const lastPoint = preloadedChartData[preloadedChartData.length - 1];
+          const currentPrice = lastPoint?.value || lastPoint?.close || 0;
+          const change = currentPrice - (preloadedPreviousClose || 0);
+          const changePercent = preloadedPreviousClose ? (change / preloadedPreviousClose) * 100 : 0;
+          
+          setQuoteData({
+            symbol,
+            close: currentPrice,
+            change,
+            change_percent: changePercent,
+            previous_close: preloadedPreviousClose
+          });
+        }
+      };
+      
+      fetchCurrentQuote();
       return;
     }
 
