@@ -1826,7 +1826,7 @@ INTELLIGENCE INSIGHTS:
 **FINAL REMINDER - CARD MARKER PLACEMENT (MOST IMPORTANT):**
 When you include any card markers ([VIEW_ARTICLE:...], [VIEW_CHART:...], [IMAGE_CARD:...], [EVENT_CARD:...]):
 1. **VIEW_ARTICLE markers** → MUST be on their own line after the article paragraph, NEVER inline or in bullets
-2. **VIEW_CHART markers** → CRITICAL: If you see "**PRICE CHART FOR [SYMBOL]:**" followed by "[VIEW_CHART:...]" in the data context, you MUST include BOTH lines in your response exactly as shown. Place it right after you discuss the current price/daily change. DO NOT skip or omit the chart marker.
+2. **VIEW_CHART markers** → CRITICAL: If you see "[VIEW_CHART:...]" in the data context, you MUST include it in your response immediately after the Current Price section. DO NOT add any header text before it, just include the marker on its own line.
 3. **IMAGE_CARD markers** → Inline with SEC filing citations is OK
 4. **EVENT_CARD markers** → At end of bullet point describing the event
 
@@ -1846,7 +1846,6 @@ Example VIEW_CHART format (FOLLOW THIS EXACTLY):
 
 Tesla (TSLA) is currently trading at $432.02, down 4.35% from yesterday's close of $451.67. [Discuss price context here - open, high, low, etc.]
 
-**PRICE CHART FOR TSLA:**
 [VIEW_CHART:TSLA:1D]
 
 **Recent News**
@@ -1855,8 +1854,9 @@ Tesla (TSLA) is currently trading at $432.02, down 4.35% from yesterday's close 
 CRITICAL CHART RULES:
 - When you include a chart, the FIRST section header MUST be "**Current Price**" (exact text)
 - The Current Price section must come BEFORE any news/analysis sections
-- Place the chart marker immediately after the Current Price section
-- The frontend relies on the "Current Price" header to position the chart correctly
+- Place the chart marker immediately after the Current Price paragraph (NO header before the marker)
+- DO NOT write "PRICE CHART FOR TSLA:" or any text before [VIEW_CHART:...] - the marker is sufficient
+- The frontend automatically inserts the chart after the Current Price section
 
 ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${intelligenceContext}`;
 }

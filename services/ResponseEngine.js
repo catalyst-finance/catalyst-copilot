@@ -402,7 +402,7 @@ Return ONLY valid JSON.`;
     }
 
     // Insert VIEW_CHART marker at the end of the context
-    const chartMarker = `\n\n**PRICE CHART FOR ${symbol}:**\n[VIEW_CHART:${symbol}:${timeRange}]\n`;
+    const chartMarker = `\n\n[VIEW_CHART:${symbol}:${timeRange}]\n`;
     return dataContext + chartMarker;
   }
 
