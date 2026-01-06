@@ -62,28 +62,28 @@ class ResponseEngine {
     switch(phase) {
       case 'plan_start':
         const collections = context.collections.map(c => this.getCollectionFriendlyName(c)).join(' and ');
-        prompt = `Write a 3-5 word casual, friendly status message saying you're looking up ${collections}. Use simple, everyday language. Examples: "Checking ${collections}..." or "Looking up ${collections}..." Avoid technical terms like "exploring", "investigating", "analyzing", "examining".`;
+        prompt = `Write a 3-5 word status message saying you're looking up ${collections}. Use professional but straightforward language. NEVER use exclamation marks. Avoid overly enthusiastic phrases like "Just found", "Diving into", "Grabbing". Avoid technical terms like "exploring", "investigating", "analyzing", "examining". Examples: "Checking ${collections}..." or "Looking up ${collections}..."`;
         break;
         
       case 'plan_generated':
         const priority = context.plan.formattingPlan.filter(p => p.priority >= 4);
         if (priority.length > 0) {
           const source = this.getCollectionFriendlyName(priority[0].collection);
-          prompt = `Write a 3-5 word casual status message saying you found relevant ${source}. Examples: "Found relevant filing" or "Got some ${source}"`;
+          prompt = `Write a 3-5 word status message saying you found relevant ${source}. Use professional but straightforward language. NEVER use exclamation marks. Avoid overly enthusiastic phrases like "Just found", "Got some". Examples: "Found relevant filing" or "Located ${source}"`;
         } else {
-          prompt = `Write a 3-5 word casual status message saying you found ${context.plan.formattingPlan.length} sources. Example: "Found ${context.plan.formattingPlan.length} sources"`;
+          prompt = `Write a 3-5 word status message saying you found ${context.plan.formattingPlan.length} sources. Use professional but straightforward language. NEVER use exclamation marks. Example: "Found ${context.plan.formattingPlan.length} sources"`;
         }
         break;
         
       case 'fetching_content':
         const friendly = this.getCollectionFriendlyName(context.collection);
         const countText = context.count === 1 ? 'the' : `${context.count}`;
-        prompt = `Write a 3-5 word casual status message saying you're reading ${countText} ${friendly}. Use everyday language. Examples: "Reading ${countText} ${friendly}..." or "Checking out ${countText} ${friendly}..." Avoid technical terms.`;
+        prompt = `Write a 3-5 word status message saying you're reading ${countText} ${friendly}. Use professional but straightforward language. NEVER use exclamation marks. Avoid overly enthusiastic phrases like "Diving into", "Checking out". Avoid technical terms. Examples: "Reading ${countText} ${friendly}..." or "Checking ${countText} ${friendly}..."`;
         break;
         
       case 'formatting':
         const collectionName = this.getCollectionFriendlyName(context.collection);
-        prompt = `Write a 4-6 word casual, friendly status message saying you're pulling details from ${collectionName}. Use simple language. Examples: "Getting details from ${collectionName}..." or "Pulling key info..." Avoid technical terms like "extracting", "analyzing", "processing".`;
+        prompt = `Write a 4-6 word status message saying you're pulling details from ${collectionName}. Use professional but straightforward language. NEVER use exclamation marks. Avoid overly enthusiastic phrases like "Grabbing", "Just getting". Avoid technical terms like "extracting", "analyzing", "processing". Examples: "Getting details from ${collectionName}..." or "Reading ${collectionName}..."`;
         break;
         
       default:

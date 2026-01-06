@@ -254,13 +254,13 @@ class QueryEngine {
     if (intent === 'government_policy') {
       const subject = context.politicians || 'government officials';
       const topic = context.topics || 'the topic';
-      prompt = `Write a 3-5 word status message saying you're searching for ${subject} statements about ${topic}. Start with a verb. Examples: "Searching government statements..." or "Looking up policy remarks..."`;
+      prompt = `Write a 3-5 word status message saying you're searching for ${subject} statements about ${topic}. Use professional but straightforward language. NEVER use exclamation marks. Start with a verb. Examples: "Searching government statements..." or "Looking up policy remarks..."`;
     } else if (intent === 'sec_filings') {
       const tickers = context.tickers ? context.tickers.join(' and ') : 'the company';
-      prompt = `Write a 3-5 word status message saying you're searching SEC filings for ${tickers}. Examples: "Searching SEC filings..." or "Finding regulatory filings..."`;
+      prompt = `Write a 3-5 word status message saying you're searching SEC filings for ${tickers}. Use professional but straightforward language. NEVER use exclamation marks. Examples: "Searching SEC filings..." or "Finding regulatory filings..."`;
     } else if (intent === 'company_research') {
       const tickers = context.tickers ? context.tickers.join(' and ') : 'company';
-      prompt = `Write a 3-5 word status message saying you're researching ${tickers}. Examples: "Researching company data..." or "Gathering company info..."`;
+      prompt = `Write a 3-5 word status message saying you're researching ${tickers}. Use professional but straightforward language. NEVER use exclamation marks. Examples: "Researching company data..." or "Gathering company info..."`;
     } else if (intent === 'market_data') {
       const tickers = context.tickers ? ` for ${context.tickers.length} stock${context.tickers.length > 1 ? 's' : ''}` : '';
       prompt = `Write a 3-5 word status message saying you're getting market data${tickers}. Examples: "Getting market data..." or "Fetching stock prices..."`;
