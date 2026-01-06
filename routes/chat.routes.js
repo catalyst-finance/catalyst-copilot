@@ -518,7 +518,6 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
           sendThinking('retrieving', `Fetching government policy statements...`);
           
           const macroFilters = {
-            category: 'policy',
             sort: { date: -1 }  // Always sort by date descending
           };
           
