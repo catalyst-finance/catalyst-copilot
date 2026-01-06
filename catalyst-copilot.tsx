@@ -481,6 +481,9 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
       // Pattern: ([Read more](URL)) or (Read more) right before where marker was
       currentText = currentText.replace(/\(\[Read more\]\([^)]+\)\)\s*/g, '').replace(/\(Read more\)\s*/g, '');
       
+      // Clean up extra spaces before punctuation that result from marker removal
+      currentText = currentText.replace(/\s+([.,!?;:])/g, '$1');
+      
       // STEP 2: Clean up whitespace artifacts from IMAGE_CARD removal
       // Handle pattern: `[text](url) ` → `[text](url)` (trailing space before backtick)
       currentText = currentText.replace(/(\]|\))\s+`/g, '$1`');

@@ -1573,7 +1573,9 @@ INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 • **DO** write flowing narrative descriptions that synthesize and analyze the news content
 • **DO** use thematic section headers (e.g., "**Competitive Pressures**", "**Sales Strategy**", "**Market Conditions**")
 • **DO** explain the implications and connect the dots between stories
-• Each news item should be 4-6 sentences of detailed, substantive analysis covering the key points, implications, and market context, then the [VIEW_ARTICLE:...] marker
+• **MUST include temporal context** - Mention when the news was published (e.g., "reported on January 5", "announced this week", "as of early January") and any relevant timeframes mentioned in the article (e.g., "hearings starting in January", "Q4 2025 results")
+• Each news item should be 4-6 sentences of detailed, substantive analysis covering the key points, implications, and market context
+• **Place [VIEW_ARTICLE:...] marker at the END of the last sentence, right after the final word before the period**: "...market context[VIEW_ARTICLE:article-TMC-0]."
 • **Explain WHY it matters** - Don't just report what happened, analyze the competitive dynamics, strategic implications, or market impact
 • **CORRECT FORMAT EXAMPLE:**
   
