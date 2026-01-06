@@ -1646,6 +1646,8 @@ INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 • **MUST include temporal context** - Mention when the news was published (e.g., "reported on January 5", "announced this week", "as of early January") and any relevant timeframes mentioned in the article (e.g., "hearings starting in January", "Q4 2025 results")
 • Each news item should be 3-6 sentences of detailed, substantive analysis covering the key points, implications, and market context. Decide whether key points should be presented as a list or in paragraph form based on what flows best.
 • **Explain WHY it matters** - Don't just report what happened, analyze the competitive dynamics, strategic implications, or market impact
+• **Add company-specific context** - When news involves contradictions or surprising elements (e.g., "Nvidia announces lidar partnership" for Tesla who rejects lidar), EXPLAIN the context and why this matters. Reference known company stances, strategies, or historical positions to give depth.
+• **Connect competing approaches** - When competitors use different strategies, explain BOTH approaches and the implications (e.g., "While Tesla relies solely on cameras and vision AI, Nvidia's partnership with lidar suppliers represents a fundamentally different technical approach - one that Elon Musk has publicly dismissed. This creates a strategic divergence where...")
 
 **CRITICAL - VIEW_ARTICLE CARD PLACEMENT FOR NEWS:**
 • **ALWAYS place [VIEW_ARTICLE:...] markers on their OWN LINE** after the paragraph describing that article
