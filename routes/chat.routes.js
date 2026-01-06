@@ -238,6 +238,10 @@ Return ONLY the JSON object, no explanation.`;
     const dataCards = [];
     const eventData = {};
     
+    // Detect if query is asking for most recent/last items (applies to ALL data sources)
+    const isRecentQuery = /\b(last|latest|most recent|newest|recent)\b/i.test(message);
+    console.log(`Query requests recent data: ${isRecentQuery}`);
+    
     // Intelligence metadata tracking
     const intelligenceMetadata = {
       totalSources: 0,
@@ -503,12 +507,11 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
         if (collection === 'government_policy') {
           sendThinking('retrieving', `Fetching government policy statements...`);
           
-          // Detect if query is asking for most recent/last statement
-          const isRecentQuery = /\b(last|latest|most recent|newest|recent)\b/i.test(message);
-          
           const macroFilters = {
-            category: 'policy'
+            category: 'policy',
+            sort: { date: -1 }  // Always sort by date descending
           };
+          
           if (queryIntent.speaker) macroFilters.speaker = queryIntent.speaker;
           if (queryIntent.dateRange) {
             macroFilters.date = {
@@ -520,10 +523,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
             macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
           }
           
-          // Always sort by date descending to get most recent first
-          macroFilters.sort = { date: -1 };
-          
-          // If asking for "last" or "most recent", limit to recent entries
+          // Limit results for "last/recent" queries
           if (isRecentQuery) {
             macroFilters.limit = 5;
           }
@@ -553,6 +553,13 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
           if (queryIntent.dateRange) {
             macroFilters.date = {
               $gte: queryIntent.dateRange.start,
+              $lte: queryIntent.
+            sort: { date: -1 }  // Always sort by date descending
+          };
+          
+          if (queryIntent.dateRange) {
+            macroFilters.date = {
+              $gte: queryIntent.dateRange.start,
               $lte: queryIntent.dateRange.end
             };
           }
@@ -560,8 +567,9 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
             macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
           }
           
-          try {
-            const macroResult = await DataConnector.getMacroData('economic', macroFilters);
+          // Limit results for "last/recent" queries
+          if (isRecentQuery) {
+            macroFilters.limit = 5c', macroFilters);
             if (macroResult.success && macroResult.data.length > 0) {
               dataContext += `\n\nEconomic Data:\n`;
               macroResult.data.slice(0, 5).forEach((item, i) => {
