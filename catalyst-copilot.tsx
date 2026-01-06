@@ -2498,6 +2498,7 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
 
       try {
         // Determine date range based on timeRange
+        // CRITICAL: Always use actual current time to fetch latest data
         const now = new Date();
         let startDate: Date;
         let table = 'one_minute_prices';
@@ -2505,7 +2506,9 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
 
         switch (timeRange) {
           case '1D':
-            startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            // For 1D, fetch from start of today (not 24h ago) to ensure we get current day's data
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+            startDate = todayStart;
             table = 'one_minute_prices';
             limit = 390; // ~6.5 hours of trading
             break;
