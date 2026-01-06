@@ -128,8 +128,19 @@ Analyze the query and return a JSON object:
   "requestedFilingCount": 10 or null,
   "requestedItemCount": 10 or null,
   "topicKeywords": ["batteries", "tariffs", "South Korea"],
-  "searchTerms": ["NVIDIA", "Tesla", "specific phrase"] or null
+  "searchTerms": ["NVIDIA", "Tesla", "specific phrase"] or null,
+  "extractCompaniesFromTranscripts": true | false
 }
+
+**DETECTING COMPANY EXTRACTION REQUESTS** (CRITICAL):
+- When user asks "has [politician] mentioned any companies" or "which companies did [politician] mention" or "what companies would be involved"
+- Set extractCompaniesFromTranscripts: true to trigger extraction of company names from transcript content
+- This is different from searchTerms - user is asking "what companies?" not "did they mention X?"
+- Examples:
+  * "Has Trump mentioned that any companies would be involved?" → extractCompaniesFromTranscripts: true
+  * "Which companies did Biden discuss?" → extractCompaniesFromTranscripts: true
+  * "What companies are involved in the infrastructure deal?" → extractCompaniesFromTranscripts: true
+  * "Did Trump mention Chevron?" → extractCompaniesFromTranscripts: false, searchTerms: ["Chevron"]
 
 **DETECTING REQUESTED COUNTS (APPLIES TO ALL DATA TYPES)**:
 - "last 10 filings" → requestedFilingCount: 10
@@ -573,6 +584,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
               });
               
               // CRITICAL: Check if companies are mentioned in policy query or content
+              // ENHANCED: Now handles both explicit searches AND "which companies?" queries
               sendThinking('retrieving', `Checking for company mentions in policy statements...`);
               try {
                 const policyTexts = policyResult.data.map(item => {
@@ -581,17 +593,24 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                   return `${item.title}: ${text}`;
                 }).join('\n\n');
                 
-                const companyCheckPrompt = `Analyze this government policy query and transcript content. Extract any company names mentioned (not ticker symbols, actual company names like "Tesla", "Apple", "Microsoft").
+                // Enhanced prompt: explicitly ask to extract companies mentioned IN THE TRANSCRIPTS
+                const companyCheckPrompt = `Analyze this government policy transcript to find which publicly traded companies are mentioned by the speaker(s).
 
 User Query: "${message}"
 
-Policy Content Preview: ${policyTexts.substring(0, 2000)}
+Policy Transcript Content:
+${policyTexts.substring(0, 3000)}
 
-Return a JSON object with a "companies" array of company names found. If no companies mentioned, return {"companies": []}.
+Task: Extract the names of any publicly traded companies that are mentioned in the TRANSCRIPT CONTENT (not just the query).
+- Look for company names like "Tesla", "Chevron", "ExxonMobil", "Apple", "Microsoft", "NVIDIA", etc.
+- Include companies referenced as "major oil companies" ONLY if specific company names appear in the transcript
+- Focus on companies mentioned BY THE SPEAKERS in the policy statement
+
+Return a JSON object with a "companies" array of company names found IN THE TRANSCRIPT.
 Examples:
-- "What did Trump say about Tesla?" → {"companies": ["Tesla"]}
-- "Biden's comments on Apple and Microsoft" → {"companies": ["Apple", "Microsoft"]}
-- "Tariffs on Chinese imports" → {"companies": []}
+- If transcript says "We'll have Chevron go in..." → {"companies": ["Chevron"]}
+- If transcript says "the big oil companies" but names Chevron and Exxon → {"companies": ["Chevron", "ExxonMobil"]}
+- If transcript says "tariffs on imports" with no company names → {"companies": []}
 
 Return ONLY the JSON object, no explanation.`;
 
