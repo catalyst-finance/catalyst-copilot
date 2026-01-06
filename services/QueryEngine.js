@@ -194,13 +194,134 @@ class QueryEngine {
 **Supabase (PostgreSQL):**
 
 1. **event_data** - Corporate events (earnings, FDA approvals, product launches)
-   - ticker, type, title, actualDateTime_et, impact, aiInsight
+   Schema:
+   - ticker: text
+   - type: text (e.g., "earnings", "fda", "merger", "split")
+   - title: text
+   - actualDateTime_et: timestamp (Eastern Time)
+   - impact: text
+   - aiInsight: text
+   
+   Use Cases:
+   - Upcoming earnings dates
+   - FDA approval events
+   - Corporate events for specific tickers
 
-2. **finnhub_quote_snapshots** - Current stock quotes
-   - symbol, close, change, change_percent, volume, timestamp
+2. **company_information** - Company profile and fundamental data
+   Schema:
+   - symbol: text (primary key)
+   - name: text (company name)
+   - description: text (company description)
+   - country: text
+   - currency: text
+   - exchange: text (e.g., "NASDAQ NMS - GLOBAL MARKET")
+   - gsector: text (GICS sector)
+   - gind: text (GICS industry)
+   - gsubind: text (GICS sub-industry)
+   - ggroup: text (GICS group)
+   - naics: text (NAICS code)
+   - naicsSector: text
+   - naicsSubsector: text
+   - finnhubIndustry: text
+   - ipo: date (IPO date)
+   - employeeTotal: integer
+   - marketCapitalization: numeric
+   - shareOutstanding: double precision
+   - floatingShare: numeric
+   - insiderOwnership: numeric
+   - institutionOwnership: numeric
+   - weburl: text
+   - logo: text (logo URL)
+   - phone: text
+   - address: text
+   - city: text
+   - state: text
+   - cusip: text
+   - isin: text
+   - sedol: text
+   - lei: text
+   - ingested_at_et: timestamp (when data was last updated)
+   
+   Use Cases:
+   - Company profile lookup
+   - Industry/sector analysis (query by gsector, gind, naics)
+   - Market cap comparisons
+   - Company fundamentals (employees, ownership structure)
+   - Finding companies by CUSIP/ISIN/SEDOL
+   
+   Indexed Fields: symbol, cusip, isin, naics, ggroup, ingested_at_et
 
-3. **daily_prices** / **intraday_prices** - Historical price data
-   - symbol, timestamp, open, high, low, close, volume
+3. **finnhub_quote_snapshots** - Real-time and historical stock quotes
+   Schema:
+   - symbol: text (primary key part)
+   - timestamp: timestamp with time zone (primary key part)
+   - market_date: date (trading date)
+   - session: text ("pre", "regular", "post")
+   - close: double precision (current price)
+   - open: double precision
+   - high: double precision
+   - low: double precision
+   - previous_close: double precision
+   - change: double precision (dollar change)
+   - change_percent: double precision (percent change)
+   - volume: bigint
+   - timestamp_et: timestamp (Eastern Time, auto-generated)
+   - ingested_at: timestamp (when quote was captured)
+   
+   Use Cases:
+   - Current stock prices
+   - Intraday price snapshots
+   - Pre-market, regular, and after-hours pricing
+   - Price change and percent change
+   - Daily high/low/open/close
+   
+   Indexed Fields: symbol+timestamp, symbol+market_date, session, ingested_at
+   
+   Query Tips:
+   - Filter by session for specific market hours
+   - Use market_date for daily queries
+   - Order by timestamp DESC for most recent quotes
+
+4. **one_minute_prices** - 1-minute intraday price bars
+   Schema:
+   - symbol: text (primary key part)
+   - timestamp: timestamp with time zone (primary key part)
+   - open: double precision
+   - high: double precision
+   - low: double precision
+   - close: double precision
+   - volume: bigint
+   - timestamp_et: timestamp (Eastern Time, auto-generated)
+   - created_at: timestamp (when bar was created)
+   - source: text (default "intraday_aggregated_1m")
+   
+   Use Cases:
+   - 1-minute intraday charts
+   - Intraday price analysis
+   - Volume patterns during trading day
+   - High-frequency price data
+   
+   Indexed Fields: symbol+timestamp, timestamp, timestamp_et, created_at
+   
+   Query Tips:
+   - Use timestamp range for specific time periods
+   - Order by timestamp for chronological data
+   - Limit results to avoid excessive data (1 minute data adds up fast)
+
+5. **daily_prices** / **intraday_prices** - Historical daily and intraday price data (legacy)
+   Schema:
+   - symbol: text
+   - timestamp: timestamp
+   - open: double precision
+   - high: double precision
+   - low: double precision
+   - close: double precision
+   - volume: bigint
+   
+   Use Cases:
+   - Historical daily price charts
+   - Long-term price analysis
+   - Daily OHLCV data
 
 **QUERY GENERATION RULES:**
 
@@ -230,15 +351,30 @@ class QueryEngine {
    - For array fields like participants, use $elemMatch with $regex
 
 5. **Collection selection by query type:**
-   - Political statements, policy, tariffs → government_policy
-   - SEC filings, financial reports → sec_filings
-   - Institutional holders, 13F → ownership
-   - Analyst ratings, upgrades → price_targets
-   - Company news → news
-   - Official announcements → press_releases
-   - Earnings calls → earnings_transcripts
-   - Social sentiment → hype
-   - Economic indicators → macro_economics
+   - Political statements, policy, tariffs → government_policy (MongoDB)
+   - SEC filings, financial reports → sec_filings (MongoDB)
+   - Institutional holders, 13F → ownership (MongoDB)
+   - Analyst ratings, upgrades → price_targets (MongoDB)
+   - Company news → news (MongoDB)
+   - Official announcements → press_releases (MongoDB)
+   - Earnings calls → earnings_transcripts (MongoDB)
+   - Social sentiment → hype (MongoDB)
+   - Economic indicators → macro_economics (MongoDB)
+   - Company profile, industry, sector, fundamentals → company_information (Supabase)
+   - Current stock price, quotes → finnhub_quote_snapshots (Supabase)
+   - Intraday 1-minute bars → one_minute_prices (Supabase)
+   - Historical daily prices → daily_prices (Supabase)
+   - Corporate events (earnings dates, FDA) → event_data (Supabase)
+
+6. **Supabase query format:**
+   - Use .select() with column names
+   - Use .eq() for exact match, .ilike() for case-insensitive text search
+   - Use .gte() and .lte() for date/number ranges
+   - Use .order() for sorting
+   - Use .limit() to restrict results
+   - For company_information: can query by symbol, name, gsector, gind, naics, cusip, isin
+   - For finnhub_quote_snapshots: filter by symbol, market_date, session, order by timestamp
+   - For one_minute_prices: filter by symbol, timestamp range, order by timestamp
 
 **TODAY'S DATE:** ${new Date().toISOString().split('T')[0]}
 `;
@@ -342,7 +478,7 @@ Return JSON with this structure:
   "queries": [
     {
       "database": "mongodb" | "supabase",
-      "collection": "government_policy" | "sec_filings" | "ownership" | "macro_economics" | "news" | "press_releases" | "price_targets" | "earnings_transcripts" | "hype" | "event_data" | "finnhub_quote_snapshots" | "daily_prices" | "intraday_prices",
+      "collection": "government_policy" | "sec_filings" | "ownership" | "macro_economics" | "news" | "press_releases" | "price_targets" | "earnings_transcripts" | "hype" | "event_data" | "company_information" | "finnhub_quote_snapshots" | "one_minute_prices" | "daily_prices" | "intraday_prices",
       "query": { /* MongoDB query object or Supabase filter params */ },
       "sort": { /* optional sort params */ },
       "limit": 10,
@@ -512,6 +648,75 @@ Response:
   "needsDeepAnalysis": false,
   "analysisKeywords": [],
   "intent": "Find filing date of AAPL's most recent 10-K"
+}
+
+**EXAMPLE 6 (Company Information - Supabase):**
+User: "Tell me about AAPL"
+Response:
+{
+  "queries": [
+    {
+      "database": "supabase",
+      "collection": "company_information",
+      "query": {"symbol": "AAPL"},
+      "limit": 1,
+      "reasoning": "Get company profile information for AAPL"
+    },
+    {
+      "database": "supabase",
+      "collection": "finnhub_quote_snapshots",
+      "query": {"symbol": "AAPL"},
+      "sort": {"timestamp": "desc"},
+      "limit": 1,
+      "reasoning": "Get current stock price for AAPL"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": false,
+  "needsDeepAnalysis": false,
+  "analysisKeywords": [],
+  "intent": "Get company profile and current price for AAPL"
+}
+
+**EXAMPLE 7 (Industry Query - Supabase):**
+User: "What biotech companies are in our database?"
+Response:
+{
+  "queries": [
+    {
+      "database": "supabase",
+      "collection": "company_information",
+      "query": {"finnhubIndustry": "Healthcare"},
+      "limit": 50,
+      "reasoning": "Find healthcare/biotech companies by industry classification"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": false,
+  "needsDeepAnalysis": false,
+  "analysisKeywords": [],
+  "intent": "List biotech/healthcare companies"
+}
+
+**EXAMPLE 8 (Current Prices - Supabase):**
+User: "What's the current price of TSLA?"
+Response:
+{
+  "queries": [
+    {
+      "database": "supabase",
+      "collection": "finnhub_quote_snapshots",
+      "query": {"symbol": "TSLA"},
+      "sort": {"timestamp": "desc"},
+      "limit": 1,
+      "reasoning": "Get most recent stock price for TSLA"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": true,
+  "needsDeepAnalysis": false,
+  "analysisKeywords": [],
+  "intent": "Get current stock price for TSLA"
 }
 
 Return ONLY valid JSON, no explanation outside the JSON structure.`;
