@@ -82,7 +82,7 @@ class ResponseEngine {
       },
       'formatting': () => {
         const friendly = this.getCollectionFriendlyName(context.collection);
-        return `Extracting key details from ${friendly}...`;
+        return `Extracting key details from the ${friendly}...`;
       }
     };
     
@@ -263,7 +263,7 @@ Return ONLY valid JSON.`;
       // Send contextual thinking message
       if (sendThinking) {
         const thinkingMsg = this.generateThinkingMessage('formatting', {
-          collection: this.getCollectionTitle(formatSpec.collection),
+          collection: formatSpec.collection,
           detailLevel: formatSpec.detailLevel
         });
         if (thinkingMsg) sendThinking('formatting', thinkingMsg);
