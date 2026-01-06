@@ -838,7 +838,7 @@ class DataConnector {
         };
       }
       
-      console.log(`📡 Making axios request with maxHeaderSize: 32768, timeout: 10000ms`);
+      console.log(`📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms`);
       console.log(`   Node.js maxHttpHeaderSize: ${require('http').maxHeaderSize || 'default (8KB)'}`);
       
       const response = await axios.get(url, {
@@ -848,7 +848,7 @@ class DataConnector {
         },
         httpAgent: httpAgent,
         httpsAgent: httpsAgent,
-        maxHeaderSize: 32768, // 32KB - handles Yahoo Finance's large headers
+        maxHeaderSize: 65536, // 64KB - Yahoo Finance has extremely large headers (>32KB!)
         maxRedirects: 5
       });
       
@@ -943,8 +943,8 @@ class DataConnector {
       if (error.message && error.message.includes('Header overflow')) {
         console.error(`   🚨 HEADER OVERFLOW DETECTED`);
         console.error(`   Current Node.js maxHttpHeaderSize: ${require('http').maxHeaderSize || 'default (8KB)'}`);
-        console.error(`   Axios maxHeaderSize config: 32768 bytes (32KB)`);
-        console.error(`   💡 This means the server is likely not running with --max-http-header-size flag`);
+        console.error(`   Axios maxHeaderSize config: 65536 bytes (64KB)`);
+        console.error(`   💡 Yahoo Finance headers exceed even this limit - may need to increase further or use alternative method`);
       }
       
       return {
