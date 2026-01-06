@@ -1583,6 +1583,27 @@ RESPONSE GUIDELINES:
 
 INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 
+**GOVERNMENT POLICY queries** (Trump statements, Biden remarks, policy announcements, political commentary):
+• **MANDATORY STRUCTURED FORMAT** - Never use single paragraph responses
+• Start with source citation: "**[Date] - [Event Type]**" on its own line
+• Use **bold section headers** for topic areas (e.g., "**Venezuelan Oil Infrastructure**", "**Trade Policy**", "**Economic Outlook**")
+• Break content into themed sections with blank lines between them
+• Use bullet points (•) for individual statements or policy points
+• Example structure:
+
+  **January 4, 2026 - Press Gaggle Aboard Air Force One**
+  
+  **Venezuelan Oil Infrastructure**
+  
+  • U.S. plans to have major oil companies repair Venezuelan oil infrastructure
+  • Current output significantly below capacity due to mismanagement
+  • Infrastructure improvements will benefit Venezuelan-Americans, not direct U.S. investment
+  
+  **Impact on Cuba**
+  
+  • Cuba previously relied on Venezuelan oil revenues
+  • These revenue streams have been eliminated under current policy
+
 **ROADMAP queries** (roadmap, timeline, plan, outlook, future):
 • Structure as chronological timeline with clear phases
 • Headers like "Recent Developments", "Q1 2026", "Q2 2026" MUST be on their own line
