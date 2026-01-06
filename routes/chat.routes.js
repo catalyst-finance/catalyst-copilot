@@ -1391,7 +1391,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
 
     // Call OpenAI with text-only streaming (SEC.gov blocks image downloads)
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages,
       temperature: 0.5,
       max_tokens: 15000,
