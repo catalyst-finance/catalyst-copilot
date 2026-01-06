@@ -957,9 +957,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
 
   // Use requestAnimationFrame for smooth, non-blocking scrolling
   const scrollToBottom = () => {
-    if (!isRestoringScroll.current && messagesEndRef.current) {
+    if (!isRestoringScroll.current && chatContainerRef.current) {
       requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+        if (chatContainerRef.current) {
+          // Use direct scrollTop for smoother animation (avoids layout thrashing)
+          const target = chatContainerRef.current.scrollHeight;
+          chatContainerRef.current.scrollTop = target;
+        }
       });
     }
   };
@@ -974,6 +978,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
 
   // Throttle scroll updates during streaming to prevent jank
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const contentBatchRef = useRef<string>('');
+  const contentFlushTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     if (!isRestoringScroll.current) {
@@ -987,10 +993,10 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
         // Streaming just completed - immediate scroll to bottom
         scrollToBottom();
       } else if (isStreaming) {
-        // Still streaming - throttle scroll updates to every 100ms
+        // Still streaming - throttle scroll updates to every 150ms for smoother feel
         scrollTimeoutRef.current = setTimeout(() => {
           scrollToBottom();
-        }, 100);
+        }, 150);
       }
       // Update previous streaming state
       prevIsStreamingRef.current = isStreaming;
@@ -1181,11 +1187,30 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 break;
 
               case 'content':
+                // Batch content updates for smoother rendering (flush every 50ms)
+                contentBatchRef.current += data.content;
                 collectedContent += data.content;
-                setStreamedContent(prev => prev + data.content);
+                
+                if (!contentFlushTimeoutRef.current) {
+                  contentFlushTimeoutRef.current = setTimeout(() => {
+                    setStreamedContent(prev => prev + contentBatchRef.current);
+                    contentBatchRef.current = '';
+                    contentFlushTimeoutRef.current = null;
+                  }, 50);
+                }
                 break;
 
               case 'done':
+                // Flush any remaining batched content
+                if (contentBatchRef.current) {
+                  setStreamedContent(prev => prev + contentBatchRef.current);
+                  contentBatchRef.current = '';
+                }
+                if (contentFlushTimeoutRef.current) {
+                  clearTimeout(contentFlushTimeoutRef.current);
+                  contentFlushTimeoutRef.current = null;
+                }
+                
                 // Calculate thinking duration
                 const thinkingDuration = thinkingStartTime 
                   ? Math.round((Date.now() - thinkingStartTime) / 1000) 
@@ -1408,11 +1433,30 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 break;
 
               case 'content':
+                // Batch content updates for smoother rendering (flush every 50ms)
+                contentBatchRef.current += data.content;
                 collectedContent += data.content;
-                setStreamedContent(prev => prev + data.content);
+                
+                if (!contentFlushTimeoutRef.current) {
+                  contentFlushTimeoutRef.current = setTimeout(() => {
+                    setStreamedContent(prev => prev + contentBatchRef.current);
+                    contentBatchRef.current = '';
+                    contentFlushTimeoutRef.current = null;
+                  }, 50);
+                }
                 break;
 
               case 'done':
+                // Flush any remaining batched content
+                if (contentBatchRef.current) {
+                  setStreamedContent(prev => prev + contentBatchRef.current);
+                  contentBatchRef.current = '';
+                }
+                if (contentFlushTimeoutRef.current) {
+                  clearTimeout(contentFlushTimeoutRef.current);
+                  contentFlushTimeoutRef.current = null;
+                }
+                
                 // Calculate thinking duration
                 const thinkingDuration = thinkingStartTime 
                   ? Math.round((Date.now() - thinkingStartTime) / 1000) 
@@ -2072,13 +2116,15 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 {streamedContent && (
                   <div 
                     className="text-foreground"
-                    style={{ willChange: 'contents' }}
+                    style={{ 
+                      willChange: 'contents',
+                      contain: 'layout style',
+                      contentVisibility: 'auto'
+                    }}
                   >
                     <MarkdownText text={streamedContent} dataCards={streamingDataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
-                    <motion.span
-                      className="inline-block w-[2px] h-4 bg-foreground/60 ml-0.5"
-                      animate={{ opacity: [1, 0, 1] }}
-                      transition={{ duration: 0.8, repeat: Infinity }}
+                    <span
+                      className="inline-block w-[2px] h-4 bg-foreground/60 ml-0.5 animate-pulse"
                     />
                   </div>
                 )}
