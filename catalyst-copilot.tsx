@@ -332,7 +332,25 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
   };
   
   const renderContent = (content: string) => {
-    const lines = content.split('\n');
+    // PRE-SCAN: Extract all VIEW_CHART markers from the entire text first
+    const chartCardRegex = /\[VIEW_CHART:([A-Z]+):([^\]]+)\]/g;
+    const allChartCards: ChartCardData[] = [];
+    let chartMatch;
+    
+    while ((chartMatch = chartCardRegex.exec(content)) !== null) {
+      const symbol = chartMatch[1];
+      const timeRange = chartMatch[2] as '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
+      allChartCards.push({
+        id: `chart-${symbol}-${timeRange}-${Date.now()}-${allChartCards.length}`,
+        symbol,
+        timeRange
+      });
+    }
+    
+    // Remove all VIEW_CHART markers from content so they don't get parsed again
+    const cleanedContent = content.replace(chartCardRegex, '');
+    
+    const lines = cleanedContent.split('\n');
     const elements: JSX.Element[] = [];
     let uniqueKeyCounter = 0; // Add unique key counter
     
@@ -340,7 +358,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
     let currentParagraph: string[] = [];
     let pendingImageCards: string[] = []; // Track IMAGE_CARD markers to render after paragraph
     let pendingArticleCards: string[] = []; // Track VIEW_ARTICLE markers to render after paragraph
-    let pendingChartCards: ChartCardData[] = []; // Track VIEW_CHART markers to render after paragraph
+    let chartsInserted = false; // Track if charts have been inserted already
     
     const flushParagraph = () => {
       if (currentParagraph.length > 0) {
@@ -350,6 +368,20 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
           </p>
         );
         currentParagraph = [];
+        
+        // Check if we should insert charts after this paragraph (right after Current Price section)
+        if ((elements as any).__insertChartsAfterNextFlush && !chartsInserted && allChartCards.length > 0) {
+          // Insert all charts here (after Current Price content)
+          allChartCards.forEach(chartData => {
+            elements.push(
+              <div key={`chart-card-${chartData.id}-${uniqueKeyCounter++}`} className="my-3">
+                <InlineChartCard symbol={chartData.symbol} timeRange={chartData.timeRange} />
+              </div>
+            );
+          });
+          chartsInserted = true; // Mark as inserted
+          delete (elements as any).__insertChartsAfterNextFlush;
+        }
         
         // After flushing paragraph, add any pending image cards
         if (pendingImageCards.length > 0) {
@@ -365,14 +397,6 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
             insertArticleCard(articleId);
           });
           pendingArticleCards = [];
-        }
-        
-        // After flushing paragraph, add any pending chart cards
-        if (pendingChartCards.length > 0) {
-          pendingChartCards.forEach(chartData => {
-            insertChartCard(chartData);
-          });
-          pendingChartCards = [];
         }
       }
     };
@@ -519,23 +543,8 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
       // Remove VIEW_ARTICLE markers from text
       currentText = currentText.replace(articleCardRegex, '');
       
-      // Extract VIEW_CHART markers (similar to IMAGE_CARD handling)
-      // Format: [VIEW_CHART:SYMBOL:TIMERANGE] e.g., [VIEW_CHART:TSLA:1D]
-      const chartCardRegex = /\[VIEW_CHART:([A-Z]+):([^\]]+)\]/g;
-      let chartMatch;
-      
-      while ((chartMatch = chartCardRegex.exec(currentText)) !== null) {
-        const symbol = chartMatch[1];
-        const timeRange = chartMatch[2] as '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
-        pendingChartCards.push({
-          id: `chart-${symbol}-${timeRange}-${Date.now()}`,
-          symbol,
-          timeRange
-        });
-      }
-      
-      // Remove VIEW_CHART markers from text
-      currentText = currentText.replace(chartCardRegex, '');
+      // NOTE: VIEW_CHART markers are pre-processed at the top of renderContent()
+      // and already removed from the text, so no need to extract them here
       
       // Remove "Read more" links that appear right before VIEW_ARTICLE markers
       // Pattern: ([Read more](URL)) or (Read more) right before where marker was
@@ -737,11 +746,21 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
         // Detect bold text on its own line as a subheading (e.g., **Q4 2025**, **2026 Roadmap**)
         flushParagraph();
         flushList();
+        
+        const headerText = trimmedLine.replace(/^\*\*|\*\*$/g, '');
+        const isCurrentPriceHeader = /^current price$/i.test(headerText.trim());
+        
         elements.push(
           <h3 key={`h3-bold-${index}`} className="font-semibold mt-4 mb-2">
             {parseInlineFormatting(trimmedLine)}
           </h3>
         );
+        
+        // If this is "Current Price" header and we have pending charts, mark for insertion
+        if (isCurrentPriceHeader) {
+          // Set a flag to insert charts after the next content flush
+          (elements as any).__insertChartsAfterNextFlush = true;
+        }
       } else if (isListItem) {
         flushParagraph();
         // List item - extract text and remove EVENT_CARD/IMAGE_CARD markers if present
@@ -2491,6 +2510,38 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  // Subscribe to real-time price updates
+  useEffect(() => {
+    // Import realtimePriceService when this component is copied into the mobile app
+    // Assumes realtimePriceService is available in the mobile app's services
+    if (typeof window !== 'undefined' && (window as any).realtimePriceService) {
+      const service = (window as any).realtimePriceService;
+      
+      const handlePriceUpdate = (update: any) => {
+        if (update.symbol === symbol) {
+          // Update quote data with new current price
+          setQuoteData((prev: any) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              close: update.close,
+              change: update.close - (prev.previous_close || prev.close),
+              change_percent: prev.previous_close 
+                ? ((update.close - prev.previous_close) / prev.previous_close) * 100 
+                : 0
+            };
+          });
+        }
+      };
+
+      service.on('priceUpdate', handlePriceUpdate);
+
+      return () => {
+        service.off('priceUpdate', handlePriceUpdate);
+      };
+    }
+  }, [symbol]);
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -2561,23 +2612,37 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
 
         const priceUrl = `https://${projectId}.supabase.co/rest/v1/${table}?${priceParams}`;
         
-        // Fetch current quote
-        const quoteParams = new URLSearchParams();
-        quoteParams.append('select', '*');
-        quoteParams.append('symbol', `eq.${symbol}`);
-        quoteParams.append('order', 'timestamp.desc');
-        quoteParams.append('limit', '1');
+        // Fetch real-time current quote from stock_quote_now (live price)
+        const currentQuoteParams = new URLSearchParams();
+        currentQuoteParams.append('select', '*');
+        currentQuoteParams.append('symbol', `eq.${symbol}`);
+        currentQuoteParams.append('limit', '1');
         
-        const quoteUrl = `https://${projectId}.supabase.co/rest/v1/finnhub_quote_snapshots?${quoteParams}`;
+        const currentQuoteUrl = `https://${projectId}.supabase.co/rest/v1/stock_quote_now?${currentQuoteParams}`;
+        
+        // Fetch historical snapshot for previous_close
+        const snapshotParams = new URLSearchParams();
+        snapshotParams.append('select', 'previous_close');
+        snapshotParams.append('symbol', `eq.${symbol}`);
+        snapshotParams.append('order', 'timestamp.desc');
+        snapshotParams.append('limit', '1');
+        
+        const snapshotUrl = `https://${projectId}.supabase.co/rest/v1/finnhub_quote_snapshots?${snapshotParams}`;
 
-        const [priceRes, quoteRes] = await Promise.all([
+        const [priceRes, currentQuoteRes, snapshotRes] = await Promise.all([
           fetch(priceUrl, {
             headers: {
               'apikey': publicAnonKey,
               'Authorization': `Bearer ${publicAnonKey}`
             }
           }),
-          fetch(quoteUrl, {
+          fetch(currentQuoteUrl, {
+            headers: {
+              'apikey': publicAnonKey,
+              'Authorization': `Bearer ${publicAnonKey}`
+            }
+          }),
+          fetch(snapshotUrl, {
             headers: {
               'apikey': publicAnonKey,
               'Authorization': `Bearer ${publicAnonKey}`
@@ -2588,7 +2653,8 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
         if (!priceRes.ok) throw new Error('Failed to fetch price data');
         
         const prices = await priceRes.json();
-        const quotes = await quoteRes.json();
+        const currentQuotes = await currentQuoteRes.json();
+        const snapshots = await snapshotRes.json();
 
         // Map to chart format - convert ISO timestamp strings to Unix milliseconds
         const mappedData = prices.map((row: any) => ({
@@ -2601,8 +2667,15 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
         }));
 
         setChartData(mappedData);
-        if (quotes && quotes.length > 0) {
-          setQuoteData(quotes[0]);
+        
+        // Combine real-time current price with historical previous_close
+        if (currentQuotes && currentQuotes.length > 0 && snapshots && snapshots.length > 0) {
+          setQuoteData({
+            ...currentQuotes[0],
+            previous_close: snapshots[0].previous_close
+          });
+        } else if (currentQuotes && currentQuotes.length > 0) {
+          setQuoteData(currentQuotes[0]);
         }
         setIsLoading(false);
       } catch (err) {

@@ -700,23 +700,20 @@ Return ONLY valid JSON.`;
         output += `   [VIEW_ARTICLE:${articleId}]\n`;
       }
 
-      // Show article content if detail level requires it (full content already fetched above for images)
-      if (detailLevel === 'full' && fetchExternal && article.url && items.length <= 5) {
+      // Show article content - ALWAYS prefer stored 'content' field from MongoDB
+      if (article.content && detailLevel !== 'summary') {
+        const contentLength = detailLevel === 'full' ? 5000 : (detailLevel === 'detailed' ? 1000 : 300);
+        output += `   Content: ${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
+      } else if (detailLevel === 'full' && fetchExternal && article.url && items.length <= 5) {
+        // Only fetch from URL if content field is missing (fallback)
         try {
           const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
           if (contentResult.success && contentResult.content) {
             output += `\n   === FULL ARTICLE ===\n${contentResult.content}\n   === END ARTICLE ===\n`;
-          } else if (article.content) {
-            output += `   Content: ${article.content.substring(0, detailLevel === 'detailed' ? 1000 : 300)}...\n`;
           }
         } catch (error) {
-          if (article.content) {
-            output += `   Content: ${article.content.substring(0, detailLevel === 'detailed' ? 1000 : 300)}...\n`;
-          }
+          // Silently fail - no content available
         }
-      } else if (article.content && detailLevel !== 'summary') {
-        const contentLength = detailLevel === 'detailed' ? 1000 : 300;
-        output += `   Content: ${article.content.substring(0, contentLength)}...\n`;
       }
 
       if (article.url) output += `   URL: ${article.url}\n`;
