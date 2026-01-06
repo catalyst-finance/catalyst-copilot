@@ -1462,18 +1462,29 @@ When your data context contains BOTH qualitative data (news, SEC filings, price 
    - Only use "closed at" after 4:00 PM ET or for historical data
    - The current price 'c' in finnhub_quote_snapshots is the LIVE price during market hours, not a closing price
 
-**PRICE DATA FORMAT** (from finnhub_quote_snapshots):
-- c = current price (STALE - only updated at market open/close), o = open, h = high, l = low, pc = previous close
-- dp = daily percent change (STALE - calculated at snapshot time, not live)
-- d = daily dollar change (STALE)
+**PRICE DATA FORMAT AND SOURCES**:
 
-**CRITICAL - DAILY CHANGE CALCULATION (LIVE INTRADAY)**:
-- finnhub_quote_snapshots is only updated at market open (9:30 AM ET) and close (4:00 PM ET) - NOT continuously
-- During trading hours, use one_minute_prices for CURRENT price, finnhub_quote_snapshots for previous close
-- **Correct daily change calculation**: (latest one_minute_prices close - finnhub_quote_snapshots previous_close) / previous_close * 100
-- The 'dp' field in finnhub_quote_snapshots is STALE during the day - only accurate at snapshot time
-- Example: If latest intraday bar close=$434.01 and previous_close=$451.67, calculate: (434.01-451.67)/451.67 = -3.91%
-- NEVER use first intraday bar vs last intraday bar - that's session movement, not daily change from previous close
+**stock_quote_now (Real-time Current Prices)**:
+- close = LIVE current price (updated continuously via WebSocket)
+- timestamp = when this price was recorded
+- This is the CURRENT price - always use this for "current price", "trading at", "now at"
+
+**finnhub_quote_snapshots (Historical Snapshots)**:
+- previous_close (pc) = yesterday's closing price - use this for daily change calculations
+- Snapshots taken at market open/close only
+- Fields: c, o, h, l (from snapshot time), pc (previous close), dp/d (stale during day)
+
+**one_minute_prices (Intraday Historical Bars)**:
+- Historical 1-minute OHLCV bars for charting and intraday analysis
+- Use ONLY for: populating charts, analyzing intraday movements, session high/low
+- Do NOT use for current price - use stock_quote_now instead
+
+**CRITICAL - DAILY CHANGE CALCULATION**:
+- **Current price**: stock_quote_now.close (real-time)
+- **Previous close**: finnhub_quote_snapshots.previous_close
+- **Daily change formula**: (stock_quote_now.close - previous_close) / previous_close * 100
+- Example: If stock_quote_now.close=$434.01 and previous_close=$451.67: (434.01-451.67)/451.67 = -3.91%
+- NEVER use first vs last intraday bar for daily change - that's session movement, not daily change
 
 **CORRELATION RESPONSE EXAMPLES**:
 
