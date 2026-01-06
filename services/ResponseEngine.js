@@ -417,20 +417,12 @@ Return ONLY valid JSON.`;
         const intradayResult = await DataConnector.getStockData(symbol, 'intraday');
         if (intradayResult.success && intradayResult.data.length > 0) {
           // Transform intraday_prices data to match frontend format
-          // CRITICAL FIX: timestamp_et is stored as ET timezone (e.g., "2026-01-06T09:30:00")
-          // WITHOUT a timezone suffix, so JavaScript parses it as LOCAL time (not ET, not UTC)
-          // We need to interpret it as ET time and convert to UTC milliseconds
+          // timestamp_et is a timestamptz column, so Supabase returns it as ISO 8601 string with timezone
+          // e.g., "2026-01-06T09:30:00-05:00" (already in ET with proper offset)
+          // We just need to parse it and convert to Unix milliseconds
           chartData = intradayResult.data.map(point => {
-            // Parse timestamp_et string as ET time by appending ET timezone offset
-            // During EST (winter): ET is UTC-5, so "2026-01-06T09:30:00" in ET = "2026-01-06T14:30:00Z" in UTC
-            // During EDT (summer): ET is UTC-4, so "2026-04-06T09:30:00" in ET = "2026-04-06T13:30:00Z" in UTC
-            // For January 2026, we're in EST (UTC-5)
-            const etString = point.timestamp_et; // e.g., "2026-01-06T09:30:00"
-            
-            // Append EST offset to create proper UTC timestamp
-            // This treats the string as ET time and converts to UTC
-            const utcString = etString + '-05:00'; // Append EST offset
-            const utcTimestamp = new Date(utcString).getTime();
+            // Parse timestamp_et - it already includes timezone info from Postgres
+            const utcTimestamp = new Date(point.timestamp_et).getTime();
             
             return {
               timestamp: utcTimestamp,
@@ -466,6 +458,13 @@ Return ONLY valid JSON.`;
       }
 
       if (chartData && chartData.length > 0) {
+        // Debug: Log sample data points to verify timestamp conversion
+        console.log(`   🔍 Sample chart data points:`, {
+          first: chartData[0],
+          middle: chartData[Math.floor(chartData.length / 2)],
+          last: chartData[chartData.length - 1]
+        });
+        
         // Create chart data card with pre-fetched data
         dataCards.push({
           type: 'chart',

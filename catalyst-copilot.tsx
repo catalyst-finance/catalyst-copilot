@@ -2688,9 +2688,6 @@ function InlineChartCard({
       // We need the absolute latest price for accurate display
       const fetchCurrentQuote = async () => {
         try {
-          const projectId = 'zwowgkkxwtfzfafmbryy';
-          const publicAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3b3dna2t4d3RmemZhZm1icnl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI2NTMyMDksImV4cCI6MjA0ODIyOTIwOX0.L-gIFKHd1kKxmQc5rShiAmPT0Ih0d9qlnGv7ddMfI3s';
-          
           // Fetch real-time current quote from stock_quote_now (live price)
           const currentQuoteParams = new URLSearchParams();
           currentQuoteParams.append('select', '*');
@@ -2735,8 +2732,8 @@ function InlineChartCard({
             });
           }
         } catch (err) {
-          console.error('Error fetching current quote:', err);
-          // Fallback to last chart point if quote fetch fails
+          // Silently fallback to last chart point if quote fetch fails
+          // This is expected if stock_quote_now table doesn't exist
           const lastPoint = preloadedChartData[preloadedChartData.length - 1];
           const currentPrice = lastPoint?.value || lastPoint?.close || 0;
           const change = currentPrice - (preloadedPreviousClose || 0);
@@ -2921,6 +2918,14 @@ function InlineChartCard({
           </div>
         ) : chartData && chartData.length > 0 ? (
           <>
+            {/* Debug: Log first and last timestamps to diagnose epoch issue */}
+            {console.log(`[${symbol}] Chart data sample:`, {
+              firstPoint: chartData[0],
+              lastPoint: chartData[chartData.length - 1],
+              firstTimestamp: new Date(chartData[0]?.timestamp),
+              lastTimestamp: new Date(chartData[chartData.length - 1]?.timestamp),
+              totalPoints: chartData.length
+            })}
             {/* Always use IntradayMiniChart in copilot - it doesn't show future timeline/upcoming events */}
             <IntradayMiniChart 
               data={chartData}
