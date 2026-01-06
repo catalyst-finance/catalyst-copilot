@@ -103,95 +103,175 @@ interface CatalystCopilotProps {
 }
 
 /**
- * Streaming-safe markdown preprocessor
- * Buffers incomplete patterns to prevent garbled text during streaming
- * Returns: { safeText: string, buffer: string }
+ * StreamBlock - Represents a pre-processed, renderable unit of content
+ * Each block is ready to render in its final form (text, chart, article card, etc.)
  */
-function getStreamingSafeText(text: string, isStreaming: boolean): { safeText: string, buffer: string } {
-  if (!isStreaming || !text) {
-    return { safeText: text, buffer: '' };
-  }
-  
-  // Patterns that could be incomplete during streaming:
-  // 1. Bold: **text** - could have unclosed **
-  // 2. Links: [text](url) - could have unclosed [ or (
-  // 3. Markers: [VIEW_CHART:...], [VIEW_ARTICLE:...], [IMAGE_CARD:...], [EVENT_CARD:...]
-  
-  let safeText = text;
-  let buffer = '';
-  
-  // Find the last complete line (ends with \n\n or is complete content)
-  // This ensures we don't render mid-sentence which breaks markdown
-  const lastDoubleNewline = text.lastIndexOf('\n\n');
-  const lastSingleNewline = text.lastIndexOf('\n');
-  
-  // Check for incomplete patterns at the end
-  const hasIncompletePattern = (str: string): boolean => {
-    // Check for unclosed brackets
-    const openBrackets = (str.match(/\[/g) || []).length;
-    const closeBrackets = (str.match(/\]/g) || []).length;
-    if (openBrackets > closeBrackets) return true;
-    
-    // Check for unclosed parentheses after ]
-    const linkPattern = /\]\([^)]*$/;
-    if (linkPattern.test(str)) return true;
-    
-    // Check for unclosed bold markers
-    const boldMarkers = (str.match(/\*\*/g) || []).length;
-    if (boldMarkers % 2 !== 0) return true;
-    
-    // Check for partial marker at end (starts with [ but no ])
-    if (/\[[^\]]*$/.test(str)) return true;
-    
-    return false;
-  };
-  
-  // Strategy: Find the last "safe" point to render
-  // A safe point is after a complete paragraph (double newline) or complete line (single newline)
-  // where there are no incomplete patterns
-  
-  if (lastDoubleNewline > 0) {
-    const beforeDoubleNewline = text.substring(0, lastDoubleNewline);
-    const afterDoubleNewline = text.substring(lastDoubleNewline + 2);
-    
-    if (!hasIncompletePattern(beforeDoubleNewline)) {
-      // Check if the part after is incomplete
-      if (hasIncompletePattern(afterDoubleNewline) || afterDoubleNewline.length < 10) {
-        safeText = beforeDoubleNewline;
-        buffer = afterDoubleNewline;
-      }
-    }
-  } else if (lastSingleNewline > 0) {
-    const beforeNewline = text.substring(0, lastSingleNewline);
-    const afterNewline = text.substring(lastSingleNewline + 1);
-    
-    if (!hasIncompletePattern(beforeNewline) && hasIncompletePattern(afterNewline)) {
-      safeText = beforeNewline;
-      buffer = '\n' + afterNewline;
-    }
-  }
-  
-  // Final check: if the whole text has incomplete patterns, buffer more aggressively
-  if (hasIncompletePattern(safeText)) {
-    // Find last complete sentence or line
-    const lastPeriod = safeText.lastIndexOf('. ');
-    const lastNewline = safeText.lastIndexOf('\n');
-    const safeCutoff = Math.max(lastPeriod + 1, lastNewline);
-    
-    if (safeCutoff > 0 && safeCutoff < safeText.length - 5) {
-      buffer = safeText.substring(safeCutoff) + buffer;
-      safeText = safeText.substring(0, safeCutoff);
-    }
-  }
-  
-  return { safeText, buffer };
+interface StreamBlock {
+  id: string;
+  type: 'text' | 'chart' | 'article' | 'image' | 'event';
+  content: string;  // For text blocks, the markdown content
+  data?: any;       // For cards/charts, the structured data
 }
 
-// Markdown Renderer Component
-function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerClick, isStreaming = false }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void; onTickerClick?: (ticker: string) => void; isStreaming?: boolean }) {
-  // Get streaming-safe text to prevent garbled markdown during streaming
-  const { safeText } = getStreamingSafeText(text, isStreaming);
-  const mainText = isStreaming ? safeText : text;
+/**
+ * Extract complete, renderable blocks from a content buffer
+ * Returns blocks ready to render and remaining buffer content
+ */
+function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: StreamBlock[], remaining: string } {
+  const blocks: StreamBlock[] = [];
+  let remaining = buffer;
+  let blockId = 0;
+  
+  // Process the buffer looking for complete blocks
+  while (remaining.length > 0) {
+    // Check for VIEW_CHART marker at the start or after newlines
+    const chartMatch = remaining.match(/^(\s*)\[VIEW_CHART:([A-Z]+):([^\]]+)\](\s*)/);
+    if (chartMatch) {
+      // Found a complete chart marker - extract it as a block
+      blocks.push({
+        id: `chart-${blockId++}`,
+        type: 'chart',
+        content: '',
+        data: { symbol: chartMatch[2], timeRange: chartMatch[3] }
+      });
+      remaining = remaining.substring(chartMatch[0].length);
+      continue;
+    }
+    
+    // Check for VIEW_ARTICLE marker
+    const articleMatch = remaining.match(/^(\s*)\[VIEW_ARTICLE:([^\]]+)\](\s*)/);
+    if (articleMatch) {
+      const articleId = articleMatch[2];
+      const articleCard = dataCards?.find(c => c.type === 'article' && c.data.id === articleId);
+      if (articleCard) {
+        blocks.push({
+          id: `article-${blockId++}`,
+          type: 'article',
+          content: '',
+          data: articleCard.data
+        });
+      }
+      remaining = remaining.substring(articleMatch[0].length);
+      continue;
+    }
+    
+    // Check for IMAGE_CARD marker
+    const imageMatch = remaining.match(/^(\s*)\[IMAGE_CARD:([^\]]+)\](\s*)/);
+    if (imageMatch) {
+      const imageId = imageMatch[2];
+      const imageCard = dataCards?.find(c => c.type === 'image' && c.data.id === imageId);
+      if (imageCard) {
+        blocks.push({
+          id: `image-${blockId++}`,
+          type: 'image',
+          content: '',
+          data: imageCard.data
+        });
+      }
+      remaining = remaining.substring(imageMatch[0].length);
+      continue;
+    }
+    
+    // Check for EVENT_CARD marker
+    const eventMatch = remaining.match(/^(\s*)\[EVENT_CARD:([^\]]+)\](\s*)/);
+    if (eventMatch) {
+      const eventId = eventMatch[2];
+      const eventCard = dataCards?.find(c => c.type === 'event' && (c.data.id === eventId || c.data.id?.toString() === eventId));
+      if (eventCard) {
+        blocks.push({
+          id: `event-${blockId++}`,
+          type: 'event',
+          content: '',
+          data: eventCard.data
+        });
+      }
+      remaining = remaining.substring(eventMatch[0].length);
+      continue;
+    }
+    
+    // Look for the next marker or paragraph break
+    const nextMarkerMatch = remaining.match(/\[(?:VIEW_CHART|VIEW_ARTICLE|IMAGE_CARD|EVENT_CARD):[^\]]+\]/);
+    const nextDoubleNewline = remaining.indexOf('\n\n');
+    
+    // Determine where to cut the text block
+    let cutPoint = -1;
+    
+    if (nextMarkerMatch && nextMarkerMatch.index !== undefined) {
+      // There's a marker coming up
+      if (nextDoubleNewline >= 0 && nextDoubleNewline < nextMarkerMatch.index) {
+        // Paragraph break comes first
+        cutPoint = nextDoubleNewline + 2;
+      } else if (nextMarkerMatch.index === 0) {
+        // Marker is right at the start - this shouldn't happen due to matches above
+        // but handle it just in case
+        continue;
+      } else {
+        // Text before the marker
+        cutPoint = nextMarkerMatch.index;
+      }
+    } else if (nextDoubleNewline >= 0) {
+      // No marker, but there's a paragraph break
+      cutPoint = nextDoubleNewline + 2;
+    } else {
+      // No marker or paragraph break - check if we have an incomplete pattern
+      const hasIncomplete = hasIncompletePattern(remaining);
+      if (hasIncomplete) {
+        // Buffer the rest until more content arrives
+        break;
+      } else {
+        // Content looks complete enough to render
+        // But wait for more if it's very short
+        if (remaining.trim().length < 20) {
+          break;
+        }
+        cutPoint = remaining.length;
+      }
+    }
+    
+    if (cutPoint > 0) {
+      const textContent = remaining.substring(0, cutPoint);
+      if (textContent.trim()) {
+        blocks.push({
+          id: `text-${blockId++}`,
+          type: 'text',
+          content: textContent
+        });
+      }
+      remaining = remaining.substring(cutPoint);
+    } else {
+      break;
+    }
+  }
+  
+  return { blocks, remaining };
+}
+
+/**
+ * Check for incomplete markdown patterns that shouldn't be rendered yet
+ */
+function hasIncompletePattern(str: string): boolean {
+  // Check for unclosed brackets (but not if it looks like a complete marker)
+  const openBrackets = (str.match(/\[/g) || []).length;
+  const closeBrackets = (str.match(/\]/g) || []).length;
+  if (openBrackets > closeBrackets) return true;
+  
+  // Check for unclosed parentheses after ]
+  if (/\]\([^)]*$/.test(str)) return true;
+  
+  // Check for unclosed bold markers
+  const boldMarkers = (str.match(/\*\*/g) || []).length;
+  if (boldMarkers % 2 !== 0) return true;
+  
+  // Check for partial marker at end
+  if (/\[[^\]]*$/.test(str)) return true;
+  
+  return false;
+}
+
+// Markdown Renderer Component - renders pre-processed text blocks
+function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerClick }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void; onTickerClick?: (ticker: string) => void }) {
+  // Text is already pre-processed by the streaming block extractor
+  const mainText = text;
   
   const formatRollCallLink = (linkText: string, url: string) => {
     // Check if this is a Roll Call URL
@@ -738,10 +818,10 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const sendingRef = useRef(false); // Add ref to prevent duplicate sends
   
-  // Streaming states
+  // Streaming states - using pre-processed blocks for clean inline rendering
   const [isStreaming, setIsStreaming] = useState(false);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
-  const [streamedContent, setStreamedContent] = useState('');
+  const [streamedBlocks, setStreamedBlocks] = useState<StreamBlock[]>([]);  // Pre-processed renderable blocks
   const [streamingDataCards, setStreamingDataCards] = useState<DataCard[]>([]);
   const [thinkingCollapsed, setThinkingCollapsed] = useState(true);
   
@@ -848,7 +928,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
 
   // Throttle scroll updates during streaming to prevent jank
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const contentBatchRef = useRef<string>('');
+  const contentBufferRef = useRef<string>('');  // Buffer for incoming content before block extraction
   const contentFlushTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
@@ -877,7 +957,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [messages, streamedContent, thinkingSteps, isStreaming]);
+  }, [messages, streamedBlocks, thinkingSteps, isStreaming]);
 
   // Handle ESC key to close fullscreen image
   useEffect(() => {
@@ -978,12 +1058,12 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     setIsTyping(true);
     setIsStreaming(true);
     setThinkingSteps([]);
-    setStreamedContent('');
+    setStreamedBlocks([]);  // Reset to empty blocks array
     setStreamingDataCards([]);
     setThinkingCollapsed(true);
     
-    // Reset content batching refs
-    contentBatchRef.current = '';
+    // Reset content buffer ref
+    contentBufferRef.current = '';
     if (contentFlushTimeoutRef.current) {
       clearTimeout(contentFlushTimeoutRef.current);
       contentFlushTimeoutRef.current = null;
@@ -1025,9 +1105,41 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
       let buffer = '';
       let collectedThinking: ThinkingStep[] = [];
       let collectedContent = '';
+      let collectedBlocks: StreamBlock[] = [];  // Track all blocks for final message
       let collectedDataCards: DataCard[] = [];
       let eventData: Record<string, any> = {};
       let thinkingStartTime: number | null = null; // Track thinking start time
+      let blockIdCounter = 0;  // Unique ID counter for blocks
+      
+      // Helper to extract and render blocks from buffer
+      const processContentBuffer = (forceFlush: boolean = false) => {
+        const { blocks, remaining } = extractStreamBlocks(contentBufferRef.current, collectedDataCards);
+        
+        if (blocks.length > 0) {
+          // Assign unique IDs to new blocks
+          const newBlocks = blocks.map(block => ({
+            ...block,
+            id: `block-${blockIdCounter++}-${block.id}`
+          }));
+          
+          collectedBlocks.push(...newBlocks);
+          setStreamedBlocks(prev => [...prev, ...newBlocks]);
+        }
+        
+        contentBufferRef.current = remaining;
+        
+        // If force flush and there's remaining content, add it as a text block
+        if (forceFlush && remaining.trim()) {
+          const finalBlock: StreamBlock = {
+            id: `block-${blockIdCounter++}-final`,
+            type: 'text',
+            content: remaining
+          };
+          collectedBlocks.push(finalBlock);
+          setStreamedBlocks(prev => [...prev, finalBlock]);
+          contentBufferRef.current = '';
+        }
+      };
       
       // Helper to process a batch of messages
       const processMessages = (msgs: string[]) => {
@@ -1068,50 +1180,36 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 break;
 
               case 'content':
-                // Accumulate content in batch ref
-                contentBatchRef.current += data.content;
+                // Add content to buffer and track full content
+                contentBufferRef.current += data.content;
                 collectedContent += data.content;
                 
-                // Smart batching: flush on complete paragraphs, sentences, or after timeout
-                // This prevents garbled markdown from partial patterns like **bold** or [markers]
-                const batchContent = contentBatchRef.current;
-                const shouldFlushContent = 
-                  batchContent.includes('\n\n') ||     // Complete paragraph
-                  batchContent.endsWith('\n') ||       // Complete line  
-                  batchContent.endsWith('. ') ||       // Complete sentence
-                  batchContent.endsWith(']\n') ||      // Complete marker + newline
-                  (batchContent.endsWith(']') && batchContent.includes('[VIEW_')) || // Complete VIEW marker
-                  batchContent.length > 150;           // Buffer getting large
-                
-                if (shouldFlushContent) {
-                  if (contentFlushTimeoutRef.current) {
-                    clearTimeout(contentFlushTimeoutRef.current);
-                    contentFlushTimeoutRef.current = null;
-                  }
-                  setStreamedContent(prev => prev + contentBatchRef.current);
-                  contentBatchRef.current = '';
-                } else if (!contentFlushTimeoutRef.current) {
-                  // Fallback: flush after 80ms if nothing else triggers
-                  contentFlushTimeoutRef.current = setTimeout(() => {
-                    if (contentBatchRef.current) {
-                      setStreamedContent(prev => prev + contentBatchRef.current);
-                      contentBatchRef.current = '';
-                    }
-                    contentFlushTimeoutRef.current = null;
-                  }, 80);
-                }
-                break;
-
-              case 'done':
-                // Flush any remaining batched content
-                if (contentBatchRef.current) {
-                  setStreamedContent(prev => prev + contentBatchRef.current);
-                  contentBatchRef.current = '';
-                }
+                // Process buffer to extract complete blocks
+                // Clear any pending timeout since we're processing now
                 if (contentFlushTimeoutRef.current) {
                   clearTimeout(contentFlushTimeoutRef.current);
                   contentFlushTimeoutRef.current = null;
                 }
+                
+                // Try to extract blocks immediately
+                processContentBuffer(false);
+                
+                // Set a fallback timeout to flush partial content if no more data arrives
+                contentFlushTimeoutRef.current = setTimeout(() => {
+                  if (contentBufferRef.current.trim()) {
+                    processContentBuffer(false);
+                  }
+                  contentFlushTimeoutRef.current = null;
+                }, 100);
+                break;
+
+              case 'done':
+                // Flush any remaining buffered content as final blocks
+                if (contentFlushTimeoutRef.current) {
+                  clearTimeout(contentFlushTimeoutRef.current);
+                  contentFlushTimeoutRef.current = null;
+                }
+                processContentBuffer(true);  // Force flush remaining content
                 
                 // Calculate thinking duration
                 const thinkingDuration = thinkingStartTime 
@@ -1131,7 +1229,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 setMessages(prev => [...prev, aiMessage]);
                 setIsStreaming(false);
                 setThinkingSteps([]);
-                setStreamedContent('');
+                setStreamedBlocks([]);  // Clear streamed blocks
                 setStreamingDataCards([]);
                 break;
             }
@@ -1262,12 +1360,12 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     setIsTyping(true);
     setIsStreaming(true);
     setThinkingSteps([]);
-    setStreamedContent('');
+    setStreamedBlocks([]);  // Reset to empty blocks array
     setStreamingDataCards([]);
     setThinkingCollapsed(true);
     
-    // Reset content batching refs
-    contentBatchRef.current = '';
+    // Reset content buffer ref
+    contentBufferRef.current = '';
     if (contentFlushTimeoutRef.current) {
       clearTimeout(contentFlushTimeoutRef.current);
       contentFlushTimeoutRef.current = null;
@@ -1305,9 +1403,39 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
       let buffer = '';
       let collectedThinking: ThinkingStep[] = [];
       let collectedContent = '';
+      let collectedBlocks: StreamBlock[] = [];  // Track all blocks for final message
       let collectedDataCards: DataCard[] = [];
       let eventData: Record<string, any> = {};
       let thinkingStartTime: number | null = null; // Track thinking start time
+      let editBlockIdCounter = 0;  // Unique ID counter for blocks
+      
+      // Helper to extract and render blocks from buffer (edit mode)
+      const processEditContentBuffer = (forceFlush: boolean = false) => {
+        const { blocks, remaining } = extractStreamBlocks(contentBufferRef.current, collectedDataCards);
+        
+        if (blocks.length > 0) {
+          const newBlocks = blocks.map(block => ({
+            ...block,
+            id: `edit-block-${editBlockIdCounter++}-${block.id}`
+          }));
+          
+          collectedBlocks.push(...newBlocks);
+          setStreamedBlocks(prev => [...prev, ...newBlocks]);
+        }
+        
+        contentBufferRef.current = remaining;
+        
+        if (forceFlush && remaining.trim()) {
+          const finalBlock: StreamBlock = {
+            id: `edit-block-${editBlockIdCounter++}-final`,
+            type: 'text',
+            content: remaining
+          };
+          collectedBlocks.push(finalBlock);
+          setStreamedBlocks(prev => [...prev, finalBlock]);
+          contentBufferRef.current = '';
+        }
+      };
       
       // Helper to process a batch of messages
       const processMessages = (msgs: string[]) => {
@@ -1346,50 +1474,33 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 break;
 
               case 'content':
-                // Accumulate content in batch ref
-                contentBatchRef.current += data.content;
+                // Add content to buffer and track full content
+                contentBufferRef.current += data.content;
                 collectedContent += data.content;
                 
-                // Smart batching: flush on complete paragraphs, sentences, or after timeout
-                // This prevents garbled markdown from partial patterns like **bold** or [markers]
-                const editBatchContent = contentBatchRef.current;
-                const shouldFlushEditContent = 
-                  editBatchContent.includes('\n\n') ||     // Complete paragraph
-                  editBatchContent.endsWith('\n') ||       // Complete line  
-                  editBatchContent.endsWith('. ') ||       // Complete sentence
-                  editBatchContent.endsWith(']\n') ||      // Complete marker + newline
-                  (editBatchContent.endsWith(']') && editBatchContent.includes('[VIEW_')) || // Complete VIEW marker
-                  editBatchContent.length > 150;           // Buffer getting large
-                
-                if (shouldFlushEditContent) {
-                  if (contentFlushTimeoutRef.current) {
-                    clearTimeout(contentFlushTimeoutRef.current);
-                    contentFlushTimeoutRef.current = null;
-                  }
-                  setStreamedContent(prev => prev + contentBatchRef.current);
-                  contentBatchRef.current = '';
-                } else if (!contentFlushTimeoutRef.current) {
-                  // Fallback: flush after 80ms if nothing else triggers
-                  contentFlushTimeoutRef.current = setTimeout(() => {
-                    if (contentBatchRef.current) {
-                      setStreamedContent(prev => prev + contentBatchRef.current);
-                      contentBatchRef.current = '';
-                    }
-                    contentFlushTimeoutRef.current = null;
-                  }, 80);
-                }
-                break;
-
-              case 'done':
-                // Flush any remaining batched content
-                if (contentBatchRef.current) {
-                  setStreamedContent(prev => prev + contentBatchRef.current);
-                  contentBatchRef.current = '';
-                }
+                // Process buffer to extract complete blocks
                 if (contentFlushTimeoutRef.current) {
                   clearTimeout(contentFlushTimeoutRef.current);
                   contentFlushTimeoutRef.current = null;
                 }
+                
+                processEditContentBuffer(false);
+                
+                contentFlushTimeoutRef.current = setTimeout(() => {
+                  if (contentBufferRef.current.trim()) {
+                    processEditContentBuffer(false);
+                  }
+                  contentFlushTimeoutRef.current = null;
+                }, 100);
+                break;
+
+              case 'done':
+                // Flush any remaining buffered content
+                if (contentFlushTimeoutRef.current) {
+                  clearTimeout(contentFlushTimeoutRef.current);
+                  contentFlushTimeoutRef.current = null;
+                }
+                processEditContentBuffer(true);
                 
                 // Calculate thinking duration
                 const thinkingDuration = thinkingStartTime 
@@ -1409,7 +1520,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 setMessages(prev => [...prev, aiMessage]);
                 setIsStreaming(false);
                 setThinkingSteps([]);
-                setStreamedContent('');
+                setStreamedBlocks([]);  // Clear streamed blocks
                 setStreamingDataCards([]);
                 break;
             }
@@ -1981,7 +2092,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 )}
 
                 {/* Loading indicator before thinking starts */}
-                {thinkingSteps.length === 0 && !streamedContent && streamingDataCards.length === 0 && (
+                {thinkingSteps.length === 0 && streamedBlocks.length === 0 && streamingDataCards.length === 0 && (
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -2052,8 +2163,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   </div>
                 )}
 
-                {/* Streamed Content with Typing Cursor - Full Width, No Background */}
-                {streamedContent && (
+                {/* Streamed Content Blocks - Rendered inline in final form with Typing Cursor */}
+                {streamedBlocks.length > 0 && (
                   <div 
                     className="text-foreground"
                     style={{ 
@@ -2062,7 +2173,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                       contentVisibility: 'auto'
                     }}
                   >
-                    <MarkdownText text={streamedContent} dataCards={streamingDataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} isStreaming={true} />
+                    <StreamBlockRenderer 
+                      blocks={streamedBlocks} 
+                      dataCards={streamingDataCards} 
+                      onEventClick={onEventClick} 
+                      onImageClick={setFullscreenImage} 
+                      onTickerClick={onTickerClick} 
+                    />
                     <span
                       className="inline-block w-[2px] h-4 bg-foreground/60 ml-0.5 animate-pulse"
                     />
@@ -2545,6 +2662,98 @@ function DataCardComponent({ card, onEventClick, onImageClick, onTickerClick }: 
   }
 
   return null;
+}
+
+/**
+ * StreamBlockRenderer - Renders pre-processed streaming blocks in their final form
+ * Each block renders immediately as text, chart, or card - no post-processing needed
+ */
+function StreamBlockRenderer({ 
+  blocks, 
+  dataCards,
+  onEventClick, 
+  onImageClick, 
+  onTickerClick 
+}: { 
+  blocks: StreamBlock[];
+  dataCards?: DataCard[];
+  onEventClick?: (event: MarketEvent) => void;
+  onImageClick?: (imageUrl: string) => void;
+  onTickerClick?: (ticker: string) => void;
+}) {
+  return (
+    <div className="space-y-0">
+      {blocks.map((block) => {
+        switch (block.type) {
+          case 'text':
+            return (
+              <div key={block.id}>
+                <MarkdownText 
+                  text={block.content} 
+                  dataCards={dataCards} 
+                  onEventClick={onEventClick} 
+                  onImageClick={onImageClick} 
+                  onTickerClick={onTickerClick} 
+                />
+              </div>
+            );
+          
+          case 'chart':
+            return (
+              <div key={block.id} className="my-3">
+                <InlineChartCard 
+                  symbol={block.data.symbol} 
+                  timeRange={block.data.timeRange} 
+                  onTickerClick={onTickerClick} 
+                />
+              </div>
+            );
+          
+          case 'article':
+            const articleCard: DataCard = { type: 'article', data: block.data };
+            return (
+              <div key={block.id} className="my-3">
+                <DataCardComponent 
+                  card={articleCard} 
+                  onEventClick={onEventClick} 
+                  onImageClick={onImageClick} 
+                  onTickerClick={onTickerClick} 
+                />
+              </div>
+            );
+          
+          case 'image':
+            const imageCard: DataCard = { type: 'image', data: block.data };
+            return (
+              <div key={block.id} className="my-3">
+                <DataCardComponent 
+                  card={imageCard} 
+                  onEventClick={onEventClick} 
+                  onImageClick={onImageClick} 
+                  onTickerClick={onTickerClick} 
+                />
+              </div>
+            );
+          
+          case 'event':
+            const eventCard: DataCard = { type: 'event', data: block.data };
+            return (
+              <div key={block.id} className="my-3">
+                <DataCardComponent 
+                  card={eventCard} 
+                  onEventClick={onEventClick} 
+                  onImageClick={onImageClick} 
+                  onTickerClick={onTickerClick} 
+                />
+              </div>
+            );
+          
+          default:
+            return null;
+        }
+      })}
+    </div>
+  );
 }
 
 /**
