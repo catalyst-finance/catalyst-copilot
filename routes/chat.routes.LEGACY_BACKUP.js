@@ -78,39 +78,261 @@ router.post('/', optionalAuth, async (req, res) => {
       console.log(`Loaded ${loadedHistory.length} messages from conversation ${conversationId}`);
     }
 
-    // ===== AI-NATIVE QUERY ENGINE =====
-    console.log('🤖 Using AI-Native Query Engine...');
-    sendThinking('analyzing', 'Understanding your question...');
+    // ===== AI-NATIVE QUERY ENGINE (NEW APPROACH) =====
+    // Toggle: Set to true to use AI-generated queries instead of hardcoded classification
+    const USE_AI_QUERY_ENGINE = true;
     
     let queryIntent;
     let queryResults = [];
     
+    if (USE_AI_QUERY_ENGINE) {
+      console.log('🤖 Using AI-Native Query Engine...');
+      sendThinking('analyzing', 'Understanding your question...');
+      
+      try {
+        // AI generates the queries directly - no hardcoded classification
+        const queryPlan = await QueryEngine.generateQueries(message, selectedTickers);
+        console.log('📋 Query Plan:', JSON.stringify(queryPlan, null, 2));
+        
+        sendThinking('retrieving', 'Fetching data from databases...');
+        
+        // Execute the AI-generated queries
+        queryResults = await QueryEngine.executeQueries(queryPlan, DataConnector);
+        console.log(`✅ Retrieved data from ${queryResults.length} source(s)`);
+        
+        // Store intent for later use
+        queryIntent = {
+          intent: queryPlan.intent,
+          extractCompaniesFromTranscripts: queryPlan.extractCompanies,
+          needsChart: queryPlan.needsChart,
+          tickers: selectedTickers,
+          queries: queryPlan.queries
+        };
+        
+      } catch (error) {
+        console.error('❌ AI Query Engine failed:', error);
+        // Fallback to empty results
+        queryIntent = { intent: 'general', tickers: selectedTickers };
+        queryResults = [];
+      }
+      
+    } else {
+      // ORIGINAL CLASSIFICATION LOGIC (keep for comparison)
+      console.log('⚙️ Using legacy classification logic...');
+
+    // STEP 1: AI-POWERED QUERY CLASSIFICATION
+    const currentDate = new Date().toISOString().split('T')[0];
+    const classificationPrompt = `You are an intelligent query router for a multi-database financial data system. Analyze the user's question and intelligently determine which data sources and collections to query.
+
+AVAILABLE DATA SOURCES:
+
+**Supabase (PostgreSQL)**:
+- finnhub_quote_snapshots: Current stock quotes (price, volume, change)
+- intraday_prices: Tick-by-tick intraday data for charts
+- daily_prices: Historical daily OHLCV data
+- event_data: Corporate events (earnings, FDA approvals, product launches, M&A)
+
+**MongoDB - raw_data database**:
+- sec_filings: SEC filings (10-K, 10-Q, 8-K, 4, S-1, 13F, DEF 14A, 424B, etc.)
+  * Full text content available for deep analysis
+  * Use for: financial statements, risk disclosures, business updates, insider trading
+- institutional_ownership: 13F filings showing hedge fund/institution holdings
+  * Use for: investor sentiment, smart money positioning, ownership changes
+- government_policy: White House transcripts, policy speeches, political commentary
+  * Use for: tariffs, regulations, government actions, political statements
+- macro_economics: Economic indicators, global market news, country-specific data
+  * Use for: GDP, inflation, unemployment, market sentiment, international markets
+
+Analyze the query and return a JSON object:
+
+{
+  "intent": "stock_price" | "events" | "institutional" | "sec_filings" | "macro_economic" | "government_policy" | "market_news" | "future_outlook" | "general",
+  "dataSources": [
+    {
+      "database": "supabase" | "mongodb",
+      "collection": "sec_filings" | "institutional_ownership" | "government_policy" | "macro_economics" | "event_data" | "finnhub_quote_snapshots" | "intraday_prices" | "daily_prices",
+      "priority": 1-10,
+      "reasoning": "Why this source is relevant"
+    }
+  ],
+  "tickers": ["TSLA", "AAPL"],
+  "timeframe": "current" | "historical" | "upcoming" | "specific_date" | "future",
+  "date": "YYYY-MM-DD" or null,
+  "dateRange": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"} or null,
+  "speaker": "hassett" | "biden" | "trump" | "yellen" | "powell" | null,
+  "eventTypes": ["earnings", "fda", "product", "merger", "legal", "regulatory"],
+  "formTypes": ["10-K", "10-Q", "8-K", "4", "S-1", "13F"],
+  "preferredFormType": "10-Q" | "10-K" | "8-K" | null,
+  "scope": "focus_stocks" | "outside_focus" | "all_stocks" | "specific_tickers",
+  "needsChart": true | false,
+  "isFutureOutlook": true | false,
+  "needsDeepAnalysis": true | false,
+  "isBiggestMoversQuery": true | false,
+  "requestedFilingCount": 10 or null,
+  "requestedItemCount": 10 or null,
+  "topicKeywords": ["batteries", "tariffs", "South Korea"],
+  "searchTerms": ["NVIDIA", "Tesla", "specific phrase"] or null,
+  "extractCompaniesFromTranscripts": true | false
+}
+
+**CRITICAL ROUTING DISTINCTION - GOVERNMENT STATEMENTS vs INSTITUTIONAL FILINGS:**
+
+**GOVERNMENT POLICY QUERIES** (what politicians SAID about companies/investments):
+- "What companies did [politician] mention/discuss/take a stake in?"
+- "Which companies did [politician] talk about investing in?"
+- "What companies are involved in [politician]'s policy?"
+- Route to: government_policy collection
+- Set: extractCompaniesFromTranscripts: true
+- Set: speaker: [politician name]
+- Set: searchTerms with relevant keywords
+
+**INSTITUTIONAL/SEC FILING QUERIES** (actual SEC filings, insider trading, institutional ownership):
+- "What are Trump's stock holdings?" (actual personal holdings)
+- "Show me Form 4 filings for Trump-affiliated entities"
+- "What stocks do hedge funds own?"
+- Route to: sec_filings or institutional_ownership collections
+- These are about ACTUAL investments filed with SEC, not statements
+
+**DETECTING COMPANY EXTRACTION REQUESTS** (CRITICAL):
+- When user asks "has [politician] mentioned any companies" or "which companies did [politician] mention" or "what companies would be involved" or "what companies did [politician] take a stake in"
+- Set extractCompaniesFromTranscripts: true to trigger extraction of company names from transcript content
+- This is different from searchTerms - user is asking "what companies?" not "did they mention X?"
+- Examples:
+  * "Has Trump mentioned that any companies would be involved?" → government_policy + extractCompaniesFromTranscripts: true
+  * "Which companies did Biden discuss?" → government_policy + extractCompaniesFromTranscripts: true
+  * "What companies are involved in the infrastructure deal?" → government_policy + extractCompaniesFromTranscripts: true
+  * "What companies did Trump take a stake in?" → government_policy + extractCompaniesFromTranscripts: true + searchTerms: ["stake", "investment", ...]
+  * "Did Trump mention Chevron?" → government_policy + extractCompaniesFromTranscripts: false, searchTerms: ["Chevron"]
+
+**DETECTING REQUESTED COUNTS (APPLIES TO ALL DATA TYPES)**:
+- "last 10 filings" → requestedFilingCount: 10
+- "last 20 Trump statements" → requestedItemCount: 20
+- "5 most recent events" → requestedItemCount: 5
+- "recent news" (no number) → requestedItemCount: null (defaults to reasonable limit)
+- Extract numbers from: "last N", "N most recent", "recent N", "past N"
+
+**DETECTING SEARCH TERMS FOR GOVERNMENT POLICY QUERIES** (CRITICAL):
+- When user asks "Did [politician] mention [company/topic]?" or "What did [politician] say about [X]?"
+- Extract the specific search terms they want to find in transcripts
+- **FOR SEMANTIC/CONCEPTUAL QUERIES**: Extract key action words and synonyms
+- Examples:
+  * "Did Trump mention NVIDIA?" → searchTerms: ["NVIDIA"]
+  * "Has Biden talked about Tesla and SpaceX?" → searchTerms: ["Tesla", "SpaceX"]
+  * "What did Trump say about Venezuelan oil?" → searchTerms: ["Venezuelan", "oil", "Venezuela"]
+  * "Did Powell discuss inflation?" → searchTerms: ["inflation"]
+  * "What companies did Trump take a stake in?" → searchTerms: ["stake", "investment", "invest", "acquire", "acquired", "purchase", "ownership", "equity", "shares"]
+  * "Which companies did Biden support?" → searchTerms: ["support", "backing", "endorse", "partnership", "collaboration"]
+  * "What companies announced deals?" → searchTerms: ["deal", "agreement", "partnership", "contract", "signed"]
+- Use searchTerms for exact text matching in government policy transcripts
+- topicKeywords is for broader thematic context, searchTerms is for exact phrase/word matching
+- Always include both singular and plural forms, common variations, and SYNONYMS for action verbs
+- For complex queries, include 5-10 related search terms to capture semantic meaning
+
+**DETECTING REQUESTED FILING COUNT (CRITICAL - DO NOT CONFUSE WITH DATE RANGES)**:
+- If user says "last 10 filings", "10 most recent filings", "analyze 10 SEC filings" → set requestedFilingCount: 10 AND dateRange: null
+- If user says "last 5 filings", "recent 5 filings" → set requestedFilingCount: 5 AND dateRange: null
+- **"last N filings" means COUNT, not DATE** - do NOT create a date range for "last N filings"
+- **ONLY create dateRange for explicit time periods**: "last week", "past month", "last 30 days", "filings from 2025"
+- If no specific number mentioned → set requestedFilingCount: null (defaults to 3-5)
+- Extract the number from phrases like "last N", "N most recent", "analyze N filings"
+
+**EXAMPLES**:
+❌ WRONG: "last 10 filings" → dateRange: {"start": "2025-12-27", "end": "2026-01-06"} (this is last 10 DAYS, not 10 FILINGS)
+✅ CORRECT: "last 10 filings" → requestedFilingCount: 10, dateRange: null (count-based query)
+✅ CORRECT: "filings from last week" → dateRange: {"start": "2025-12-30", "end": "2026-01-06"}, requestedFilingCount: null (date-based query)
+✅ CORRECT: "last 20 Trump statements" → requestedItemCount: 20, timeframe: "current"
+
+**IMPORTANT NOTE ON formTypes**: 
+- When requesting SEC filings for roadmap/product/business questions, ALWAYS include ["10-K", "10-Q", "8-K"] as a minimum
+- 8-K filings contain the most recent material events and are CRITICAL for up-to-date analysis
+- Never return formTypes with only ["10-K", "10-Q"] - always add "8-K"
+
+**FILING TYPE PREFERENCES BY QUERY TYPE** (intelligent prioritization):
+- **Product development, clinical trials, R&D, pipeline**: PREFER 10-Q first - contains detailed MD&A with operational updates, trial progress, business strategy
+- **Roadmap, outlook, future plans**: PREFER 10-Q first - has forward-looking statements and management discussion
+- **Financial results, earnings**: PREFER 10-Q for quarterly, 10-K for annual, 8-K for announcements
+- **Material events, announcements, offerings**: PREFER 8-K - contains time-sensitive disclosures
+- **Annual overview, risk factors, full business description**: PREFER 10-K - comprehensive annual report
+- **Insider trading, executive compensation**: PREFER Form 4, DEF 14A
+- When the query is about detailed business operations or product progress, 10-Q filings have MORE SUBSTANCE than 8-Ks
+
+ROUTING INTELLIGENCE - Use MULTIPLE data sources when relevant:
+- Roadmap/outlook questions → event_data (upcoming events) + sec_filings (PRIORITIZE 10-Q for detailed MD&A)
+- Product development/clinical trials → sec_filings (PRIORITIZE 10-Q for trial progress details) + event_data
+- "Use SEC filings" / "based on filings" → ALWAYS include sec_filings + event_data
+- Earnings questions → event_data (dates) + sec_filings (10-Q, 8-K for actual results)
+- FDA/regulatory → event_data (trial milestones) + sec_filings (10-Q for trial details, 8-K for announcements)
+- Price questions ("how has it performed", "price action", "trading") → intraday_prices or daily_prices (for chart)
+- Ownership/investors → institutional_ownership (MongoDB)
+- Government policy/tariffs → government_policy (MongoDB)
+- Economic indicators → macro_economics (MongoDB)
+- Insider trading → sec_filings (MongoDB, Form 4)
+- Business updates → sec_filings (PRIORITIZE 10-Q for detailed operational info)
+- Political statements → government_policy
+
+**CRITICAL MULTI-SOURCE RULES:**
+1. If user mentions "SEC filings", "10-K", "10-Q", "8-K" explicitly → MUST include sec_filings with high priority
+2. If asking about future/roadmap/outlook/catalyst → MUST include BOTH event_data AND sec_filings
+3. **For SEC filings, ALWAYS include 8-K alongside 10-K and 10-Q** - 8-Ks have the most recent material updates
+4. If mentions "price", "trading", "chart", "performance" → MUST include price data (intraday_prices or daily_prices)
+5. If combines topics (e.g., "roadmap + SEC filings + price") → include ALL relevant sources
+6. Give higher priority (7-10) to explicitly mentioned data types
+
+IMPORTANT: Today's date is ${currentDate}. 
+- When user says "last week", calculate the date range from 7 days ago to today.
+- When user says "past year" or "last year", calculate the date range from 365 days ago to today.
+- When user says "past 6 months", calculate from 180 days ago to today.
+- When user says "past 3 months" or "this quarter", calculate from 90 days ago to today.
+
+User's portfolio: ${selectedTickers.join(', ') || 'none'}
+User's question: "${message}"
+
+Return ONLY the JSON object with intelligent data source routing based on the query's actual needs.
+
+Return ONLY the JSON object, no explanation.`;
+
+    let queryIntent;
     try {
-      // AI generates the queries directly - no hardcoded classification
-      const queryPlan = await QueryEngine.generateQueries(message, selectedTickers);
-      console.log('📋 Query Plan:', JSON.stringify(queryPlan, null, 2));
+      const classificationResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: classificationPrompt }],
+        temperature: 0.1,
+        max_tokens: 5000,
+        response_format: { type: "json_object" }
+      });
       
-      sendThinking('retrieving', 'Fetching data from databases...');
-      
-      // Execute the AI-generated queries
-      queryResults = await QueryEngine.executeQueries(queryPlan, DataConnector);
-      console.log(`✅ Retrieved data from ${queryResults.length} source(s)`);
-      
-      // Store intent for later use
-      queryIntent = {
-        intent: queryPlan.intent,
-        extractCompaniesFromTranscripts: queryPlan.extractCompanies,
-        needsChart: queryPlan.needsChart,
-        tickers: selectedTickers,
-        queries: queryPlan.queries
-      };
+      const classificationText = classificationResponse.choices[0].message.content.trim();
+      console.log('AI Classification:', classificationText);
+      queryIntent = JSON.parse(classificationText);
+      console.log('Parsed intent:', queryIntent);
       
     } catch (error) {
-      console.error('❌ AI Query Engine failed:', error);
-      // Fallback to empty results
-      queryIntent = { intent: 'general', tickers: selectedTickers };
-      queryResults = [];
+      console.error('Query classification failed:', error);
+      queryIntent = {
+        intent: "general",
+        tickers: selectedTickers || [],
+        timeframe: "current",
+        date: null,
+        dateRange: null,
+        speaker: null,
+        eventTypes: [],
+        scope: "focus_stocks",
+        needsChart: false,
+        isFutureOutlook: false,
+        needsDeepAnalysis: false,
+        isBiggestMoversQuery: false,
+        topicKeywords: [],
+        dataSources: [
+          {
+            database: "supabase",
+            collection: "finnhub_quote_snapshots",
+            priority: 10,
+            reasoning: "Fallback to current stock quotes"
+          }
+        ]
+      };
     }
+    } // End of legacy classification block
 
     // STEP 2: BUILD DATA CONTEXT FROM RESULTS
     let dataContext = "";
@@ -244,7 +466,587 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           // Add event formatting here
         }
       }
+      
+    } else if (!USE_AI_QUERY_ENGINE) {
+      // LEGACY DATA FETCHING LOGIC (keep for now)
+    
+    // Use AI-classified timeframe and requested counts (more reliable than regex)
+    const requestedItemCount = queryIntent.requestedItemCount || null;
+    const isCurrentTimeframe = queryIntent.timeframe === 'current';
+    console.log(`Timeframe: ${queryIntent.timeframe}, Requested item count: ${requestedItemCount}`);
+    
+    // Log AI routing decisions
+    console.log('AI-selected data sources:');
+    (queryIntent.dataSources || []).forEach(source => {
+      console.log(`  ${source.priority}: ${source.database}.${source.collection} - ${source.reasoning}`);
+    });
+    
+    // Determine which tickers to query based on AI routing
+    let tickersToQuery = [];
+    const needsTickerData = (queryIntent.dataSources || []).some(source => 
+      ['sec_filings', 'institutional_ownership', 'event_data', 'finnhub_quote_snapshots', 'intraday_prices', 'daily_prices'].includes(source.collection)
+    );
+    
+    if (needsTickerData) {
+      if (queryIntent.scope === 'focus_stocks' && selectedTickers.length > 0) {
+        tickersToQuery = selectedTickers;
+      } else if (queryIntent.scope === 'specific_tickers' && queryIntent.tickers.length > 0) {
+        tickersToQuery = queryIntent.tickers;
+      } else if (queryIntent.tickers.length > 0) {
+        tickersToQuery = queryIntent.tickers;
+      } else if (selectedTickers.length > 0) {
+        tickersToQuery = selectedTickers;
+      }
     }
+    
+    console.log('Tickers to query:', tickersToQuery);
+    
+    // Sort data sources by priority (highest first)
+    const sortedDataSources = (queryIntent.dataSources || []).sort((a, b) => b.priority - a.priority);
+    
+    // DYNAMICALLY FETCH DATA BASED ON AI ROUTING
+    for (const dataSource of sortedDataSources) {
+      const { database, collection, reasoning } = dataSource;
+      
+      try {
+        // INSTITUTIONAL OWNERSHIP
+        if (collection === 'institutional_ownership' && tickersToQuery.length > 0) {
+          sendThinking('retrieving', `Looking up institutional ownership data...`);
+          for (const ticker of tickersToQuery.slice(0, 3)) {
+            try {
+              const instResult = await DataConnector.getInstitutionalData(ticker);
+              if (instResult.success && instResult.data.length > 0) {
+                const ownership = instResult.data[0];
+                dataContext += `\n\n${ticker} Institutional Ownership (as of ${ownership.date}):\n`;
+                dataContext += `Total institutional ownership: ${ownership.ownership.percentage}\n`;
+                dataContext += `Shares held: ${ownership.ownership.totalShares} by ${ownership.ownership.totalHolders} holders\n`;
+                dataContext += `Position changes: ${ownership.activity.increased.holders} increased (${ownership.activity.increased.shares} shares), `;
+                dataContext += `${ownership.activity.decreased.holders} decreased (${ownership.activity.decreased.shares} shares)\n`;
+                
+                if (ownership.topHolders && ownership.topHolders.length > 0) {
+                  dataContext += `\nTop 10 institutional holders:\n`;
+                  ownership.topHolders.forEach((holder, i) => {
+                    dataContext += `${i + 1}. ${holder.owner}: ${holder.shares} shares ($${holder.marketValue}), change: ${holder.change}\n`;
+                  });
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching institutional data for ${ticker}:`, error);
+            }
+          }
+        }
+        
+        // SEC FILINGS
+        if (collection === 'sec_filings' && tickersToQuery.length > 0) {
+          sendThinking('retrieving', `Searching SEC filings database...`);
+          const formTypes = queryIntent.formTypes && queryIntent.formTypes.length > 0 ? queryIntent.formTypes : null;
+          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
+          const dateRange = queryIntent.dateRange || null;
+          
+          let uniqueKeywords = [];
+          
+          if (needsDeepAnalysis) {
+            sendThinking('retrieving', `Expanding search keywords with AI...`);
+            try {
+              const keywordPrompt = `You are an expert research analyst. Extract and intelligently expand search terms from this query to find relevant content in SEC filings.
+
+User query: "${message}"
+
+Return a JSON object with a "keywords" array containing 15-25 search strings.`;
+
+              const keywordResponse = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [{ role: "user", content: keywordPrompt }],
+                temperature: 0.2,
+                max_tokens: 1000,
+                response_format: { type: "json_object" }
+              });
+              
+              const keywordText = keywordResponse.choices[0].message.content.trim();
+              const keywordData = JSON.parse(keywordText);
+              uniqueKeywords = (keywordData.keywords || []).filter(k => k && k.length > 2);
+              
+              console.log(`AI-expanded keywords for SEC filing analysis: ${uniqueKeywords.join(', ')}`);
+            } catch (error) {
+              console.error('Keyword expansion failed, using basic extraction:', error);
+              uniqueKeywords = message
+                .split(/\s+/)
+                .filter(word => word.length > 3 && /^[A-Za-z]+$/.test(word))
+                .slice(0, 10);
+            }
+          } else {
+            uniqueKeywords = message
+              .split(/\s+/)
+              .filter(word => word.length > 3 && /^[A-Za-z]+$/.test(word))
+              .slice(0, 5);
+          }
+          
+          sendThinking('retrieving', `Querying SEC database for ${tickersToQuery.slice(0, 3).join(', ')}...`);
+          
+          for (const ticker of tickersToQuery.slice(0, 3)) {
+            try {
+              const secResult = await DataConnector.getSecFilings(ticker, formTypes, dateRange, needsDeepAnalysis ? 50 : 10);
+              if (secResult.success && secResult.data.length > 0) {
+                // Track metadata
+                intelligenceMetadata.totalSources += secResult.data.length;
+                intelligenceMetadata.tickers.push(ticker);
+                
+                // Track filing types found
+                secResult.data.forEach(filing => {
+                  if (filing.form_type && !intelligenceMetadata.secFilingTypes.includes(filing.form_type)) {
+                    intelligenceMetadata.secFilingTypes.push(filing.form_type);
+                  }
+                  
+                  // Track freshness
+                  if (filing.acceptance_datetime) {
+                    const filingDate = new Date(filing.acceptance_datetime);
+                    const today = new Date();
+                    const daysSinceFiling = (today - filingDate) / (1000 * 60 * 60 * 24);
+                    intelligenceMetadata.sourceFreshness.push(daysSinceFiling);
+                  }
+                });
+                
+                // Store for temporal analysis
+                if (!intelligenceMetadata.temporalData[ticker]) {
+                  intelligenceMetadata.temporalData[ticker] = { filings: [] };
+                }
+                secResult.data.forEach(filing => {
+                  intelligenceMetadata.temporalData[ticker].filings.push({
+                    date: filing.acceptance_datetime,
+                    type: filing.form_type
+                  });
+                });
+                
+                const substantiveTypes = ['10-K', '10-Q', '8-K', 'S-1', '10-K/A', '10-Q/A', '8-K/A', 'DEF 14A', '424B'];
+                let substantiveFilings = secResult.data.filter(f => substantiveTypes.some(t => f.form_type?.includes(t)));
+                
+                // Sort filings by preferred form type if specified (e.g., prefer 10-Q for product development queries)
+                const preferredFormType = queryIntent.preferredFormType || null;
+                if (preferredFormType && substantiveFilings.length > 1) {
+                  substantiveFilings.sort((a, b) => {
+                    const aIsPreferred = a.form_type?.includes(preferredFormType);
+                    const bIsPreferred = b.form_type?.includes(preferredFormType);
+                    if (aIsPreferred && !bIsPreferred) return -1;
+                    if (!aIsPreferred && bIsPreferred) return 1;
+                    // Secondary sort: prefer 10-Q over 8-K for detailed content
+                    const aIs10Q = a.form_type?.includes('10-Q');
+                    const bIs10Q = b.form_type?.includes('10-Q');
+                    if (aIs10Q && !bIs10Q) return -1;
+                    if (!aIs10Q && bIs10Q) return 1;
+                    // Fall back to date (most recent first)
+                    return new Date(b.acceptance_datetime || 0) - new Date(a.acceptance_datetime || 0);
+                  });
+                  console.log(`📋 Sorted filings by preferred type: ${preferredFormType}`);
+                }
+                
+                dataContext += `\n\n${ticker} SEC Filings Analysis:\n`;
+                
+                if (needsDeepAnalysis && substantiveFilings.length > 0) {
+                  // Use requestedFilingCount from query intent, or default to 3
+                  const requestedCount = queryIntent.requestedFilingCount || 3;
+                  const filingsToAnalyze = substantiveFilings.slice(0, Math.min(requestedCount, substantiveFilings.length));
+                  
+                  sendThinking('retrieving', `Fetching content from ${filingsToAnalyze.length} SEC filing(s)...`);
+                  
+                  for (let i = 0; i < filingsToAnalyze.length; i++) {
+                    const filing = filingsToAnalyze[i];
+                    const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+                    
+                    dataContext += `${i + 1}. ${filing.form_type} filed on ${date}\n`;
+                    dataContext += `   URL: ${filing.url}\n`;
+                    
+                    if (filing.url) {
+                      const contentResult = await DataConnector.fetchSecFilingContent(
+                        filing.url, 
+                        uniqueKeywords, 
+                        25000
+                      );
+                      
+                      if (contentResult.success && contentResult.content) {
+                        dataContext += `\n   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
+                        
+                        // Store filing data for sentiment and entity analysis
+                        intelligenceMetadata.secFilings.push({
+                          ticker,
+                          formType: filing.form_type,
+                          date: filing.acceptance_datetime,
+                          content: contentResult.content.substring(0, 5000), // First 5000 chars for analysis
+                          url: filing.url
+                        });
+                        
+                        if (contentResult.images && contentResult.images.length > 0) {
+                          contentResult.images.slice(0, 5).forEach((img, idx) => {
+                            const imageId = `sec-image-${ticker}-${filing.accession_number || i}-${idx}`;
+                            dataCards.push({
+                              type: 'image',
+                              data: {
+                                id: imageId,
+                                ticker: ticker,
+                                source: 'sec_filing',
+                                title: img.alt || 'Chart/Diagram from SEC Filing',
+                                imageUrl: img.url,
+                                context: img.context || null,
+                                filingType: filing.form_type,
+                                filingDate: date,
+                                filingUrl: filing.url
+                              }
+                            });
+                            // Add inline marker immediately after the filing content
+                            dataContext += `   [IMAGE_CARD:${imageId}]\n`;
+                          });
+                        }
+                      }
+                    }
+                  }
+                  
+                  const totalImages = dataCards.filter(c => c.type === 'image' && c.data.ticker === ticker).length;
+                  if (totalImages > 0) {
+                    sendThinking('retrieving', `Extracted ${totalImages} image(s) from ${ticker} filings...`);
+                  }
+                } else {
+                  secResult.data.slice(0, 5).forEach((filing, i) => {
+                    const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+                    dataContext += `${i + 1}. ${filing.form_type} (${date}): ${filing.url}\n`;
+                  });
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching SEC filings for ${ticker}:`, error);
+            }
+          }
+        }
+        
+        // GOVERNMENT POLICY
+        if (collection === 'government_policy') {
+          sendThinking('retrieving', `Fetching government policy statements...`);
+          
+          const macroFilters = {
+            sort: { date: -1 }  // Always sort by date descending
+          };
+          
+          if (queryIntent.speaker) macroFilters.speaker = queryIntent.speaker;
+          if (queryIntent.dateRange) {
+            macroFilters.date = {
+              $gte: queryIntent.dateRange.start,
+              $lte: queryIntent.dateRange.end
+            };
+          }
+          if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
+            macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
+          }
+          // CRITICAL: Add searchTerms for exact text matching in transcripts
+          if (queryIntent.searchTerms && queryIntent.searchTerms.length > 0) {
+            const searchText = queryIntent.searchTerms.join(' ');
+            macroFilters.textSearch = macroFilters.textSearch 
+              ? `${macroFilters.textSearch} ${searchText}` 
+              : searchText;
+          }
+          // Apply intelligent limiting based on user request or timeframe
+          if (requestedItemCount) {
+            macroFilters.limit = requestedItemCount;
+          } else if (isCurrentTimeframe) {
+            macroFilters.limit = 10;  // Reasonable default for current data
+            macroFilters.limit = 5;
+          }
+          
+          try {
+            const policyResult = await DataConnector.getMacroData('policy', macroFilters);
+            if (policyResult.success && policyResult.data.length > 0) {
+              dataContext += `\n\nGovernment Policy Data:\n`;
+              policyResult.data.slice(0, 5).forEach((item, i) => {
+                dataContext += `${i + 1}. ${item.title} (${item.date})\n`;
+                if (item.quotes) {
+                  item.quotes.slice(0, 2).forEach(quote => {
+                    dataContext += `   "${quote}"\n`;
+                  });
+                }
+              });
+              
+              // CRITICAL: Check if companies are mentioned in policy query or content
+              // ENHANCED: Now handles both explicit searches AND "which companies?" queries
+              sendThinking('retrieving', `Checking for company mentions in policy statements...`);
+              try {
+                // Debug: Check the first document's structure
+                if (policyResult.data.length > 0) {
+                  const firstDoc = policyResult.data[0];
+                  console.log(`🔍 First document structure:`, {
+                    title: firstDoc.title,
+                    hasTurns: !!firstDoc.turns,
+                    turnsCount: firstDoc.turns?.length || 0,
+                    turnsType: Array.isArray(firstDoc.turns) ? 'array' : typeof firstDoc.turns,
+                    firstTurnKeys: firstDoc.turns?.[0] ? Object.keys(firstDoc.turns[0]) : [],
+                    firstTurnSample: firstDoc.turns?.[0] ? JSON.stringify(firstDoc.turns[0]).substring(0, 200) : 'none'
+                  });
+                }
+                
+                const policyTexts = policyResult.data.map(item => {
+                  const turns = item.turns || [];
+                  const text = turns.map(t => t.text).join(' ');
+                  return `${item.title}: ${text}`;
+                }).join('\n\n');
+                
+                console.log(`📝 Transcript excerpt length: ${policyTexts.length} chars`);
+                console.log(`📝 Transcript preview: ${policyTexts.substring(0, 500)}...`);
+                
+                // Enhanced prompt: explicitly ask to extract companies mentioned IN THE TRANSCRIPTS
+                const companyCheckPrompt = `You are a company name extractor. Find ALL publicly traded company names mentioned in this government policy transcript.
+
+Policy Transcript Content (excerpt):
+${policyTexts.substring(0, 8000)}
+
+CRITICAL INSTRUCTIONS:
+1. Search the transcript for ANY mention of publicly traded company names
+2. Look for: Chevron, ExxonMobil, BP, Shell, ConocoPhillips, Occidental Petroleum, Halliburton, Schlumberger, Baker Hughes, Tesla, Apple, Microsoft, Amazon, Google, Meta, NVIDIA, etc.
+3. Even if the speaker says "Chevron's in" or "Chevron has been there" - extract "Chevron"
+4. If you see a company name ANYWHERE in the transcript text, add it to the list
+5. Be AGGRESSIVE - if there's any chance it's a company name, include it
+
+Return JSON format: {"companies": ["CompanyName1", "CompanyName2"]}
+If NO company names found in the transcript: {"companies": []}
+
+EXAMPLES:
+- Transcript: "Chevron's in, as you know" → {"companies": ["Chevron"]}
+- Transcript: "Tesla announced new factory" → {"companies": ["Tesla"]}  
+- Transcript: "major oil companies" (no specific names) → {"companies": []}
+
+Return ONLY the JSON object.`;
+
+                const companyCheckResponse = await openai.chat.completions.create({
+                  model: "gpt-4o-mini",
+                  messages: [{ role: "user", content: companyCheckPrompt }],
+                  temperature: 0.1,
+                  max_tokens: 500,
+                  response_format: { type: "json_object" }
+                });
+                
+                const companyCheckResult = companyCheckResponse.choices[0].message.content.trim();
+                console.log(`🔍 Company extraction AI response: ${companyCheckResult}`);
+                
+                const companyData = JSON.parse(companyCheckResult);
+                const companyNames = companyData.companies || [];
+                
+                console.log(`📊 Extracted companies: ${companyNames.length > 0 ? companyNames.join(', ') : 'none found'}`);
+                
+                if (companyNames.length > 0) {
+                  console.log(`🏢 Companies mentioned in policy query: ${companyNames.join(', ')}`);
+                  sendThinking('retrieving', `Looking up ticker symbols for mentioned companies...`);
+                  
+                  // Look up ticker symbols for each company
+                  const tickerPromises = companyNames.slice(0, 5).map(async (companyName) => {
+                    try {
+                      const tickerLookupPrompt = `What is the stock ticker symbol for ${companyName}? Return ONLY the ticker symbol (e.g., "TSLA", "AAPL", "MSFT") or "NONE" if not a publicly traded company. No explanation.`;
+                      
+                      const tickerResponse = await openai.chat.completions.create({
+                        model: "gpt-4o-mini",
+                        messages: [{ role: "user", content: tickerLookupPrompt }],
+                        temperature: 0.1,
+                        max_tokens: 50
+                      });
+                      
+                      const ticker = tickerResponse.choices[0].message.content.trim().replace(/[^A-Z]/g, '');
+                      
+                      if (ticker && ticker !== "NONE" && ticker.length <= 5) {
+                        console.log(`✅ Found ticker for ${companyName}: ${ticker}`);
+                        return { company: companyName, ticker };
+                      }
+                    } catch (error) {
+                      console.error(`Error looking up ticker for ${companyName}:`, error);
+                    }
+                    return null;
+                  });
+                  
+                  const tickerResults = (await Promise.all(tickerPromises)).filter(r => r !== null);
+                  
+                  if (tickerResults.length > 0) {
+                    dataContext += `\n\n=== COMPANIES MENTIONED IN POLICY STATEMENTS ===\n`;
+                    dataContext += `The following publicly traded companies were discussed:\n`;
+                    tickerResults.forEach(({ company, ticker }) => {
+                      dataContext += `- ${company} (${ticker})\n`;
+                    });
+                    dataContext += `\n**IMPORTANT**: When discussing ${tickerResults.map(r => r.company).join(', ')}, mention the ticker symbols ${tickerResults.map(r => r.ticker).join(', ')} so users can track potential market impacts.\n`;
+                  }
+                }
+              } catch (error) {
+                console.error('Error checking for company mentions:', error);
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching policy data:', error);
+          }
+        }
+        
+        // MACRO/ECONOMIC DATA
+        if (collection === 'macro_economics') {
+          sendThinking('retrieving', `Fetching economic data...`);
+          const macroFilters = {
+            sort: { date: -1 }  // Always sort by date descending
+          };
+          
+          if (queryIntent.dateRange) {
+            macroFilters.date = {
+              $gte: queryIntent.dateRange.start,
+              $lte: queryIntent.dateRange.end
+            };
+          }
+          if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
+            macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
+          }
+          
+          // Apply intelligent limiting based on user request or timeframe
+          if (requestedItemCount) {
+            macroFilters.limit = requestedItemCount;
+          } else if (isCurrentTimeframe) {
+            macroFilters.limit = 10;  // Reasonable default for current data
+          }
+          
+          try {
+            const macroResult = await DataConnector.getMacroData('economic', macroFilters);
+            if (macroResult.success && macroResult.data.length > 0) {
+              dataContext += `\n\nEconomic Data:\n`;
+              macroResult.data.slice(0, 5).forEach((item, i) => {
+                dataContext += `${i + 1}. ${item.title} (${item.date})\n`;
+                if (item.description) {
+                  dataContext += `   ${item.description.substring(0, 200)}...\n`;
+                }
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching macro data:', error);
+          }
+        }
+        
+        // EVENT DATA
+        if (collection === 'event_data') {
+          sendThinking('retrieving', `Fetching event data...`);
+          const eventFilters = {};
+          if (tickersToQuery.length > 0) {
+            eventFilters.ticker = tickersToQuery[0];
+          }
+          if (queryIntent.eventTypes && queryIntent.eventTypes.length > 0) {
+            eventFilters.type = queryIntent.eventTypes;
+          }
+          
+          try {
+            const eventResult = await DataConnector.getEvents(eventFilters);
+            if (eventResult.success && eventResult.data.length > 0) {
+              dataContext += `\n\nEvents:\n`;
+              eventResult.data.slice(0, 5).forEach((event, i) => {
+                dataContext += `${i + 1}. ${event.title} - ${event.type}\n`;
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching events:', error);
+          }
+        }
+        
+      } catch (error) {
+        console.error(`Error processing data source ${collection}:`, error);
+      }
+    }
+    
+    // STEP 2.5: EXTRACT UPCOMING DATES FOR FUTURE OUTLOOK QUERIES
+    let upcomingDatesContext = "";
+    
+    if (queryIntent.isFutureOutlook) {
+      console.log('Future outlook query detected - extracting upcoming dates from data');
+      const upcomingDates = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      for (const ticker of tickersToQuery.slice(0, 5)) {
+        try {
+          const eventFilters = {
+            query: {
+              ticker: { $regex: new RegExp(`^${ticker}$`, 'i') },
+              actualDateTime_et: { $gte: today.toISOString() }
+            },
+            sort: { actualDateTime_et: 1 },
+            limit: 10
+          };
+          
+          const eventsResult = await DataConnector.getEvents(eventFilters);
+          
+          if (eventsResult.success && eventsResult.data.length > 0) {
+            eventsResult.data.forEach(event => {
+              const eventDate = new Date(event.actualDateTime_et);
+              const daysUntil = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
+              
+              upcomingDates.push({
+                date: event.actualDateTime_et.split('T')[0],
+                daysUntil,
+                ticker: event.ticker,
+                type: 'event',
+                description: `${event.type}: ${event.title}`,
+                importance: event.impactRating || 'medium'
+              });
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching events for date extraction (${ticker}):`, error);
+        }
+      }
+      
+      for (const ticker of tickersToQuery.slice(0, 3)) {
+        try {
+          const recentFilings = await DataConnector.getSecFilings(ticker, ['8-K', '10-Q', '10-K'], null, 5);
+          
+          if (recentFilings.success && recentFilings.data.length > 0) {
+            recentFilings.data.forEach(filing => {
+              const filingDate = new Date(filing.acceptance_datetime);
+              const daysAgo = Math.ceil((today - filingDate) / (1000 * 60 * 60 * 24));
+              
+              if (daysAgo <= 30) {
+                upcomingDates.push({
+                  date: filing.acceptance_datetime.split('T')[0],
+                  daysAgo,
+                  ticker: filing.ticker,
+                  type: 'sec_filing',
+                  description: `${filing.form_type} filing - may contain forward guidance`,
+                  formType: filing.form_type
+                });
+              }
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching SEC filings for date extraction (${ticker}):`, error);
+        }
+      }
+      
+      upcomingDates.sort((a, b) => {
+        if (a.daysUntil !== undefined && b.daysUntil !== undefined) {
+          return a.daysUntil - b.daysUntil;
+        }
+        return 0;
+      });
+      
+      if (upcomingDates.length > 0) {
+        upcomingDatesContext = "\n\n═══ KEY UPCOMING DATES ═══\n";
+        upcomingDatesContext += "The following dates are important for the requested analysis:\n\n";
+        
+        const upcomingEvents = upcomingDates.filter(d => d.type === 'event');
+        if (upcomingEvents.length > 0) {
+          upcomingDatesContext += "UPCOMING EVENTS:\n";
+          upcomingEvents.forEach(item => {
+            upcomingDatesContext += `• ${item.date} (${item.daysUntil} days) - ${item.ticker}: ${item.description}\n`;
+          });
+          upcomingDatesContext += "\n";
+        }
+        
+        const recentFilings = upcomingDates.filter(d => d.type === 'sec_filing');
+        if (recentFilings.length > 0) {
+          upcomingDatesContext += "RECENT SEC FILINGS (may contain forward guidance):\n";
+          recentFilings.slice(0, 5).forEach(item => {
+            upcomingDatesContext += `• ${item.date} (${item.daysAgo} days ago) - ${item.ticker}: ${item.description}\n`;
+          });
+        }
+        
+        console.log(`Extracted ${upcomingDates.length} key dates for future outlook analysis`);
+      } else {
+        upcomingDatesContext = "\n\n═══ NO UPCOMING DATES FOUND ═══\nNo scheduled events or recent filings found in the database. Analysis should focus on historical trends and general market conditions.\n";
+        console.log('No upcoming dates found for future outlook query');
+      }
+    }
+    } // End of legacy data fetching block
 
     // STEP 3: PRE-GENERATE EVENT CARDS
     const hasEventContext = conversationHistory && conversationHistory.some(msg => 
