@@ -331,14 +331,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
     let currentList: string[] = [];
     let currentParagraph: string[] = [];
     let pendingImageCards: string[] = []; // Track IMAGE_CARD markers to render after paragraph
-    
-    const flushParagraph = () => {
-      if (currentParagraph.length > 0) {
-        const paragraphText = currentParagraph.join(' ');
-        elements.push(
-          <p key={`p-${uniqueKeyCounter++}`} className="leading-relaxed m-[0px]">
-            {parseInlineFormatting(paragraphText)}
-          </p>
+    let pendingArticleCards: string[] = []; // Track VIEW_ARTICLE markers to render after paragraph
         );
         currentParagraph = [];
         
@@ -348,6 +341,14 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
             insertImageCard(imageId);
           });
           pendingImageCards = [];
+        }
+        
+        // After flushing paragraph, add any pending article cards
+        if (pendingArticleCards.length > 0) {
+          pendingArticleCards.forEach(articleId => {
+            insertArticleCard(articleId);
+          });
+          pendingArticleCards = [];
         }
       }
     };
@@ -435,15 +436,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
         extractedImageCardIds.push(imageMatch[1]);
       }
       
-      // Store extracted image cards in pendingImageCards to render after paragraph
-      if (extractedImageCardIds.length > 0) {
-        pendingImageCards.push(...extractedImageCardIds);
-      }
-      
-      // Remove IMAGE_CARD markers from text
-      currentText = currentText.replace(imageCardRegex, '');
-      
-      // Extract VIEW_ARTICLE markers
+      // Store extracted image cards  (similar to IMAGE_CARD handling)
       const articleCardRegex = /\[VIEW_ARTICLE:([^\]]+)\]/g;
       const extractedArticleCardIds: string[] = [];
       let articleMatch;
@@ -451,6 +444,18 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
       while ((articleMatch = articleCardRegex.exec(currentText)) !== null) {
         extractedArticleCardIds.push(articleMatch[1]);
       }
+      
+      // Store extracted article cards in pendingArticleCards to render after paragraph
+      if (extractedArticleCardIds.length > 0) {
+        pendingArticleCards.push(...extractedArticleCardIds);
+      }
+      
+      // Remove VIEW_ARTICLE markers from text
+      currentText = currentText.replace(articleCardRegex, '');
+      
+      // Remove "Read more" links that appear right before VIEW_ARTICLE markers
+      // Pattern: ([Read more](URL)) or (Read more) right before where marker was
+      currentText = currentText.replace(/\(\[Read more\]\([^)]+\)\)\s*/g, '').replace(/\(Read more\)\s*/g
       
       // Render article cards immediately
       if (extractedArticleCardIds.length > 0) {
