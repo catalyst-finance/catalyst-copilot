@@ -332,6 +332,13 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
     let currentParagraph: string[] = [];
     let pendingImageCards: string[] = []; // Track IMAGE_CARD markers to render after paragraph
     let pendingArticleCards: string[] = []; // Track VIEW_ARTICLE markers to render after paragraph
+    
+    const flushParagraph = () => {
+      if (currentParagraph.length > 0) {
+        elements.push(
+          <p key={`para-${uniqueKeyCounter++}`} className="mb-3 leading-relaxed">
+            {parseInlineFormatting(currentParagraph.join(' '))}
+          </p>
         );
         currentParagraph = [];
         
@@ -366,6 +373,22 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
           </ul>
         );
         currentList = [];
+        
+        // After flushing list, add any pending image cards
+        if (pendingImageCards.length > 0) {
+          pendingImageCards.forEach(imageId => {
+            insertImageCard(imageId);
+          });
+          pendingImageCards = [];
+        }
+        
+        // After flushing list, add any pending article cards
+        if (pendingArticleCards.length > 0) {
+          pendingArticleCards.forEach(articleId => {
+            insertArticleCard(articleId);
+          });
+          pendingArticleCards = [];
+        }
       }
     };
     
@@ -445,7 +468,8 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
         extractedArticleCardIds.push(articleMatch[1]);
       }
       
-      // Store extracted article cards in pendingArticleCards to render after paragraph
+      // Store extracted article cards in pendingArticleCards to render after paragraph/list
+      // NOTE: We ONLY use pending mechanism now (no immediate render) to prevent duplicates
       if (extractedArticleCardIds.length > 0) {
         pendingArticleCards.push(...extractedArticleCardIds);
       }
@@ -455,15 +479,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
       
       // Remove "Read more" links that appear right before VIEW_ARTICLE markers
       // Pattern: ([Read more](URL)) or (Read more) right before where marker was
-      currentText = currentText.replace(/\(\[Read more\]\([^)]+\)\)\s*/g, '').replace(/\(Read more\)\s*/g
-      
-      // Render article cards immediately
-      if (extractedArticleCardIds.length > 0) {
-        extractedArticleCardIds.forEach(id => insertArticleCard(id));
-      }
-      
-      // Remove VIEW_ARTICLE markers from text
-      currentText = currentText.replace(articleCardRegex, '');
+      currentText = currentText.replace(/\(\[Read more\]\([^)]+\)\)\s*/g, '').replace(/\(Read more\)\s*/g, '');
       
       // STEP 2: Clean up whitespace artifacts from IMAGE_CARD removal
       // Handle pattern: `[text](url) ` → `[text](url)` (trailing space before backtick)
@@ -1757,6 +1773,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                       if (card.type === 'event') return false;
                       // Exclude image cards completely - they should only appear inline
                       if (card.type === 'image') return false;
+                      // Exclude article cards - they're rendered inline via VIEW_ARTICLE markers
+                      if (card.type === 'article') return false;
                       return true;
                     }).length > 0 && (
                       <motion.div 
@@ -1768,6 +1786,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                         {msg.dataCards.filter(card => {
                           if (card.type === 'event') return false;
                           if (card.type === 'image') return false;
+                          if (card.type === 'article') return false;
                           return true;
                         }).map((card, index) => {
                           // Generate a unique key based on card type, data, and index
@@ -1819,6 +1838,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   if (card.type === 'event') return false;
                   // Exclude image cards completely - they should only appear inline
                   if (card.type === 'image') return false;
+                  // Exclude article cards - they're rendered inline via VIEW_ARTICLE markers
+                  if (card.type === 'article') return false;
                   return true;
                 }).length > 0 && (
                   <motion.div 
@@ -1830,6 +1851,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                     {streamingDataCards.filter(card => {
                       if (card.type === 'event') return false;
                       if (card.type === 'image') return false;
+                      if (card.type === 'article') return false;
                       return true;
                     }).map((card, index) => {
                       // Generate a unique key based on card type, data, and index
