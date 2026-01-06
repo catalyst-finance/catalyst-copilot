@@ -62,30 +62,28 @@ class ResponseEngine {
     switch(phase) {
       case 'plan_start':
         const collections = context.collections.map(c => this.getCollectionFriendlyName(c)).join(' and ');
-        prompt = `Write a 3-5 word status message saying you're searching ${collections}. Start with a verb. Examples: "Searching SEC filings..." or "Looking up news articles..."`;
+        prompt = `Write a 3-5 word casual, friendly status message saying you're looking up ${collections}. Use simple, everyday language. Examples: "Checking ${collections}..." or "Looking up ${collections}..." Avoid technical terms like "exploring", "investigating", "analyzing", "examining".`;
         break;
         
-      // sanitize thinking message: remove quotation marks and the word "now"
-      const raw = response.choices[0].message.content || '';
-      const sanitized = raw.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
-      return sanitized;
+      case 'plan_generated':
+        const priority = context.plan.formattingPlan.filter(p => p.priority >= 4);
         if (priority.length > 0) {
           const source = this.getCollectionFriendlyName(priority[0].collection);
-          prompt = `Write a 3-5 word status message saying you found relevant ${source}. Examples: "Found relevant SEC filing" or "Located government statements"`;
-      const fallback = this.getFallbackThinkingMessage(phase, context);
-      return fallback ? fallback.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim() : fallback;
-          prompt = `Write a 3-5 word status message saying you found ${context.plan.formattingPlan.length} sources. Example: "Found 2 data sources"`;
+          prompt = `Write a 3-5 word casual status message saying you found relevant ${source}. Examples: "Found relevant filing" or "Got some ${source}"`;
+        } else {
+          prompt = `Write a 3-5 word casual status message saying you found ${context.plan.formattingPlan.length} sources. Example: "Found ${context.plan.formattingPlan.length} sources"`;
         }
         break;
         
       case 'fetching_content':
         const friendly = this.getCollectionFriendlyName(context.collection);
-        prompt = `Write a 3-5 word status message saying you're reading ${context.count === 1 ? 'the' : context.count} ${friendly}. Examples: "Reading the SEC filing..." or "Reviewing 3 articles..."`;
+        const countText = context.count === 1 ? 'the' : `${context.count}`;
+        prompt = `Write a 3-5 word casual status message saying you're reading ${countText} ${friendly}. Use everyday language. Examples: "Reading ${countText} ${friendly}..." or "Checking out ${countText} ${friendly}..." Avoid technical terms.`;
         break;
         
       case 'formatting':
         const collectionName = this.getCollectionFriendlyName(context.collection);
-        prompt = `Write a 4-6 word status message saying you're extracting details from ${collectionName}. Examples: "Extracting key financial data..." or "Pulling insights from filing..."`;
+        prompt = `Write a 4-6 word casual, friendly status message saying you're pulling details from ${collectionName}. Use simple language. Examples: "Getting details from ${collectionName}..." or "Pulling key info..." Avoid technical terms like "extracting", "analyzing", "processing".`;
         break;
         
       default:
@@ -117,31 +115,36 @@ class ResponseEngine {
   getFallbackThinkingMessage(phase, context) {
     const messages = {
       'plan_start': () => {
-        const count = context.collections.length;
+        const count = context.collections?.length || 0;
+        if (count === 0) return 'Looking things up...';
         if (count === 1) {
           const friendly = this.getCollectionFriendlyName(context.collections[0]);
-          return `Searching ${friendly}...`;
+          return `Checking ${friendly}...`;
         }
-        return `Searching ${count} databases...`;
+        return `Checking ${count} sources...`;
       },
       'plan_generated': () => {
-        const priority = context.plan.formattingPlan.filter(p => p.priority >= 4);
+        const priority = context.plan?.formattingPlan?.filter(p => p.priority >= 4) || [];
         if (priority.length > 0) {
           const source = this.getCollectionFriendlyName(priority[0].collection);
           return `Found relevant ${source}`;
         }
-        return `Found ${context.plan.formattingPlan.length} relevant sources`;
+        const count = context.plan?.formattingPlan?.length || 0;
+        if (count === 0) return 'Looking for data...';
+        return `Found ${count} sources`;
       },
       'fetching_content': () => {
         const friendly = this.getCollectionFriendlyName(context.collection);
-        if (context.count === 1) {
+        const count = context.count || 0;
+        if (count === 0) return `Checking ${friendly}...`;
+        if (count === 1) {
           return `Reading the ${friendly}...`;
         }
-        return `Reading ${context.count} ${friendly}...`;
+        return `Reading ${count} ${friendly}...`;
       },
       'formatting': () => {
         const friendly = this.getCollectionFriendlyName(context.collection);
-        return `Extracting key details from the ${friendly}...`;
+        return `Getting details from ${friendly}...`;
       }
     };
     
