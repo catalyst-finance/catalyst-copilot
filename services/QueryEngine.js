@@ -957,16 +957,37 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
               reasoning: query.reasoning
             });
           } else if (query.collection === 'finnhub_quote_snapshots') {
-            // Fetch current stock quote
+            // Fetch current stock quote with previous close for accurate change calculation
+            // Uses stock_quote_now for current price + finnhub_quote_snapshots for pc/open/high/low
             const symbol = query.query.symbol;
-            const result = await DataConnector.getStockData(symbol, 'current');
+            const result = await DataConnector.getQuoteWithPreviousClose(symbol);
+            
+            // Format data to match expected schema (c, d, dp, o, h, l, pc)
+            let formattedData = [];
+            if (result.success && result.data) {
+              const q = result.data;
+              formattedData = [{
+                symbol: q.symbol,
+                c: q.currentPrice,      // current price from stock_quote_now
+                d: q.change,            // calculated: currentPrice - previousClose
+                dp: q.changePercent,    // calculated: (change / pc) * 100
+                o: q.open,              // from finnhub_quote_snapshots
+                h: q.high,              // from finnhub_quote_snapshots
+                l: q.low,               // from finnhub_quote_snapshots
+                pc: q.previousClose,    // from finnhub_quote_snapshots
+                volume: q.volume,
+                timestamp: q.timestamp,
+                source: q.source
+              }];
+            }
+            
             results.push({
               collection: query.collection,
-              data: result.data || [],
-              count: result.data?.length || 0,
+              data: formattedData,
+              count: formattedData.length,
               reasoning: query.reasoning
             });
-            console.log(`   ✅ Found ${result.data?.length || 0} quote snapshots`);
+            console.log(`   ✅ Found ${formattedData.length} quote snapshots (source: ${result.data?.source || 'unknown'})`);
           } else if (query.collection === 'one_minute_prices' || query.collection === 'daily_prices' || query.collection === 'hourly_prices') {
             // Fetch price history from Supabase
             const { supabase } = require('../config/database');

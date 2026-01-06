@@ -10,11 +10,99 @@ const https = require('https');
 const { supabase, mongoClient, connectMongo } = require('../config/database');
 
 // Increase max header size for HTTP requests (Yahoo Finance sends large headers)
-// Default is 8KB, we increase to 128KB to handle Yahoo Finance and similar sites
-const httpAgent = new http.Agent({ maxHeaderSize: 131072 }); // 128KB
-const httpsAgent = new https.Agent({ maxHeaderSize: 131072 }); // 128KB
+// Default is 8KB, we increase to 256KB to handle Yahoo Finance and similar sites
+const httpAgent = new http.Agent({ maxHeaderSize: 262144 }); // 256KB
+const httpsAgent = new https.Agent({ maxHeaderSize: 262144 }); // 256KB
 
 class DataConnector {
+  /**
+   * Get current real-time quote from stock_quote_now table
+   * @param {string} symbol - Stock ticker symbol
+   * @returns {Object} Current quote with close, timestamp, volume, session
+   */
+  static async getCurrentQuote(symbol) {
+    try {
+      const { data, error } = await supabase
+        .from('stock_quote_now')
+        .select('*')
+        .eq('symbol', symbol)
+        .single();
+      
+      if (error) {
+        console.error(`Error fetching current quote for ${symbol}:`, error);
+        return { success: false, error: error.message, data: null };
+      }
+      
+      return { success: true, data };
+    } catch (error) {
+      console.error(`Error in getCurrentQuote for ${symbol}:`, error);
+      return { success: false, error: error.message, data: null };
+    }
+  }
+
+  /**
+   * Get current quote with previous close and calculated change
+   * Combines stock_quote_now (current price) with finnhub_quote_snapshots (previous close, open, high, low)
+   * @param {string} symbol - Stock ticker symbol
+   * @returns {Object} Full quote with current price, change, changePercent, open, high, low, previousClose
+   */
+  static async getQuoteWithPreviousClose(symbol) {
+    try {
+      // Fetch current price from stock_quote_now
+      const currentResult = await this.getCurrentQuote(symbol);
+      
+      // Fetch previous close and OHLC from finnhub_quote_snapshots
+      const { data: snapshotData, error: snapshotError } = await supabase
+        .from('finnhub_quote_snapshots')
+        .select('*')
+        .eq('symbol', symbol)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (!currentResult.success && snapshotError) {
+        return { success: false, error: 'Failed to fetch quote data', data: null };
+      }
+      
+      // Use current price from stock_quote_now if available, otherwise fall back to finnhub snapshot
+      const currentPrice = currentResult.data?.close || snapshotData?.c;
+      const previousClose = snapshotData?.pc;
+      const open = snapshotData?.o;
+      const high = snapshotData?.h;
+      const low = snapshotData?.l;
+      
+      // Calculate change and percent change
+      let change = null;
+      let changePercent = null;
+      if (currentPrice && previousClose) {
+        change = currentPrice - previousClose;
+        changePercent = ((change / previousClose) * 100);
+      }
+      
+      const quote = {
+        symbol: symbol,
+        currentPrice: currentPrice,
+        previousClose: previousClose,
+        open: open,
+        high: high,
+        low: low,
+        change: change,
+        changePercent: changePercent,
+        volume: currentResult.data?.volume || snapshotData?.volume,
+        session: currentResult.data?.session,
+        timestamp: currentResult.data?.timestamp || snapshotData?.timestamp,
+        source: currentResult.data ? 'stock_quote_now' : 'finnhub_quote_snapshots'
+      };
+      
+      console.log(`📊 Quote for ${symbol}: $${currentPrice?.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent?.toFixed(2)}%) from ${quote.source}`);
+      
+      return { success: true, data: quote };
+    } catch (error) {
+      console.error(`Error in getQuoteWithPreviousClose for ${symbol}:`, error);
+      return { success: false, error: error.message, data: null };
+    }
+  }
+
   /**
    * Get stock data from Supabase
    * @param {string} symbol - Stock ticker symbol

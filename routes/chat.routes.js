@@ -120,7 +120,8 @@ router.post('/', optionalAuth, async (req, res) => {
         needsDeepAnalysis: queryPlan.needsDeepAnalysis || false,
         analysisKeywords: queryPlan.analysisKeywords || [],
         tickers: queryPlan.tickers || [],
-        queries: queryPlan.queries
+        queries: queryPlan.queries,
+        chartConfig: queryPlan.chartConfig || null  // Pass chartConfig for VIEW_CHART marker
       };
       
     } catch (error) {
@@ -1619,20 +1620,32 @@ INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 • **MUST include temporal context** - Mention when the news was published (e.g., "reported on January 5", "announced this week", "as of early January") and any relevant timeframes mentioned in the article (e.g., "hearings starting in January", "Q4 2025 results")
 • Each news item should be 3-6 sentences of detailed, substantive analysis covering the key points, implications, and market context. Decide whether key points should be presented as a list or in paragraph form based on what flows best.
 • **Explain WHY it matters** - Don't just report what happened, analyze the competitive dynamics, strategic implications, or market impact
-• **CORRECT FORMAT EXAMPLE:**
-  
-  **Competitive Pressures in Europe**
-  
-  BYD has overtaken Tesla in both Germany and the UK for 2025, marking a significant shift in the European EV landscape. The Chinese automaker's aggressive expansion is putting pressure on Tesla's market share in key markets. [VIEW_ARTICLE:article-TSLA-0]
-  
-  **Sales Incentives in China**
-  
-  Tesla is responding to competitive pressure by launching zero-interest financing on Model 3 and Model Y through the end of January, signaling urgency to boost deliveries in its second-largest market. [VIEW_ARTICLE:article-TSLA-1]
 
-• **WRONG FORMAT (NEVER DO THIS):**
-  ❌ "• Article Title: BYD outsold Tesla..."
-  ❌ "• Source: finance.yahoo.com"
-  ❌ Bullet lists of meta-information about articles
+**CRITICAL - VIEW_ARTICLE CARD PLACEMENT FOR NEWS:**
+• **ALWAYS place [VIEW_ARTICLE:...] markers on their OWN LINE** after the paragraph describing that article
+• **NEVER put VIEW_ARTICLE markers inside bullet points or list items**
+• **ONE article = ONE section** with header, paragraph(s), then marker on separate line
+• The marker triggers a visual article card - it MUST be on its own line to render correctly
+
+**CORRECT NEWS FORMAT EXAMPLE:**
+
+**Nvidia-Related Competitive Pressures**
+
+Tesla is experiencing a slump due to issues related to Nvidia, suggesting competitive pressures or supply chain concerns. The article highlights how Nvidia's moves in the AI and automotive chip space are impacting Tesla's positioning in the market.
+
+[VIEW_ARTICLE:article-TSLA-0]
+
+**BYD Market Share Gains**
+
+BYD has overtaken Tesla in both Germany and the UK for 2025, marking a significant shift in the European EV landscape. The Chinese automaker's aggressive expansion is putting pressure on Tesla's market share in key markets, signaling intensifying competition in the EV space.
+
+[VIEW_ARTICLE:article-TSLA-1]
+
+**WRONG NEWS FORMAT (NEVER DO THIS):**
+❌ "• Article Title: BYD outsold Tesla... [VIEW_ARTICLE:article-TSLA-0]"
+❌ "- Tesla is facing issues [VIEW_ARTICLE:article-TSLA-0]."
+❌ Bullet lists with markers at end of lines
+❌ Multiple markers stacked at the end of the response
 
 **ANALYSIS queries** (analyze, explain, tell me about):
 • Structure with thematic sections using **BOLD** headers
@@ -1715,9 +1728,20 @@ CRITICAL CONSTRAINTS:
    - **NEVER CREATE A SEPARATE "EVENT CARDS" SECTION** - events must be woven into the narrative at the appropriate timeline position (Q1, Q2, etc.)
    - **SCAN THE DATA CONTEXT FOR [VIEW_ARTICLE:...] MARKERS** - they appear in news article sections after the URL
    - **YOU MUST PRESERVE EVERY [VIEW_ARTICLE:...] MARKER YOU SEE** - these trigger visual article cards with images/logos
-   - **ARTICLE CARD PLACEMENT**: Place the marker right after discussing that news article, immediately after the URL or article title
-   - **CRITICAL FOR NEWS ARTICLES**: When the data context shows news articles with [VIEW_ARTICLE:...] markers, you MUST include those markers in your response when discussing those articles
-   - **NEWS FORMAT**: When citing news, use format: "Article title ([Read more](URL)) [VIEW_ARTICLE:article-TICKER-X]"
+   - **CRITICAL: PLACE [VIEW_ARTICLE:...] ON ITS OWN LINE** - The marker must be on a separate line AFTER the paragraph, NOT inline or in bullet points
+   - **CRITICAL FOR NEWS ARTICLES**: Each article gets its own section with header, paragraph(s), then marker on separate line
+   - **CORRECT NEWS FORMAT**:
+     
+     **Article Topic Header**
+     
+     Article analysis paragraph with details and implications.
+     
+     [VIEW_ARTICLE:article-TICKER-0]
+     
+   - **WRONG NEWS FORMAT (NEVER DO THIS)**:
+     ❌ "• Article title... [VIEW_ARTICLE:article-TICKER-0]" (marker in bullet)
+     ❌ "Tesla faces issues [VIEW_ARTICLE:article-TICKER-0]." (marker inline)
+     ❌ Multiple VIEW_ARTICLE markers stacked at the end
    - **REQUIRED FORMAT FOR SEC FILINGS WITH IMAGES**: \`[TICKER Form Type - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
    - **EVENT CARD EXAMPLE**: "• VOYAGE Phase 3 topline data expected May 15, 2026 [EVENT_CARD:MNMD_clinical_2026-05-15...]" - the marker goes at the END of the bullet point
    - **IMAGE CARD EXAMPLE**: "The 10-Q shows strong Phase 3 enrollment progress \`[MNMD 10-Q - Nov 6, 2025](https://sec.gov/...) [IMAGE_CARD:sec-image-MNMD-0-0]\`."
