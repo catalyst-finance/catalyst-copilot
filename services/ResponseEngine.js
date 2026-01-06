@@ -650,7 +650,26 @@ Return ONLY valid JSON.`;
       
       // Extract actual source from URL (prioritize domain over aggregator like "Yahoo")
       const domain = article.url ? this.extractDomain(article.url) : null;
-      const actualSource = domain || article.origin || 'Unknown';
+      
+      // For Yahoo Finance articles, try to extract the real source from the title or stored data
+      let actualSource = domain || article.origin || 'Unknown';
+      if (domain === 'finance.yahoo.com') {
+        // Check if article has a source field from MongoDB
+        if (article.source && article.source !== 'Yahoo Finance' && article.source !== 'finance.yahoo.com') {
+          actualSource = article.source;
+        } else if (article.title) {
+          // Try to extract source from title patterns like "Title - Source Name" or "Source: Title"
+          // Pattern 1: "Article Title - Barron's" or "Article Title - Simply Wall St"
+          const dashPattern = article.title.match(/\s+[-–—]\s+([A-Z][A-Za-z\s&.']+)$/);
+          if (dashPattern && dashPattern[1]) {
+            const potentialSource = dashPattern[1].trim();
+            // Validate it's likely a source name (not just a subtitle)
+            if (potentialSource.length < 50 && !potentialSource.match(/\d{4}$/)) {
+              actualSource = potentialSource;
+            }
+          }
+        }
+      }
       
       output += `${index + 1}. ${article.title || 'Untitled'} - ${date}\n`;
       if (article.ticker) output += `   Ticker: ${article.ticker}\n`;

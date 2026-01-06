@@ -97,10 +97,11 @@ interface StockCardData {
 interface CatalystCopilotProps {
   selectedTickers?: string[];
   onEventClick?: (event: MarketEvent) => void;
+  onTickerClick?: (ticker: string) => void;
 }
 
 // Markdown Renderer Component
-function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void }) {
+function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerClick }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void; onTickerClick?: (ticker: string) => void }) {
   // Don't extract sources into a separate section - keep everything inline
   const mainText = text;
   
@@ -376,7 +377,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
           allChartCards.forEach(chartData => {
             elements.push(
               <div key={`chart-card-${chartData.id}-${uniqueKeyCounter++}`} className="my-3">
-                <InlineChartCard symbol={chartData.symbol} timeRange={chartData.timeRange} />
+                <InlineChartCard symbol={chartData.symbol} timeRange={chartData.timeRange} onTickerClick={onTickerClick} />
               </div>
             );
           });
@@ -452,7 +453,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
         if (eventCard) {
           elements.push(
             <div key={`event-card-${eventId}-${uniqueKeyCounter++}`} className="my-3">
-              <DataCardComponent card={eventCard} onEventClick={onEventClick} onImageClick={onImageClick} />
+              <DataCardComponent card={eventCard} onEventClick={onEventClick} onImageClick={onImageClick} onTickerClick={onTickerClick} />
             </div>
           );
         }
@@ -469,7 +470,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
         if (imageCard) {
           elements.push(
             <div key={`image-card-${imageId}-${uniqueKeyCounter++}`} className="my-3">
-              <DataCardComponent card={imageCard} onEventClick={onEventClick} onImageClick={onImageClick} />
+              <DataCardComponent card={imageCard} onEventClick={onEventClick} onImageClick={onImageClick} onTickerClick={onTickerClick} />
             </div>
           );
         }
@@ -486,7 +487,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
         if (articleCard) {
           elements.push(
             <div key={`article-card-${articleId}-${uniqueKeyCounter++}`} className="my-3">
-              <DataCardComponent card={articleCard} onEventClick={onEventClick} onImageClick={onImageClick} />
+              <DataCardComponent card={articleCard} onEventClick={onEventClick} onImageClick={onImageClick} onTickerClick={onTickerClick} />
             </div>
           );
         }
@@ -497,7 +498,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
       // Render an inline mini chart for the symbol
       elements.push(
         <div key={`chart-card-${chartData.id}-${uniqueKeyCounter++}`} className="my-3">
-          <InlineChartCard symbol={chartData.symbol} timeRange={chartData.timeRange} />
+          <InlineChartCard symbol={chartData.symbol} timeRange={chartData.timeRange} onTickerClick={onTickerClick} />
         </div>
       );
     };
@@ -839,7 +840,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
   );
 }
 
-export function CatalystCopilot({ selectedTickers = [], onEventClick }: CatalystCopilotProps) {
+export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerClick }: CatalystCopilotProps) {
   const [chatState, setChatState] = useState<ChatState>('collapsed');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -936,31 +937,52 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     };
   }, [chatState]);
 
+  // Use requestAnimationFrame for smooth, non-blocking scrolling
   const scrollToBottom = () => {
-    if (!isRestoringScroll.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!isRestoringScroll.current && messagesEndRef.current) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      });
     }
   };
 
   const scrollToLatestMessage = () => {
     if (!isRestoringScroll.current && latestMessageRef.current) {
-      latestMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      requestAnimationFrame(() => {
+        latestMessageRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      });
     }
   };
 
+  // Throttle scroll updates during streaming to prevent jank
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   useEffect(() => {
     if (!isRestoringScroll.current) {
+      // Clear any pending scroll
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      
       // Check if streaming just finished (was true, now false)
       if (prevIsStreamingRef.current && !isStreaming) {
-        // Streaming just completed - stay at bottom
+        // Streaming just completed - immediate scroll to bottom
         scrollToBottom();
       } else if (isStreaming) {
-        // Still streaming - scroll to bottom
-        scrollToBottom();
+        // Still streaming - throttle scroll updates to every 100ms
+        scrollTimeoutRef.current = setTimeout(() => {
+          scrollToBottom();
+        }, 100);
       }
       // Update previous streaming state
       prevIsStreamingRef.current = isStreaming;
     }
+    
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
   }, [messages, streamedContent, thinkingSteps, isStreaming]);
 
   // Handle ESC key to close fullscreen image
@@ -1836,7 +1858,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                           : 'text-foreground'
                       }`}
                     >
-                      <MarkdownText text={msg.content} dataCards={msg.dataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} />
+                      <MarkdownText text={msg.content} dataCards={msg.dataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
                     </div>
 
                     {msg.role === 'user' && !isTyping && (
@@ -1891,7 +1913,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ duration: 0.3, delay: 0.1 + (index * 0.05) }}
                             >
-                              <DataCardComponent card={card} onEventClick={onEventClick} onImageClick={setFullscreenImage} />
+                              <DataCardComponent card={card} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
                             </motion.div>
                           );
                         })}
@@ -1908,15 +1930,12 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
             <div className="flex justify-start">
               <div className="w-full space-y-3">
                 {/* AI Avatar */}
-                <motion.div 
+                <div 
                   ref={latestMessageRef}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                   className="flex items-center gap-2 mb-2"
                 >
                   <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
-                </motion.div>
+                </div>
 
                 {/* Streaming Non-Inline Data Cards - Show First (stock cards, charts that aren't referenced inline) */}
                 {streamingDataCards.filter(card => {
@@ -1928,11 +1947,9 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   if (card.type === 'article') return false;
                   return true;
                 }).length > 0 && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.1 }}
+                  <div 
                     className="space-y-2"
+                    style={{ willChange: 'contents' }}
                   >
                     {streamingDataCards.filter(card => {
                       if (card.type === 'event') return false;
@@ -1950,17 +1967,15 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                         : `streaming-card-${index}`;
                       
                       return (
-                        <motion.div
+                        <div
                           key={cardKey}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.3, delay: 0.1 + (index * 0.05) }}
+                          style={{ willChange: 'opacity' }}
                         >
-                          <DataCardComponent card={card} onEventClick={onEventClick} onImageClick={setFullscreenImage} />
-                        </motion.div>
+                          <DataCardComponent card={card} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
+                        </div>
                       );
                     })}
-                  </motion.div>
+                  </div>
                 )}
 
                 {/* Loading indicator before thinking starts */}
@@ -1990,10 +2005,9 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
 
                 {/* Thinking Box (ChatGPT style) */}
                 {thinkingSteps.length > 0 && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
+                  <div 
                     className={`rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-br from-muted/40 to-muted/20 backdrop-blur-sm max-w-[85%]`}
+                    style={{ willChange: 'contents' }}
                   >
                     <div 
                       className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 transition-colors"
@@ -2023,36 +2037,32 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                     {!thinkingCollapsed && (
                       <div className="px-4 pb-3 space-y-2">
                         {thinkingSteps.map((step, index) => (
-                          <motion.div
+                          <div
                             key={`streaming-thinking-${index}`}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.3 }}
                             className="text-xs text-muted-foreground flex items-start gap-2"
                           >
                             <div className="w-1 h-1 rounded-full bg-ai-accent mt-1.5 flex-shrink-0" />
                             <span>{step.content}</span>
-                          </motion.div>
+                          </div>
                         ))}
                       </div>
                     )}
-                  </motion.div>
+                  </div>
                 )}
 
                 {/* Streamed Content with Typing Cursor - Full Width, No Background */}
                 {streamedContent && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
+                  <div 
                     className="text-foreground"
+                    style={{ willChange: 'contents' }}
                   >
-                    <MarkdownText text={streamedContent} dataCards={streamingDataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} />
+                    <MarkdownText text={streamedContent} dataCards={streamingDataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
                     <motion.span
                       className="inline-block w-[2px] h-4 bg-foreground/60 ml-0.5"
                       animate={{ opacity: [1, 0, 1] }}
                       transition={{ duration: 0.8, repeat: Infinity }}
                     />
-                  </motion.div>
+                  </div>
                 )}
               </div>
             </div>
@@ -2207,7 +2217,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
   );
 }
 
-function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCard; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void }) {
+function DataCardComponent({ card, onEventClick, onImageClick, onTickerClick }: { card: DataCard; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void; onTickerClick?: (ticker: string) => void }) {
   const eventTypeIcons: Record<string, any> = {
     earnings: BarChart3,
     fda: AlertCircle,
@@ -2231,7 +2241,7 @@ function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCar
   };
 
   if (card.type === 'stock') {
-    return <StockCard data={card.data as StockCardData} />;
+    return <StockCard data={card.data as StockCardData} onTickerClick={onTickerClick} />;
   }
 
   if (card.type === 'event') {
@@ -2410,6 +2420,29 @@ function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCar
   if (card.type === 'article') {
     const articleData = card.data as ArticleCardData;
     
+    // Map country names to ISO 3166-1 alpha-2 codes for flag display
+    const countryToCode: Record<string, string> = {
+      'United States': 'us', 'USA': 'us', 'US': 'us',
+      'United Kingdom': 'gb', 'UK': 'gb',
+      'China': 'cn', 'Germany': 'de', 'France': 'fr', 'Japan': 'jp',
+      'Canada': 'ca', 'Australia': 'au', 'India': 'in', 'Brazil': 'br',
+      'Russia': 'ru', 'South Korea': 'kr', 'Mexico': 'mx', 'Spain': 'es',
+      'Italy': 'it', 'Netherlands': 'nl', 'Switzerland': 'ch', 'Sweden': 'se',
+      'Poland': 'pl', 'Belgium': 'be', 'Norway': 'no', 'Austria': 'at',
+      'Ireland': 'ie', 'Denmark': 'dk', 'Finland': 'fi', 'Portugal': 'pt',
+      'Greece': 'gr', 'Czech Republic': 'cz', 'Romania': 'ro', 'Hungary': 'hu',
+      'Turkey': 'tr', 'Israel': 'il', 'Singapore': 'sg', 'Thailand': 'th',
+      'Malaysia': 'my', 'Philippines': 'ph', 'Vietnam': 'vn', 'Indonesia': 'id',
+      'Saudi Arabia': 'sa', 'UAE': 'ae', 'South Africa': 'za', 'Nigeria': 'ng',
+      'Argentina': 'ar', 'Chile': 'cl', 'Colombia': 'co', 'Peru': 'pe'
+    };
+    
+    // Check if this is a macro article with a country - use flag instead of article image
+    const isMacroArticle = articleData.country && articleData.country.trim().length > 0;
+    const countryCode = isMacroArticle ? countryToCode[articleData.country!] || articleData.country!.toLowerCase().substring(0, 2) : null;
+    // Use SVG for perfect scaling at any resolution, or w320 PNG for high-DPI displays
+    const flagUrl = countryCode ? `https://flagcdn.com/${countryCode}.svg` : null;
+    
     return (
       <motion.div
         whileHover={{ scale: 1.01, y: -2 }}
@@ -2417,9 +2450,18 @@ function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCar
       >
         <Card className="p-3 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg overflow-hidden">
           <div className="flex gap-3">
-            {/* Article image or site logo */}
+            {/* Article image or country flag (for macro) or site logo */}
             <div className="flex-shrink-0">
-              {articleData.imageUrl ? (
+              {isMacroArticle && flagUrl ? (
+                <div className="w-16 h-16 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20 flex items-center justify-center">
+                  <img 
+                    src={flagUrl} 
+                    alt={`${articleData.country} flag`} 
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ) : articleData.imageUrl ? (
                 <div className="w-16 h-16 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20">
                   <img 
                     src={articleData.imageUrl} 
@@ -2505,7 +2547,7 @@ function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCar
  * InlineChartCard - Renders a mini price chart for a symbol inline in the response
  * Used when VIEW_CHART markers are detected in AI responses
  */
-function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: string }) {
+function InlineChartCard({ symbol, timeRange, onTickerClick }: { symbol: string; timeRange: string; onTickerClick?: (ticker: string) => void }) {
   const [chartData, setChartData] = useState<any[] | null>(null);
   const [quoteData, setQuoteData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -2717,6 +2759,7 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
                 currentPrice={quoteData.close}
                 width={350}
                 height={120}
+                onTickerClick={onTickerClick}
               />
             ) : (
               <SimpleMiniChart data={chartData} ticker={symbol} />
@@ -2732,7 +2775,7 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
   );
 }
 
-function StockCard({ data }: { data: StockCardData }) {
+function StockCard({ data, onTickerClick }: { data: StockCardData; onTickerClick?: (ticker: string) => void }) {
   const { ticker, company, price, change, changePercent, chartData, chartMetadata, chartReference, previousClose, open, high, low } = data;
   const [loadedChartData, setLoadedChartData] = useState<any[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -2843,7 +2886,15 @@ function StockCard({ data }: { data: StockCardData }) {
           <div className="flex items-start justify-between mb-2">
             <div>
               <div className="flex items-center gap-2">
-                <Badge className="bg-gradient-to-r from-ai-accent to-ai-accent/80 text-primary-foreground text-xs shadow-sm">
+                <Badge 
+                  className="bg-gradient-to-r from-ai-accent to-ai-accent/80 text-primary-foreground text-xs shadow-sm cursor-pointer hover:from-ai-accent/90 hover:to-ai-accent/70 transition-all"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onTickerClick) {
+                      onTickerClick(ticker);
+                    }
+                  }}
+                >
                   {ticker}
                 </Badge>
                 {company && company !== ticker && (
@@ -2929,6 +2980,7 @@ function StockCard({ data }: { data: StockCardData }) {
                     upcomingEventsCount={0}
                     width={350}
                     height={120}
+                    onTickerClick={onTickerClick}
                   />
                 </div>
               ) : (
