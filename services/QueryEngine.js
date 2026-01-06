@@ -15,146 +15,230 @@ class QueryEngine {
 
 1. **government_policy** - White House transcripts, policy speeches, political statements
    Schema:
-   - date: string (YYYY-MM-DD format, e.g., "2025-01-04")
-   - title: string (event name, e.g., "Press Gaggle Aboard Air Force One")
-   - participants: array of strings (speaker names, e.g., ["President Trump", "Kevin Hassett"])
+   - _id: ObjectId
+   - date: string (YYYY-MM-DD format, e.g., "2025-11-12")
+   - title: string (event name, e.g., "Remarks: JD Vance Addresses the Make America Healthy Again Summit")
+   - url: string (source URL)
+   - participants: array of strings (speaker names, e.g., ["Jd Vance", "Robert F. Kennedy Jr."])
    - turns: array of {speaker: string, text: string} - full transcript with each speaker's statements
-   - source: string (URL)
+   - source: "government_policy"
    - inserted_at: timestamp
+   - enriched: boolean
    
    Use Cases:
    - What did [politician] say about [topic]?
    - Has [politician] mentioned [company]?
-   - Policy announcements, tariffs, regulations
-   
-   Query Tips:
-   - Use $regex on title or participants to find speaker
-   - Use $regex on turns.text to search transcript content
-   - Use $or for multiple search terms: find documents mentioning ANY of the keywords
+   - Policy announcements, tariffs, regulations, political statements
 
-2. **sec_filings** - SEC filings (10-K, 10-Q, 8-K, Form 4, 13F, etc.)
+2. **sec_filings** - SEC filings (10-K, 10-Q, 8-K, Form 3, Form 4, 13F, etc.)
    Schema:
-   - ticker: string (e.g., "TSLA")
-   - form_type: string (e.g., "10-Q", "8-K", "Form 4")
-   - acceptance_datetime: string (ISO timestamp)
-   - content: string (full filing text)
+   - _id: ObjectId
+   - ticker: string (e.g., "AAPL")
+   - form_type: string (e.g., "10-Q", "8-K", "3", "4")
+   - publication_date: string (YYYY-MM-DD)
+   - report_date: string (YYYY-MM-DD)
+   - acceptance_datetime: timestamp
+   - access_number: string
+   - file_number: string
    - url: string (SEC.gov URL)
-   - filing_date: string (YYYY-MM-DD)
+   - file_size: string
+   - source: "sec_filings"
+   - enriched: boolean
+   - inserted_at: timestamp
    
    Use Cases:
-   - Latest 10-Q for [ticker]
+   - Latest 10-Q/10-K for [ticker]
    - Form 4 insider trading filings
-   - Business updates, financial statements
-   
-   Query Tips:
-   - Filter by ticker and form_type
-   - Use acceptance_datetime for date ranges
-   - Use $regex on content for keyword searches
+   - Recent SEC filings for a company
 
-3. **institutional_ownership** - 13F filings showing institutional holdings
+3. **ownership** - 13F filings showing institutional holdings
    Schema:
-   - ticker: string
-   - institution_name: string
+   - _id: ObjectId
+   - ticker: string (e.g., "TMC")
+   - source: "ownership"
+   - event_type: string (e.g., "position_change")
+   - file_date: string (YYYY-MM-DD)
+   - form_type: string (e.g., "13F-HR")
+   - holder_name: string (e.g., "First Manhattan Co. Llc.")
    - shares: number
-   - value: number
-   - report_date: string (YYYY-MM-DD)
-   - change_shares: number
-   - change_percent: number
+   - shares_change: number
+   - shares_percent_change: number
+   - total_position_value: number
+   - enriched: boolean
+   - inserted_at: timestamp
    
    Use Cases:
    - Which institutions own [ticker]?
-   - Hedge fund positioning
+   - Hedge fund positioning changes
    - Smart money flows
 
 4. **macro_economics** - Economic indicators, global market news
    Schema:
+   - _id: ObjectId
+   - date: string (ISO timestamp with time, e.g., "2026-01-06T04:47:36.75")
    - title: string
    - description: string
-   - date: string (ISO timestamp with time)
-   - country: string
-   - category: string
+   - url: string
    - author: string
+   - country: string
+   - category: string (e.g., "Stock Market")
+   - importance: number
+   - source: "macro_economics"
+   - enriched: boolean
+   - inserted_at: timestamp
    
    Use Cases:
    - GDP, inflation, unemployment data
-   - Market sentiment
-   - International markets
+   - Market sentiment by country
+   - International markets news
+
+5. **news** - Company news articles
+   Schema:
+   - _id: ObjectId
+   - source: "news"
+   - origin: string (e.g., "Yahoo")
+   - sourced_from: string (e.g., "finnhub")
+   - ticker: string
+   - title: string
+   - content: string
+   - url: string
+   - article_id: string
+   - origin_domain: string
+   - published_at: timestamp
+   - enriched: boolean
+   - inserted_at: timestamp
+   
+   Use Cases:
+   - Latest news for [ticker]
+   - News sentiment analysis
+   - Company announcements
+
+6. **press_releases** - Company press releases
+   Schema:
+   - _id: ObjectId
+   - ticker: string
+   - title: string
+   - url: string
+   - date: string (YYYY-MM-DD HH:mm:ss)
+   - content: string
+   - source: "press_releases"
+   - enriched: boolean
+   - inserted_at: timestamp
+   
+   Use Cases:
+   - Official company announcements
+   - Product launches, partnerships
+   - Corporate communications
+
+7. **price_targets** - Analyst price targets and ratings
+   Schema:
+   - _id: ObjectId
+   - ticker: string
+   - date: timestamp
+   - analyst: string (e.g., "Wedbush")
+   - action: string (e.g., "Upgrade", "Downgrade", "Initiated")
+   - rating_change: string (e.g., "Neutral → Outperform")
+   - price_target_change: string (e.g., "$11")
+   - source: "price_targets"
+   - enriched: boolean
+   - inserted_at: timestamp
+   
+   Use Cases:
+   - Analyst ratings for [ticker]
+   - Price target changes
+   - Upgrade/downgrade history
+
+8. **earnings_transcripts** - Earnings call transcripts
+   Schema:
+   - _id: ObjectId
+   - source: "earnings_transcripts"
+   - origin: string (e.g., "defeatbeta")
+   - ticker: string
+   - content: string (full transcript text)
+   - report_date: timestamp
+   - year: number
+   - quarter: number
+   - transcript_id: string (e.g., "TMC32025")
+   - metadata: {paragraph_count, character_count, word_count}
+   - enriched: boolean
+   - inserted_at: timestamp
+   
+   Use Cases:
+   - What did management say on earnings call?
+   - Earnings call Q&A analysis
+   - Forward guidance from calls
+
+9. **hype** - Social and news sentiment metrics
+   Schema:
+   - _id: ObjectId
+   - source: "hype"
+   - origin: string (ticker)
+   - ticker: string
+   - timestamp: string
+   - social_sentiment: {atTime, mention, positiveScore, negativeScore, positiveMention, negativeMention, score}
+   - news_sentiment: object
+   - buzz: {articlesInLastWeek, buzz, weeklyAverage}
+   - companyNewsScore: number
+   - sectorAverageBullishPercent: number
+   - sectorAverageNewsScore: number
+   - sentiment: {bearishPercent, bullishPercent, symbol}
+   - search_interest: number or null
+   - enriched: boolean
+   - inserted_at: timestamp
+   
+   Use Cases:
+   - Social media sentiment for [ticker]
+   - News buzz and sentiment
+   - Retail investor interest
 
 **Supabase (PostgreSQL):**
 
 1. **event_data** - Corporate events (earnings, FDA approvals, product launches)
-   Schema:
-   - ticker: string
-   - type: string (earnings, fda, product, merger, legal, regulatory)
-   - title: string
-   - actualDateTime_et: timestamp
-   - impact: string
-   - aiInsight: string
-   
-   Use Cases:
-   - Upcoming earnings dates
-   - FDA trial milestones
-   - Product launches, M&A announcements
+   - ticker, type, title, actualDateTime_et, impact, aiInsight
 
 2. **finnhub_quote_snapshots** - Current stock quotes
-   Schema:
-   - symbol: string
-   - close: number (price)
-   - change: number
-   - change_percent: number
-   - volume: number
-   - timestamp: timestamp
+   - symbol, close, change, change_percent, volume, timestamp
 
 3. **daily_prices** / **intraday_prices** - Historical price data
-   Schema:
-   - symbol: string
-   - timestamp: timestamp
-   - open, high, low, close: number
-   - volume: number
+   - symbol, timestamp, open, high, low, close, volume
 
 **QUERY GENERATION RULES:**
 
-1. **Speaker name mapping:**
-   - "Trump" → search for "trump" OR "hassett" (Hassett speaks for Trump admin)
+1. **Speaker name mapping for government_policy:**
+   - "Trump" → search participants/title for "trump" (also include "hassett" for Trump admin)
    - "Biden" → search for "biden"
    - "Powell" → search for "powell"
+   - "Vance" → search for "vance"
+   - Search in: title, participants array, and turns.text
 
 2. **Date handling:**
-   - "last year" → calculate date range from 365 days ago to today
+   - "last year" → from 365 days ago to today
    - "last week" → 7 days ago to today
-   - Always return date ranges as {$gte: "YYYY-MM-DD", $lte: "YYYY-MM-DD"}
+   - "last month" → 30 days ago to today
+   - For government_policy: date field is "YYYY-MM-DD" string
+   - For macro_economics: date field is ISO timestamp string
 
-3. **Keyword extraction:**
+3. **Keyword/Semantic search:**
    - For semantic queries like "take a stake in", extract synonyms:
-     - ["stake", "investment", "invest", "acquire", "acquired", "purchase", "ownership", "equity", "shares"]
+     ["stake", "investment", "invest", "acquire", "ownership", "equity", "shares", "purchase"]
    - Use $or to match ANY keyword, not all
 
 4. **MongoDB query format:**
    - Use $and at top level for combining filters
-   - Use $or within $and for synonym matching
-   - Example: Find documents by speaker AND mentioning any keyword:
-     {
-       "$and": [
-         {
-           "$or": [
-             {"title": {$regex: "trump", $options: "i"}},
-             {"participants": {$elemMatch: {$regex: "hassett|trump", $options: "i"}}}
-           ]
-         },
-         {
-           "$or": [
-             {"title": {$regex: "stake", $options: "i"}},
-             {"turns.text": {$regex: "stake", $options: "i"}},
-             {"title": {$regex: "investment", $options: "i"}},
-             {"turns.text": {$regex: "investment", $options: "i"}}
-           ]
-         }
-       ]
-     }
+   - Use $or within $and for synonym/alternative matching
+   - Use $regex with $options: "i" for case-insensitive text search
+   - For array fields like participants, use $elemMatch with $regex
 
-5. **Supabase query format:**
-   - Use PostgreSQL syntax with comparison operators
-   - Example: .select('*').eq('ticker', 'TSLA').gte('actualDateTime_et', '2025-01-01')
+5. **Collection selection by query type:**
+   - Political statements, policy, tariffs → government_policy
+   - SEC filings, financial reports → sec_filings
+   - Institutional holders, 13F → ownership
+   - Analyst ratings, upgrades → price_targets
+   - Company news → news
+   - Official announcements → press_releases
+   - Earnings calls → earnings_transcripts
+   - Social sentiment → hype
+   - Economic indicators → macro_economics
 
 **TODAY'S DATE:** ${new Date().toISOString().split('T')[0]}
 `;
@@ -190,7 +274,7 @@ Return JSON with this structure:
   "queries": [
     {
       "database": "mongodb" | "supabase",
-      "collection": "government_policy" | "sec_filings" | "institutional_ownership" | "macro_economics" | "event_data" | "finnhub_quote_snapshots" | "daily_prices" | "intraday_prices",
+      "collection": "government_policy" | "sec_filings" | "ownership" | "macro_economics" | "news" | "press_releases" | "price_targets" | "earnings_transcripts" | "hype" | "event_data" | "finnhub_quote_snapshots" | "daily_prices" | "intraday_prices",
       "query": { /* MongoDB query object or Supabase filter params */ },
       "sort": { /* optional sort params */ },
       "limit": 10,
@@ -220,17 +304,11 @@ Response:
           },
           {
             "$or": [
-              {"title": {"$regex": "stake", "$options": "i"}},
               {"turns.text": {"$regex": "stake", "$options": "i"}},
-              {"title": {"$regex": "investment", "$options": "i"}},
               {"turns.text": {"$regex": "investment", "$options": "i"}},
-              {"title": {"$regex": "invest", "$options": "i"}},
               {"turns.text": {"$regex": "invest", "$options": "i"}},
-              {"title": {"$regex": "acquire", "$options": "i"}},
               {"turns.text": {"$regex": "acquire", "$options": "i"}},
-              {"title": {"$regex": "ownership", "$options": "i"}},
               {"turns.text": {"$regex": "ownership", "$options": "i"}},
-              {"title": {"$regex": "equity", "$options": "i"}},
               {"turns.text": {"$regex": "equity", "$options": "i"}}
             ]
           },
@@ -248,37 +326,49 @@ Response:
 }
 
 **EXAMPLE 2:**
-User: "Did Trump mention Chevron?"
+User: "What are analysts saying about TSLA?"
 Response:
 {
   "queries": [
     {
       "database": "mongodb",
-      "collection": "government_policy",
-      "query": {
-        "$and": [
-          {
-            "$or": [
-              {"title": {"$regex": "trump", "$options": "i"}},
-              {"participants": {"$elemMatch": {"$regex": "hassett|trump", "$options": "i"}}}
-            ]
-          },
-          {
-            "$or": [
-              {"title": {"$regex": "chevron", "$options": "i"}},
-              {"turns.text": {"$regex": "chevron", "$options": "i"}}
-            ]
-          }
-        ]
-      },
+      "collection": "price_targets",
+      "query": {"ticker": "TSLA"},
       "sort": {"date": -1},
-      "limit": 20,
-      "reasoning": "Search Trump statements mentioning Chevron specifically"
+      "limit": 10,
+      "reasoning": "Get recent analyst ratings and price targets for TSLA"
+    },
+    {
+      "database": "mongodb",
+      "collection": "news",
+      "query": {"ticker": "TSLA"},
+      "sort": {"published_at": -1},
+      "limit": 10,
+      "reasoning": "Get recent news articles about TSLA for context"
     }
   ],
   "extractCompanies": false,
   "needsChart": false,
-  "intent": "Check if Trump mentioned Chevron in any policy statements"
+  "intent": "Analyst sentiment and ratings for TSLA"
+}
+
+**EXAMPLE 3:**
+User: "What did the CEO say on TMC's last earnings call?"
+Response:
+{
+  "queries": [
+    {
+      "database": "mongodb",
+      "collection": "earnings_transcripts",
+      "query": {"ticker": "TMC"},
+      "sort": {"report_date": -1},
+      "limit": 1,
+      "reasoning": "Get the most recent earnings call transcript for TMC"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": false,
+  "intent": "Find CEO statements from TMC's latest earnings call"
 }
 
 Return ONLY valid JSON, no explanation outside the JSON structure.`;
@@ -310,69 +400,40 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
     for (const query of queryPlan.queries) {
       try {
         console.log(`📊 Executing ${query.database}.${query.collection}...`);
+        console.log('   Query:', JSON.stringify(query.query, null, 2));
         
         if (query.database === 'mongodb') {
-          if (query.collection === 'government_policy') {
-            const result = await DataConnector.getMacroData('policy', {
-              query: query.query,
-              sort: query.sort || { date: -1 },
-              limit: query.limit || 30
-            });
-            results.push({
-              collection: query.collection,
-              data: result.data,
-              reasoning: query.reasoning
-            });
-          } else if (query.collection === 'sec_filings') {
-            // Handle SEC filings query
-            const ticker = query.query.ticker;
-            const formTypes = query.query.form_type?.$in || null;
-            const dateRange = query.query.acceptance_datetime ? {
-              start: query.query.acceptance_datetime.$gte?.split('T')[0],
-              end: query.query.acceptance_datetime.$lte?.split('T')[0]
-            } : null;
-            
-            const result = await DataConnector.getSecFilings(ticker, formTypes, dateRange, query.limit || 10);
-            results.push({
-              collection: query.collection,
-              data: result.data,
-              reasoning: query.reasoning
-            });
-          } else if (query.collection === 'institutional_ownership') {
-            const result = await DataConnector.getInstitutionalOwnership(
-              query.query.ticker,
-              query.limit || 10
-            );
-            results.push({
-              collection: query.collection,
-              data: result.data,
-              reasoning: query.reasoning
-            });
-          } else if (query.collection === 'macro_economics') {
-            const result = await DataConnector.getMacroData('economic', {
-              query: query.query,
-              sort: query.sort || { date: -1 },
-              limit: query.limit || 20
-            });
-            results.push({
-              collection: query.collection,
-              data: result.data,
-              reasoning: query.reasoning
-            });
-          }
+          // Use direct MongoDB access for flexibility
+          const result = await DataConnector.executeRawQuery(
+            query.collection,
+            query.query,
+            query.sort || {},
+            query.limit || 30
+          );
+          
+          results.push({
+            collection: query.collection,
+            data: result.data || [],
+            count: result.data?.length || 0,
+            reasoning: query.reasoning
+          });
+          
+          console.log(`   ✅ Found ${result.data?.length || 0} documents`);
+          
         } else if (query.database === 'supabase') {
           if (query.collection === 'event_data') {
             const result = await DataConnector.getEvents(query.query);
             results.push({
               collection: query.collection,
-              data: result.data,
+              data: result.data || [],
+              count: result.data?.length || 0,
               reasoning: query.reasoning
             });
           }
           // Add other Supabase collections as needed
         }
       } catch (error) {
-        console.error(`Error executing query for ${query.collection}:`, error);
+        console.error(`❌ Error executing query for ${query.collection}:`, error.message);
         results.push({
           collection: query.collection,
           data: [],

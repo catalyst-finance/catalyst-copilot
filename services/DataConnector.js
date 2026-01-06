@@ -802,6 +802,48 @@ class DataConnector {
       };
     }
   }
+
+  /**
+   * Execute a raw MongoDB query on any collection
+   * Used by AI-Native Query Engine for flexible querying
+   */
+  static async executeRawQuery(collectionName, query, sort = {}, limit = 30) {
+    try {
+      const db = mongoClient.db('raw_data');
+      const collection = db.collection(collectionName);
+      
+      console.log(`🔍 Raw query on ${collectionName}:`, JSON.stringify(query, null, 2));
+      
+      let cursor = collection.find(query);
+      
+      if (Object.keys(sort).length > 0) {
+        cursor = cursor.sort(sort);
+      }
+      
+      cursor = cursor.limit(limit);
+      
+      const data = await cursor.toArray();
+      
+      console.log(`   Found ${data.length} documents in ${collectionName}`);
+      
+      return {
+        success: true,
+        data: data || [],
+        count: data.length,
+        source: 'mongodb',
+        collection: collectionName
+      };
+    } catch (error) {
+      console.error(`Error executing raw query on ${collectionName}:`, error);
+      return {
+        success: false,
+        data: [],
+        error: error.message,
+        source: 'mongodb',
+        collection: collectionName
+      };
+    }
+  }
 }
 
 module.exports = DataConnector;
