@@ -1467,6 +1467,13 @@ When your data context contains BOTH qualitative data (news, SEC filings, price 
 - dp = daily percent change (e.g., 2.5 means +2.5%)
 - d = daily dollar change
 
+**CRITICAL - DAILY CHANGE CALCULATION**:
+- When reporting daily change percentage, ALWAYS use 'dp' from finnhub_quote_snapshots
+- Daily change is: (current price 'c' - previous close 'pc') / previous close * 100
+- NEVER calculate daily change from intraday data (one_minute_prices) - that shows intraday session movement, not full day change
+- If you see both finnhub_quote_snapshots and one_minute_prices data, use finnhub_quote_snapshots 'dp' for daily change
+- Example: If c=$434.01, pc=$451.67, and dp=-3.91%, report "down 3.91% today" (from the 'dp' field)
+
 **CORRELATION RESPONSE EXAMPLES**:
 
 Example 1 - News with Price Context:
