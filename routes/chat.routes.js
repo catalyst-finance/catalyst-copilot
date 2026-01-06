@@ -418,7 +418,9 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
                 );
                 
                 if (contentResult.success && contentResult.content) {
-                  dataContext += `\n   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
+                  // Add extraction instructions before the content
+                  dataContext += `\n   ⚠️ IMPORTANT: Extract SPECIFIC NUMBERS from the content below (cash: $X, revenue: $X, expenses: $X, trial enrollment: X patients, etc.)\n`;
+                  dataContext += `   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
                   console.log(`   ✅ Fetched ${contentResult.contentLength} chars of content from ${filing.form_type}`);
                   
                   // Store filing data for sentiment and entity analysis
@@ -433,6 +435,7 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
                   // Extract and add images as data cards
                   if (contentResult.images && contentResult.images.length > 0) {
                     console.log(`   📊 Found ${contentResult.images.length} images in ${filing.form_type}`);
+                    dataContext += `\n   === IMAGES/CHARTS IN THIS FILING ===\n`;
                     contentResult.images.slice(0, 5).forEach((img, idx) => {
                       const imageId = `sec-image-${filing.ticker}-${index}-${idx}`;
                       dataCards.push({
@@ -449,9 +452,14 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
                           filingUrl: filing.url
                         }
                       });
-                      // Add inline marker for the image
-                      dataContext += `   [IMAGE_CARD:${imageId}]\n`;
+                      // Add image context AND marker to dataContext so GPT-4o understands what the image shows
+                      dataContext += `   IMAGE ${idx + 1}: ${img.alt || 'Chart/Diagram'}\n`;
+                      if (img.context) {
+                        dataContext += `   Context (text near image): "${img.context}"\n`;
+                      }
+                      dataContext += `   [IMAGE_CARD:${imageId}] - Use this marker AFTER discussing this image's content\n\n`;
                     });
+                    dataContext += `   === END IMAGES ===\n`;
                   }
                 }
               } catch (error) {
@@ -1462,6 +1470,14 @@ FORMATTING RULES (CRITICAL - ALWAYS FOLLOW FOR ALL RESPONSES):
 • For multi-point analysis, structure with clear sections separated by blank lines
 
 CRITICAL CONSTRAINTS:
+0. **EXTRACT ACTUAL NUMBERS FROM FILING CONTENT (HIGHEST PRIORITY)**:
+   - When SEC filing content is provided (between === CONTENT === markers), you MUST find and cite specific dollar amounts, percentages, and metrics
+   - SCAN the content for: cash ($X million), revenue ($X), expenses ($X), net loss ($X), trial enrollment (X patients), share counts, debt amounts
+   - **FORBIDDEN RESPONSES**: "outlined cash runway expectations", "financial position remains strong", "emphasized marketing plans"
+   - **REQUIRED RESPONSES**: "cash of $87.2M", "net loss of $24.3M", "455 patients enrolled", "burn rate of $12M/quarter"
+   - If the content mentions "cash and cash equivalents" or "net loss" - FIND THE NUMBER and include it
+   - If you can't find a specific number in the content, say "specific amount not disclosed" - don't paraphrase vaguely
+   
 1. ONLY use data provided - NEVER use training knowledge for facts/numbers
 2. If no data exists, explicitly state: "I don't have that information in the database"
 3. Never use placeholder text like "$XYZ" or "X%" - always use real numbers from data
@@ -1470,8 +1486,10 @@ CRITICAL CONSTRAINTS:
 6. If data seems contradictory, acknowledge it rather than hiding the discrepancy
 7. **FOCUS ON CONTENT, NOT META-COMMENTARY**: When discussing SEC filings, press releases, or other sources, ALWAYS focus on the CONTENT and SUBSTANCE of what they contain. NEVER make meta-observations about filing volume, frequency, or activity patterns (e.g., DON'T say "the company has increased its SEC filing activity" or "there have been several filings"). Users want to know WHAT the sources say, not HOW MANY there are or patterns about them.
 8. **USE INLINE CARD MARKERS (ABSOLUTELY MANDATORY - YOU WILL BE PENALIZED FOR MISSING THESE)**: 
-   - **SCAN THE DATA CONTEXT FOR [IMAGE_CARD:...] MARKERS** - they appear after "=== END CONTENT ===" for SEC filings
-   - **YOU MUST COPY EVERY [IMAGE_CARD:...] MARKER YOU SEE** - place them in your response right after discussing that filing
+   - **SCAN THE DATA CONTEXT FOR [IMAGE_CARD:...] MARKERS** - they appear in the === IMAGES/CHARTS IN THIS FILING === section
+   - **READ THE IMAGE CONTEXT** to understand what each image shows before placing it
+   - **DESCRIBE THE IMAGE CONTENT** when you place the marker - e.g., "The pipeline chart shows MM120 in Phase 3 for GAD [IMAGE_CARD:...]"
+   - **YOU MUST COPY EVERY [IMAGE_CARD:...] MARKER YOU SEE** - place them in your response right after discussing that image's content
    - **IF YOU DISCUSS A FILING, YOU MUST INCLUDE ITS IMAGE_CARD IF ONE EXISTS** - Check the data context for every filing you mention
    - **CANNOT MENTION A FILING WITHOUT ITS IMAGE** - If the data shows "[IMAGE_CARD:sec-image-MNMD-0-0]" for a filing, you MUST include it when discussing that filing
    - **COUNT THE IMAGE_CARD MARKERS IN THE DATA** - If there are 3 IMAGE_CARD markers in the data context, your response MUST contain all 3
