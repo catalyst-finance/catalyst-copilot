@@ -1394,7 +1394,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       model: "gpt-4o",
       messages,
       temperature: 0.7,
-      max_tokens: 20000,
+      max_tokens: 16000,
       stream: true
     });
 
