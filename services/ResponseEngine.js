@@ -417,7 +417,7 @@ Return ONLY valid JSON.`;
         return await this.formatPressReleases(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output);
       
       case 'macro_economics':
-        return await this.formatMacroEconomics(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output);
+        return await this.formatMacroEconomics(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards);
       
       case 'ownership':
         return this.formatOwnership(itemsToShow, detailLevel, output);
@@ -734,7 +734,7 @@ Return ONLY valid JSON.`;
   /**
    * Format macro economics
    */
-  async formatMacroEconomics(items, detailLevel, fetchExternal, DataConnector, output) {
+  async formatMacroEconomics(items, detailLevel, fetchExternal, DataConnector, output, dataCards) {
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
       const date = item.date ? new Date(item.date).toLocaleDateString() : 'Unknown date';
@@ -745,6 +745,32 @@ Return ONLY valid JSON.`;
       output += `${index + 1}. ${item.title || 'Untitled'} - ${date}\n`;
       if (item.country) output += `   Country: ${item.country}\n`;
       if (item.category) output += `   Category: ${item.category}\n`;
+
+      // Create article card for visual display
+      if (fullUrl) {
+        const articleId = `macro_${item._id || `${item.country}_${index}`}`;
+        const domain = 'tradingeconomics.com';
+        
+        // Create VIEW_ARTICLE marker for inline rendering
+        output += `   VIEW_ARTICLE[id=${articleId}|title=${item.title || 'Economic Report'}|url=${fullUrl}|source=Trading Economics|domain=${domain}|country=${item.country || ''}|publishedAt=${date}]\n`;
+        
+        // Add to dataCards array for rendering at message end
+        dataCards.push({
+          type: 'article',
+          data: {
+            id: articleId,
+            title: item.title || 'Economic Report',
+            url: fullUrl,
+            source: 'Trading Economics',
+            domain: domain,
+            country: item.country,
+            category: item.category,
+            publishedAt: date,
+            logoUrl: `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
+            content: item.description
+          }
+        });
+      }
 
       if (fetchExternal && fullUrl && detailLevel === 'full' && items.length <= 5) {
         try {
@@ -764,7 +790,6 @@ Return ONLY valid JSON.`;
         output += `   Description: ${item.description.substring(0, descLength)}...\n`;
       }
 
-      if (fullUrl) output += `   URL: ${fullUrl}\n`;
       output += `\n`;
     }
     return output;

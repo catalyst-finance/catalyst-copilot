@@ -55,6 +55,8 @@ interface ArticleCardData {
   logoUrl?: string;
   imageUrl?: string;
   content?: string;
+  country?: string;
+  category?: string;
 }
 
 interface StockCardData {
@@ -459,6 +461,14 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
         extractedImageCardIds.push(imageMatch[1]);
       }
       
+      // Add extracted image cards to pendingImageCards for rendering after paragraph
+      if (extractedImageCardIds.length > 0) {
+        pendingImageCards.push(...extractedImageCardIds);
+      }
+      
+      // Remove IMAGE_CARD markers from text
+      currentText = currentText.replace(imageCardRegex, '');
+      
       // Store extracted image cards  (similar to IMAGE_CARD handling)
       const articleCardRegex = /\[VIEW_ARTICLE:([^\]]+)\]/g;
       const extractedArticleCardIds: string[] = [];
@@ -480,9 +490,6 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
       // Remove "Read more" links that appear right before VIEW_ARTICLE markers
       // Pattern: ([Read more](URL)) or (Read more) right before where marker was
       currentText = currentText.replace(/\(\[Read more\]\([^)]+\)\)\s*/g, '').replace(/\(Read more\)\s*/g, '');
-      
-      // Clean up extra spaces before punctuation that result from marker removal
-      currentText = currentText.replace(/\s+([.,!?;:])/g, '$1');
       
       // STEP 2: Clean up whitespace artifacts from IMAGE_CARD removal
       // Handle pattern: `[text](url) ` → `[text](url)` (trailing space before backtick)
@@ -511,7 +518,13 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
         // Check if this looks like a source citation (contains form type like 10-Q, 10-K, 8-K, etc.)
         const isSourceCitation = /\b(10-[KQ]|8-K|Form\s+[0-9]+|S-[0-9]+|DEF\s+14A|13F|424B)\b/i.test(linkText);
         
-        if (isSourceCitation) {
+        // Check if this is a generic source/article link (should be rendered as grey badge)
+        // This includes: "source", "Read more", or links to news/data sites without article cards
+        const isGenericSource = linkText.toLowerCase() === 'source' || 
+                               linkText.toLowerCase() === 'read more' ||
+                               /\b(tradingeconomics|reuters|bloomberg|cnbc|marketwatch|seekingalpha|benzinga|barrons)\b/i.test(linkUrl);
+        
+        if (isSourceCitation || isGenericSource) {
           // Render as grey rounded badge with link (ChatGPT style)
           const formattedLinkText = formatRollCallLink(linkText, linkUrl);
           segments.push(
@@ -2332,12 +2345,12 @@ function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCar
         whileHover={{ scale: 1.01, y: -2 }}
         transition={{ duration: 0.2 }}
       >
-        <Card className="p-4 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg overflow-hidden">
-          <div className="flex gap-4">
+        <Card className="p-3 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg overflow-hidden">
+          <div className="flex gap-3">
             {/* Article image or site logo */}
             <div className="flex-shrink-0">
               {articleData.imageUrl ? (
-                <div className="w-24 h-24 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20">
+                <div className="w-16 h-16 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20">
                   <img 
                     src={articleData.imageUrl} 
                     alt={articleData.title} 
@@ -2346,54 +2359,57 @@ function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCar
                   />
                 </div>
               ) : articleData.logoUrl ? (
-                <div className="w-24 h-24 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20 flex items-center justify-center p-4">
+                <div className="w-16 h-16 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20">
                   <img 
                     src={articleData.logoUrl} 
                     alt={articleData.source} 
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     loading="lazy"
                   />
                 </div>
               ) : (
-                <div className="w-24 h-24 rounded-lg border border-border/50 bg-muted/40 flex items-center justify-center">
-                  <FileText className="w-8 h-8 text-muted-foreground" />
+                <div className="w-16 h-16 rounded-lg border border-border/50 bg-muted/40 flex items-center justify-center">
+                  <FileText className="w-6 h-6 text-muted-foreground" />
                 </div>
               )}
             </div>
 
             {/* Article content */}
             <div className="flex-1 min-w-0">
-              {/* Header with source and ticker */}
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                {articleData.ticker && (
-                  <Badge className="!bg-gradient-to-r !from-ai-accent !to-ai-accent/80 !text-white !border-none text-xs shadow-sm">
-                    {articleData.ticker}
-                  </Badge>
-                )}
-                <span className="text-xs text-muted-foreground font-medium">
-                  {articleData.source || articleData.domain}
-                </span>
-                {articleData.publishedAt && (
-                  <>
-                    <span className="text-xs text-muted-foreground">•</span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(articleData.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </span>
-                  </>
-                )}
-              </div>
-
               {/* Article title */}
-              <h4 className="font-semibold text-sm mb-2 line-clamp-2 leading-tight">
+              <h4 className="font-semibold text-sm mb-1 leading-tight">
                 {articleData.title}
               </h4>
 
-              {/* Content preview */}
-              {articleData.content && (
-                <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-                  {articleData.content}
-                </p>
+              {/* Date */}
+              {articleData.publishedAt && (
+                <span className="text-xs text-muted-foreground block mb-0.5">
+                  {new Date(articleData.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
               )}
+
+              {/* Source site */}
+              <span className="text-xs text-muted-foreground font-medium block mb-1">
+                {articleData.source || articleData.domain}
+              </span>
+
+              {/* Country and Category for macro_economics */}
+              {(articleData.country || articleData.category) && (
+                <div className="flex gap-2 mb-2">
+                  {articleData.country && (
+                    <span className="text-xs bg-muted/50 px-2 py-0.5 rounded-full">
+                      {articleData.country}
+                    </span>
+                  )}
+                  {articleData.category && (
+                    <span className="text-xs bg-muted/50 px-2 py-0.5 rounded-full">
+                      {articleData.category}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Content preview */}
 
               {/* Read article link */}
               <a 
@@ -2407,8 +2423,6 @@ function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCar
               </a>
             </div>
           </div>
-
-          <p className="text-[10px] text-muted-foreground/60 mt-3">News Article</p>
         </Card>
       </motion.div>
     );
