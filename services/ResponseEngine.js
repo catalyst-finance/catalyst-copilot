@@ -594,9 +594,10 @@ Return ONLY valid JSON.`;
         // Use Google's favicon service for site logo (fallback)
         const logoUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null;
         
-        // Try to fetch og:image for visual article preview (always for news, not just full detail)
+        // ALWAYS try to fetch og:image for visual article preview (not gated by fetchExternal)
+        // This ensures we get article images even when not fetching full content
         let imageUrl = null;
-        if (fetchExternal && article.url && items.length <= 10) {
+        if (article.url && items.length <= 10) {
           try {
             const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
             if (contentResult.success && contentResult.content) {
