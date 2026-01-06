@@ -551,6 +551,83 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                   });
                 }
               });
+              
+              // CRITICAL: Check if companies are mentioned in policy query or content
+              sendThinking('retrieving', `Checking for company mentions in policy statements...`);
+              try {
+                const policyTexts = policyResult.data.map(item => {
+                  const turns = item.turns || [];
+                  const text = turns.map(t => t.text).join(' ');
+                  return `${item.title}: ${text}`;
+                }).join('\n\n');
+                
+                const companyCheckPrompt = `Analyze this government policy query and transcript content. Extract any company names mentioned (not ticker symbols, actual company names like "Tesla", "Apple", "Microsoft").
+
+User Query: "${message}"
+
+Policy Content Preview: ${policyTexts.substring(0, 2000)}
+
+Return a JSON object with a "companies" array of company names found. If no companies mentioned, return {"companies": []}.
+Examples:
+- "What did Trump say about Tesla?" → {"companies": ["Tesla"]}
+- "Biden's comments on Apple and Microsoft" → {"companies": ["Apple", "Microsoft"]}
+- "Tariffs on Chinese imports" → {"companies": []}
+
+Return ONLY the JSON object, no explanation.`;
+
+                const companyCheckResponse = await openai.chat.completions.create({
+                  model: "gpt-4o-mini",
+                  messages: [{ role: "user", content: companyCheckPrompt }],
+                  temperature: 0.1,
+                  max_tokens: 500,
+                  response_format: { type: "json_object" }
+                });
+                
+                const companyData = JSON.parse(companyCheckResponse.choices[0].message.content.trim());
+                const companyNames = companyData.companies || [];
+                
+                if (companyNames.length > 0) {
+                  console.log(`🏢 Companies mentioned in policy query: ${companyNames.join(', ')}`);
+                  sendThinking('retrieving', `Looking up ticker symbols for mentioned companies...`);
+                  
+                  // Look up ticker symbols for each company
+                  const tickerPromises = companyNames.slice(0, 5).map(async (companyName) => {
+                    try {
+                      const tickerLookupPrompt = `What is the stock ticker symbol for ${companyName}? Return ONLY the ticker symbol (e.g., "TSLA", "AAPL", "MSFT") or "NONE" if not a publicly traded company. No explanation.`;
+                      
+                      const tickerResponse = await openai.chat.completions.create({
+                        model: "gpt-4o-mini",
+                        messages: [{ role: "user", content: tickerLookupPrompt }],
+                        temperature: 0.1,
+                        max_tokens: 50
+                      });
+                      
+                      const ticker = tickerResponse.choices[0].message.content.trim().replace(/[^A-Z]/g, '');
+                      
+                      if (ticker && ticker !== "NONE" && ticker.length <= 5) {
+                        console.log(`✅ Found ticker for ${companyName}: ${ticker}`);
+                        return { company: companyName, ticker };
+                      }
+                    } catch (error) {
+                      console.error(`Error looking up ticker for ${companyName}:`, error);
+                    }
+                    return null;
+                  });
+                  
+                  const tickerResults = (await Promise.all(tickerPromises)).filter(r => r !== null);
+                  
+                  if (tickerResults.length > 0) {
+                    dataContext += `\n\n=== COMPANIES MENTIONED IN POLICY STATEMENTS ===\n`;
+                    dataContext += `The following publicly traded companies were discussed:\n`;
+                    tickerResults.forEach(({ company, ticker }) => {
+                      dataContext += `- ${company} (${ticker})\n`;
+                    });
+                    dataContext += `\n**IMPORTANT**: When discussing ${tickerResults.map(r => r.company).join(', ')}, mention the ticker symbols ${tickerResults.map(r => r.ticker).join(', ')} so users can track potential market impacts.\n`;
+                  }
+                }
+              } catch (error) {
+                console.error('Error checking for company mentions:', error);
+              }
             }
           } catch (error) {
             console.error('Error fetching policy data:', error);
