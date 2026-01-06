@@ -473,20 +473,6 @@ ${this.schemaContext}
 - Calculate date ranges based on today's date: ${new Date().toISOString().split('T')[0]}
 - If asking "what companies did [politician] mention?", set extractCompanies: true
 
-**CRITICAL: DATE FILTERING FOR NEWS/FILINGS/PRICE TARGETS**
-When users ask "why is X down today" or "latest news for X":
-- **News queries**: Look back 3-7 days minimum, NOT just 1 day
-  - For "why is X down today?" → query news from past 7 days to capture all relevant stories
-  - For "latest news for X" → query past 7 days to ensure comprehensive coverage
-  - Calculate: ${new Date(Date.now() - 7*24*60*60*1000).toISOString()}
-  - **ALWAYS sort by published_at descending (-1)** to prioritize most recent articles first
-- **SEC filings**: Look back 14-30 days for recent filings that may affect stock
-  - **ALWAYS sort by publication_date descending (-1)**
-- **Price targets**: Look back 7-14 days for analyst updates
-  - **ALWAYS sort by date descending (-1)**
-- **NEVER use yesterday's date only** - stocks move based on news from the past week, not just yesterday
-- **SORTING IS CRITICAL**: Always use descending sort so freshest data appears first, even when looking back several days
-
 **CRITICAL: CONNECTING QUALITATIVE + QUANTITATIVE DATA**
 When users ask about news, price movements, or "why" questions, ALWAYS query BOTH qualitative AND quantitative data:
 

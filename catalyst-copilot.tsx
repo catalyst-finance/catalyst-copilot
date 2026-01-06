@@ -430,6 +430,14 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
           });
           pendingArticleCards = [];
         }
+        
+        // After flushing list, add any pending chart cards
+        if (pendingChartCards.length > 0) {
+          pendingChartCards.forEach(chartData => {
+            insertChartCard(chartData);
+          });
+          pendingChartCards = [];
+        }
       }
     };
     
@@ -482,6 +490,15 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
           );
         }
       }
+    };
+    
+    const insertChartCard = (chartData: ChartCardData) => {
+      // Render an inline mini chart for the symbol
+      elements.push(
+        <div key={`chart-card-${chartData.id}-${uniqueKeyCounter++}`} className="my-3">
+          <InlineChartCard symbol={chartData.symbol} timeRange={chartData.timeRange} />
+        </div>
+      );
     };
     
     const parseInlineFormatting = (line: string) => {
@@ -839,6 +856,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
   const [thinkingCollapsed, setThinkingCollapsed] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const latestMessageRef = useRef<HTMLDivElement>(null); // Add ref for latest message start
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -920,6 +938,12 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
   const scrollToBottom = () => {
     if (!isRestoringScroll.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const scrollToLatestMessage = () => {
+    if (!isRestoringScroll.current && latestMessageRef.current) {
+      latestMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
