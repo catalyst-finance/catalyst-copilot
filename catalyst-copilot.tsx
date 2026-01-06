@@ -2587,9 +2587,11 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
         const prices = await priceRes.json();
         const quotes = await quoteRes.json();
 
-        // Map to chart format
+        // Map to chart format - convert ISO timestamp strings to Unix milliseconds
         const mappedData = prices.map((row: any) => ({
-          timestamp: row.timestamp,
+          timestamp: typeof row.timestamp === 'string' 
+            ? new Date(row.timestamp).getTime() 
+            : row.timestamp,
           price: row.close,
           value: row.close,
           volume: row.volume
@@ -2610,7 +2612,8 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
     fetchData();
   }, [symbol, timeRange]);
 
-  const isPositive = quoteData ? (quoteData.dp || 0) >= 0 : true;
+  // finnhub_quote_snapshots uses snake_case columns: close, change_percent, previous_close
+  const isPositive = quoteData ? (quoteData.change_percent || 0) >= 0 : true;
   const isIntraday = timeRange === '1D' || timeRange === '5D';
 
   return (
@@ -2619,22 +2622,6 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
       transition={{ duration: 0.2 }}
     >
       <Card className="p-3 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-base">{symbol}</span>
-            <Badge variant="outline" className="text-xs">{timeRange}</Badge>
-          </div>
-          {quoteData && (
-            <div className="text-right">
-              <div className="font-semibold">${quoteData.c?.toFixed(2)}</div>
-              <div className={`text-xs flex items-center gap-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {isPositive ? '+' : ''}{quoteData.dp?.toFixed(2)}%
-              </div>
-            </div>
-          )}
-        </div>
-
         {isLoading ? (
           <div className="flex items-center justify-center h-24">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -2644,24 +2631,25 @@ function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: str
             Unable to load chart
           </div>
         ) : chartData && chartData.length > 0 ? (
-          <div className="h-24">
-            {isIntraday ? (
+          <>
+            {isIntraday && quoteData?.previous_close && quoteData?.close ? (
               <IntradayMiniChart 
                 data={chartData}
                 ticker={symbol}
-                previousClose={quoteData?.pc}
+                previousClose={quoteData.previous_close}
+                currentPrice={quoteData.close}
+                width={350}
+                height={120}
               />
             ) : (
               <SimpleMiniChart data={chartData} ticker={symbol} />
             )}
-          </div>
+          </>
         ) : (
           <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
             No data available
           </div>
         )}
-
-        <p className="text-[10px] text-muted-foreground/60 mt-2">Data from Catalyst (Supabase)</p>
       </Card>
     </motion.div>
   );
@@ -2829,7 +2817,7 @@ function StockCard({ data }: { data: StockCardData }) {
             </div>
           ) : effectiveChartData && effectiveChartData.length > 0 ? (
             <>
-              {isIntradayOnly ? (
+              {isIntradayOnly && calculatedPreviousClose != null ? (
                 <div className="w-full">
                   <IntradayMiniChart 
                     data={effectiveChartData.map((point: any) => {
