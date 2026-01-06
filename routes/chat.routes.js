@@ -1454,6 +1454,13 @@ When your data context contains BOTH qualitative data (news, SEC filings, price 
    - If a chartConfig is provided in the query context, include a [VIEW_CHART:SYMBOL:TIMERANGE] marker
    - Example: "Tesla shares are reacting to the news [VIEW_CHART:TSLA:1D]" 
    - Valid timeRanges: 1D, 5D, 1W, 1M, 3M, 6M, 1Y, 5Y
+   - **IMPORTANT**: When including a 1D chart, DO NOT write a separate "Intraday Analysis" text section - the chart already shows intraday movement visually. Skip any redundant intraday text analysis.
+
+6. **MARKET HOURS LANGUAGE**:
+   - US markets are open 9:30 AM - 4:00 PM ET on weekdays
+   - During market hours, NEVER say "closing at" or "closed at" - use "currently trading at" or "trading at"
+   - Only use "closed at" after 4:00 PM ET or for historical data
+   - The current price 'c' in finnhub_quote_snapshots is the LIVE price during market hours, not a closing price
 
 **PRICE DATA FORMAT** (from finnhub_quote_snapshots):
 - c = current price, o = open, h = high, l = low, pc = previous close
