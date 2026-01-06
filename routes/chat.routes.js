@@ -10,6 +10,7 @@ const openai = require('../config/openai');
 const DataConnector = require('../services/DataConnector');
 const ConversationManager = require('../services/ConversationManager');
 const IntelligenceEngine = require('../services/IntelligenceEngine');
+const QueryEngine = require('../services/QueryEngine');
 const { optionalAuth } = require('../middleware/auth');
 
 // Main AI chat endpoint
@@ -76,6 +77,48 @@ router.post('/', optionalAuth, async (req, res) => {
       loadedHistory = await ConversationManager.loadConversationContext(conversationId, 4000);
       console.log(`Loaded ${loadedHistory.length} messages from conversation ${conversationId}`);
     }
+
+    // ===== AI-NATIVE QUERY ENGINE (NEW APPROACH) =====
+    // Toggle: Set to true to use AI-generated queries instead of hardcoded classification
+    const USE_AI_QUERY_ENGINE = true;
+    
+    let queryIntent;
+    let queryResults = [];
+    
+    if (USE_AI_QUERY_ENGINE) {
+      console.log('🤖 Using AI-Native Query Engine...');
+      sendThinking('analyzing', 'Understanding your question...');
+      
+      try {
+        // AI generates the queries directly - no hardcoded classification
+        const queryPlan = await QueryEngine.generateQueries(message, selectedTickers);
+        console.log('📋 Query Plan:', JSON.stringify(queryPlan, null, 2));
+        
+        sendThinking('retrieving', 'Fetching data from databases...');
+        
+        // Execute the AI-generated queries
+        queryResults = await QueryEngine.executeQueries(queryPlan, DataConnector);
+        console.log(`✅ Retrieved data from ${queryResults.length} source(s)`);
+        
+        // Store intent for later use
+        queryIntent = {
+          intent: queryPlan.intent,
+          extractCompaniesFromTranscripts: queryPlan.extractCompanies,
+          needsChart: queryPlan.needsChart,
+          tickers: selectedTickers,
+          queries: queryPlan.queries
+        };
+        
+      } catch (error) {
+        console.error('❌ AI Query Engine failed:', error);
+        // Fallback to empty results
+        queryIntent = { intent: 'general', tickers: selectedTickers };
+        queryResults = [];
+      }
+      
+    } else {
+      // ORIGINAL CLASSIFICATION LOGIC (keep for comparison)
+      console.log('⚙️ Using legacy classification logic...');
 
     // STEP 1: AI-POWERED QUERY CLASSIFICATION
     const currentDate = new Date().toISOString().split('T')[0];
@@ -289,16 +332,12 @@ Return ONLY the JSON object, no explanation.`;
         ]
       };
     }
+    } // End of legacy classification block
 
-    // STEP 2: FETCH DATA BASED ON AI-ROUTED DATA SOURCES
+    // STEP 2: BUILD DATA CONTEXT FROM RESULTS
     let dataContext = "";
     const dataCards = [];
     const eventData = {};
-    
-    // Use AI-classified timeframe and requested counts (more reliable than regex)
-    const requestedItemCount = queryIntent.requestedItemCount || null;
-    const isCurrentTimeframe = queryIntent.timeframe === 'current';
-    console.log(`Timeframe: ${queryIntent.timeframe}, Requested item count: ${requestedItemCount}`);
     
     // Intelligence metadata tracking
     const intelligenceMetadata = {
@@ -319,6 +358,121 @@ Return ONLY the JSON object, no explanation.`;
       secFilings: [],
       entityRelationships: null
     };
+    
+    // Convert AI query results to data context
+    if (USE_AI_QUERY_ENGINE && queryResults.length > 0) {
+      console.log('📝 Building data context from AI query results...');
+      
+      for (const result of queryResults) {
+        if (result.error) {
+          console.error(`Error in ${result.collection}:`, result.error);
+          continue;
+        }
+        
+        if (result.collection === 'government_policy' && result.data.length > 0) {
+          dataContext += `\n\n═══ GOVERNMENT POLICY STATEMENTS (${result.data.length} documents) ═══\n`;
+          dataContext += `Reasoning: ${result.reasoning}\n\n`;
+          
+          result.data.forEach((doc, index) => {
+            dataContext += `${index + 1}. ${doc.title || 'Untitled'} - ${doc.date || 'No date'}\n`;
+            if (doc.participants && doc.participants.length > 0) {
+              dataContext += `   Speakers: ${doc.participants.join(', ')}\n`;
+            }
+            if (doc.source) {
+              dataContext += `   Source: ${doc.source}\n`;
+            }
+            
+            // Extract transcript text if available
+            if (doc.turns && doc.turns.length > 0) {
+              const transcript = doc.turns.map(turn => `${turn.speaker}: ${turn.text}`).join('\n');
+              dataContext += `\n   === TRANSCRIPT ===\n${transcript.substring(0, 5000)}\n   === END TRANSCRIPT ===\n\n`;
+            }
+          });
+          
+          intelligenceMetadata.hasPolicyData = true;
+          intelligenceMetadata.totalSources++;
+          
+          // Extract companies if requested
+          if (queryIntent.extractCompaniesFromTranscripts) {
+            console.log('🔍 Extracting companies from transcripts...');
+            sendThinking('analyzing', 'Identifying companies mentioned in transcripts...');
+            
+            const transcripts = result.data
+              .filter(doc => doc.turns && doc.turns.length > 0)
+              .map(doc => doc.turns.map(t => t.text).join(' '))
+              .join(' ');
+            
+            if (transcripts.length > 0) {
+              try {
+                const companyExtractionPrompt = `Extract ALL publicly traded company names from this government policy transcript.
+
+Transcript excerpt (first 8000 chars):
+${transcripts.substring(0, 8000)}
+
+Look for companies like: Chevron, ExxonMobil, BP, Shell, Tesla, Apple, Microsoft, Amazon, Google, Meta, NVIDIA, etc.
+
+Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
+
+                const companyResponse = await openai.chat.completions.create({
+                  model: "gpt-4o-mini",
+                  messages: [{ role: "user", content: companyExtractionPrompt }],
+                  temperature: 0.3,
+                  max_tokens: 500,
+                  response_format: { type: "json_object" }
+                });
+                
+                const { companies } = JSON.parse(companyResponse.choices[0].message.content.trim());
+                
+                if (companies && companies.length > 0) {
+                  dataContext += `\n\n═══ COMPANIES MENTIONED ═══\n`;
+                  dataContext += `Extracted ${companies.length} company name(s): ${companies.join(', ')}\n\n`;
+                  
+                  // Look up ticker symbols
+                  for (const companyName of companies) {
+                    try {
+                      const tickerResponse = await openai.chat.completions.create({
+                        model: "gpt-4o-mini",
+                        messages: [{ role: "user", content: `What is the stock ticker symbol for ${companyName}? Return just the ticker symbol.` }],
+                        temperature: 0.1,
+                        max_tokens: 20
+                      });
+                      
+                      const ticker = tickerResponse.choices[0].message.content.trim().replace(/[^A-Z]/g, '');
+                      if (ticker.length >= 1 && ticker.length <= 5) {
+                        dataContext += `- ${companyName} (${ticker})\n`;
+                        console.log(`✅ ${companyName} → ${ticker}`);
+                      }
+                    } catch (error) {
+                      console.error(`Error looking up ticker for ${companyName}:`, error);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error('Error extracting companies:', error);
+              }
+            }
+          }
+        }
+        
+        // Handle other collection types
+        if (result.collection === 'sec_filings' && result.data.length > 0) {
+          dataContext += `\n\n═══ SEC FILINGS (${result.data.length} filings) ═══\n`;
+          // Add SEC filing formatting here
+        }
+        
+        if (result.collection === 'event_data' && result.data.length > 0) {
+          dataContext += `\n\n═══ EVENTS (${result.data.length} events) ═══\n`;
+          // Add event formatting here
+        }
+      }
+      
+    } else if (!USE_AI_QUERY_ENGINE) {
+      // LEGACY DATA FETCHING LOGIC (keep for now)
+    
+    // Use AI-classified timeframe and requested counts (more reliable than regex)
+    const requestedItemCount = queryIntent.requestedItemCount || null;
+    const isCurrentTimeframe = queryIntent.timeframe === 'current';
+    console.log(`Timeframe: ${queryIntent.timeframe}, Requested item count: ${requestedItemCount}`);
     
     // Log AI routing decisions
     console.log('AI-selected data sources:');
