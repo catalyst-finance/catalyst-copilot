@@ -125,8 +125,15 @@ Analyze the query and return a JSON object:
   "isFutureOutlook": true | false,
   "needsDeepAnalysis": true | false,
   "isBiggestMoversQuery": true | false,
+  "requestedFilingCount": 10 or null,
   "topicKeywords": ["batteries", "tariffs", "South Korea"]
 }
+
+**DETECTING REQUESTED FILING COUNT**:
+- If user says "last 10 filings", "10 most recent filings", "analyze 10 SEC filings" → set requestedFilingCount: 10
+- If user says "last 5 filings", "recent 5 filings" → set requestedFilingCount: 5
+- If no specific number mentioned → set requestedFilingCount: null (defaults to 3-5)
+- Extract the number from phrases like "last N", "N most recent", "analyze N filings"
 
 **IMPORTANT NOTE ON formTypes**: 
 - When requesting SEC filings for roadmap/product/business questions, ALWAYS include ["10-K", "10-Q", "8-K"] as a minimum
@@ -411,7 +418,9 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                 dataContext += `\n\n${ticker} SEC Filings Analysis:\n`;
                 
                 if (needsDeepAnalysis && substantiveFilings.length > 0) {
-                  const filingsToAnalyze = substantiveFilings.slice(0, 3);
+                  // Use requestedFilingCount from query intent, or default to 3
+                  const requestedCount = queryIntent.requestedFilingCount || 3;
+                  const filingsToAnalyze = substantiveFilings.slice(0, Math.min(requestedCount, substantiveFilings.length));
                   
                   sendThinking('retrieving', `Fetching content from ${filingsToAnalyze.length} SEC filing(s)...`);
                   
@@ -1492,6 +1501,7 @@ ROLE & EXPERTISE:
 RESPONSE GUIDELINES:
 • **MANDATORY: Every source mentioned must be cited with full URL** - Cannot reference a filing without \`[TICKER Form - Date](URL)\` format
 • **MANDATORY: Every SEC filing with an image must include its [IMAGE_CARD:...] marker** - Check data context for all available IMAGE_CARD markers
+• **When query is about SEC filings/analysis, lead with SEC filing insights FIRST** - Event cards and other context should appear after the filing analysis
 • Lead with the most important insight or answer
 • Connect multiple data points to tell a cohesive story
 • Cite specific numbers, dates, percentages, and sources from SEC filings
