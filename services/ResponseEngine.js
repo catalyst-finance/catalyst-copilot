@@ -400,6 +400,8 @@ Return ONLY valid JSON.`;
 
             if (contentResult.images && contentResult.images.length > 0) {
               output += `\n   === IMAGES/CHARTS IN THIS FILING ===\n`;
+              output += `   ⚠️ EACH IMAGE MUST HAVE A DESCRIPTION IN YOUR RESPONSE ⚠️\n`;
+              output += `   DO NOT just drop [IMAGE_CARD:...] at the end - describe what each image shows!\n\n`;
               contentResult.images.slice(0, 5).forEach((img, idx) => {
                 const imageId = `sec-image-${filing.ticker}-${index}-${idx}`;
                 dataCards.push({
@@ -416,11 +418,14 @@ Return ONLY valid JSON.`;
                     filingUrl: filing.url
                   }
                 });
-                output += `   IMAGE ${idx + 1}: ${img.alt || 'Chart/Diagram'}\n`;
+                output += `   IMAGE ${idx + 1}: ${img.alt || 'Financial Chart/Table'}\n`;
                 if (img.context) {
-                  output += `   Context (text near image): "${img.context}"\n`;
+                  output += `   What this image shows: "${img.context}"\n`;
+                } else {
+                  output += `   What this image shows: Likely a financial statement, cash flow table, or data visualization\n`;
                 }
-                output += `   [IMAGE_CARD:${imageId}] - Use this marker AFTER discussing this image's content\n\n`;
+                output += `   REQUIRED: Write a sentence describing this image, then place: [IMAGE_CARD:${imageId}]\n`;
+                output += `   Example: "The cash flow statement shows net cash used in operations of $X million [IMAGE_CARD:${imageId}]"\n\n`;
               });
               output += `   === END IMAGES ===\n`;
             }
