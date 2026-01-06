@@ -342,13 +342,13 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
     
     while ((chartMatch = chartCardRegex.exec(content)) !== null) {
       const symbol = chartMatch[1];
-      const timeRange = chartMatch[2] as '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
+      const timeRange = chartMatch[2].toUpperCase() as '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
       
-      // Look up pre-loaded chart data from dataCards
+      // Look up pre-loaded chart data from dataCards (case-insensitive on timeRange)
       const chartDataCard = dataCards?.find(card => 
         card.type === 'chart' && 
         card.data.symbol === symbol && 
-        card.data.timeRange === timeRange
+        card.data.timeRange?.toUpperCase() === timeRange
       );
       
       allChartCards.push({

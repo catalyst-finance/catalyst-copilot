@@ -397,7 +397,9 @@ Return ONLY valid JSON.`;
       return dataContext;
     }
 
-    const { symbol, timeRange } = queryIntent.chartConfig;
+    const { symbol } = queryIntent.chartConfig;
+    // Normalize timeRange to uppercase to match frontend expectations ('1D', '5D', '1M', etc.)
+    const timeRange = queryIntent.chartConfig.timeRange?.toUpperCase();
     if (!symbol || !timeRange) {
       return dataContext;
     }
