@@ -102,10 +102,96 @@ interface CatalystCopilotProps {
   onTickerClick?: (ticker: string) => void;
 }
 
+/**
+ * Streaming-safe markdown preprocessor
+ * Buffers incomplete patterns to prevent garbled text during streaming
+ * Returns: { safeText: string, buffer: string }
+ */
+function getStreamingSafeText(text: string, isStreaming: boolean): { safeText: string, buffer: string } {
+  if (!isStreaming || !text) {
+    return { safeText: text, buffer: '' };
+  }
+  
+  // Patterns that could be incomplete during streaming:
+  // 1. Bold: **text** - could have unclosed **
+  // 2. Links: [text](url) - could have unclosed [ or (
+  // 3. Markers: [VIEW_CHART:...], [VIEW_ARTICLE:...], [IMAGE_CARD:...], [EVENT_CARD:...]
+  
+  let safeText = text;
+  let buffer = '';
+  
+  // Find the last complete line (ends with \n\n or is complete content)
+  // This ensures we don't render mid-sentence which breaks markdown
+  const lastDoubleNewline = text.lastIndexOf('\n\n');
+  const lastSingleNewline = text.lastIndexOf('\n');
+  
+  // Check for incomplete patterns at the end
+  const hasIncompletePattern = (str: string): boolean => {
+    // Check for unclosed brackets
+    const openBrackets = (str.match(/\[/g) || []).length;
+    const closeBrackets = (str.match(/\]/g) || []).length;
+    if (openBrackets > closeBrackets) return true;
+    
+    // Check for unclosed parentheses after ]
+    const linkPattern = /\]\([^)]*$/;
+    if (linkPattern.test(str)) return true;
+    
+    // Check for unclosed bold markers
+    const boldMarkers = (str.match(/\*\*/g) || []).length;
+    if (boldMarkers % 2 !== 0) return true;
+    
+    // Check for partial marker at end (starts with [ but no ])
+    if (/\[[^\]]*$/.test(str)) return true;
+    
+    return false;
+  };
+  
+  // Strategy: Find the last "safe" point to render
+  // A safe point is after a complete paragraph (double newline) or complete line (single newline)
+  // where there are no incomplete patterns
+  
+  if (lastDoubleNewline > 0) {
+    const beforeDoubleNewline = text.substring(0, lastDoubleNewline);
+    const afterDoubleNewline = text.substring(lastDoubleNewline + 2);
+    
+    if (!hasIncompletePattern(beforeDoubleNewline)) {
+      // Check if the part after is incomplete
+      if (hasIncompletePattern(afterDoubleNewline) || afterDoubleNewline.length < 10) {
+        safeText = beforeDoubleNewline;
+        buffer = afterDoubleNewline;
+      }
+    }
+  } else if (lastSingleNewline > 0) {
+    const beforeNewline = text.substring(0, lastSingleNewline);
+    const afterNewline = text.substring(lastSingleNewline + 1);
+    
+    if (!hasIncompletePattern(beforeNewline) && hasIncompletePattern(afterNewline)) {
+      safeText = beforeNewline;
+      buffer = '\n' + afterNewline;
+    }
+  }
+  
+  // Final check: if the whole text has incomplete patterns, buffer more aggressively
+  if (hasIncompletePattern(safeText)) {
+    // Find last complete sentence or line
+    const lastPeriod = safeText.lastIndexOf('. ');
+    const lastNewline = safeText.lastIndexOf('\n');
+    const safeCutoff = Math.max(lastPeriod + 1, lastNewline);
+    
+    if (safeCutoff > 0 && safeCutoff < safeText.length - 5) {
+      buffer = safeText.substring(safeCutoff) + buffer;
+      safeText = safeText.substring(0, safeCutoff);
+    }
+  }
+  
+  return { safeText, buffer };
+}
+
 // Markdown Renderer Component
 function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerClick, isStreaming = false }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void; onTickerClick?: (ticker: string) => void; isStreaming?: boolean }) {
-  // Don't extract sources into a separate section - keep everything inline
-  const mainText = text;
+  // Get streaming-safe text to prevent garbled markdown during streaming
+  const { safeText } = getStreamingSafeText(text, isStreaming);
+  const mainText = isStreaming ? safeText : text;
   
   const formatRollCallLink = (linkText: string, url: string) => {
     // Check if this is a Roll Call URL
@@ -331,8 +417,8 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
       // Remove VIEW_ARTICLE markers from text
       currentText = currentText.replace(articleCardRegex, '');
       
-      // NOTE: VIEW_CHART markers are pre-processed at the top of renderContent()
-      // and already removed from the text, so no need to extract them here
+      // NOTE: VIEW_CHART markers should NOT be removed here - they need to be detected
+      // in the main line processing loop to render InlineChartCard components
       
       // Remove "Read more" links that appear right before VIEW_ARTICLE markers
       // Pattern: ([Read more](URL)) or (Read more) right before where marker was
@@ -637,7 +723,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
   
   return (
     <div className="space-y-0.5">
-      <div>{renderContent(sortedText)}</div>
+      <div>{renderContent(mainText)}</div>
     </div>
   );
 }
@@ -895,6 +981,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     setStreamedContent('');
     setStreamingDataCards([]);
     setThinkingCollapsed(true);
+    
+    // Reset content batching refs
+    contentBatchRef.current = '';
+    if (contentFlushTimeoutRef.current) {
+      clearTimeout(contentFlushTimeoutRef.current);
+      contentFlushTimeoutRef.current = null;
+    }
 
     if (chatState === 'inline-expanded') {
       setChatState('full-window');
@@ -975,16 +1068,37 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 break;
 
               case 'content':
-                // Batch content updates for smoother rendering (flush every 50ms)
+                // Accumulate content in batch ref
                 contentBatchRef.current += data.content;
                 collectedContent += data.content;
                 
-                if (!contentFlushTimeoutRef.current) {
-                  contentFlushTimeoutRef.current = setTimeout(() => {
-                    setStreamedContent(prev => prev + contentBatchRef.current);
-                    contentBatchRef.current = '';
+                // Smart batching: flush on complete paragraphs, sentences, or after timeout
+                // This prevents garbled markdown from partial patterns like **bold** or [markers]
+                const batchContent = contentBatchRef.current;
+                const shouldFlushContent = 
+                  batchContent.includes('\n\n') ||     // Complete paragraph
+                  batchContent.endsWith('\n') ||       // Complete line  
+                  batchContent.endsWith('. ') ||       // Complete sentence
+                  batchContent.endsWith(']\n') ||      // Complete marker + newline
+                  (batchContent.endsWith(']') && batchContent.includes('[VIEW_')) || // Complete VIEW marker
+                  batchContent.length > 150;           // Buffer getting large
+                
+                if (shouldFlushContent) {
+                  if (contentFlushTimeoutRef.current) {
+                    clearTimeout(contentFlushTimeoutRef.current);
                     contentFlushTimeoutRef.current = null;
-                  }, 50);
+                  }
+                  setStreamedContent(prev => prev + contentBatchRef.current);
+                  contentBatchRef.current = '';
+                } else if (!contentFlushTimeoutRef.current) {
+                  // Fallback: flush after 80ms if nothing else triggers
+                  contentFlushTimeoutRef.current = setTimeout(() => {
+                    if (contentBatchRef.current) {
+                      setStreamedContent(prev => prev + contentBatchRef.current);
+                      contentBatchRef.current = '';
+                    }
+                    contentFlushTimeoutRef.current = null;
+                  }, 80);
                 }
                 break;
 
@@ -1151,6 +1265,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     setStreamedContent('');
     setStreamingDataCards([]);
     setThinkingCollapsed(true);
+    
+    // Reset content batching refs
+    contentBatchRef.current = '';
+    if (contentFlushTimeoutRef.current) {
+      clearTimeout(contentFlushTimeoutRef.current);
+      contentFlushTimeoutRef.current = null;
+    }
 
     try {
       // Get user's timezone for accurate date interpretation
@@ -1225,16 +1346,37 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 break;
 
               case 'content':
-                // Batch content updates for smoother rendering (flush every 50ms)
+                // Accumulate content in batch ref
                 contentBatchRef.current += data.content;
                 collectedContent += data.content;
                 
-                if (!contentFlushTimeoutRef.current) {
-                  contentFlushTimeoutRef.current = setTimeout(() => {
-                    setStreamedContent(prev => prev + contentBatchRef.current);
-                    contentBatchRef.current = '';
+                // Smart batching: flush on complete paragraphs, sentences, or after timeout
+                // This prevents garbled markdown from partial patterns like **bold** or [markers]
+                const editBatchContent = contentBatchRef.current;
+                const shouldFlushEditContent = 
+                  editBatchContent.includes('\n\n') ||     // Complete paragraph
+                  editBatchContent.endsWith('\n') ||       // Complete line  
+                  editBatchContent.endsWith('. ') ||       // Complete sentence
+                  editBatchContent.endsWith(']\n') ||      // Complete marker + newline
+                  (editBatchContent.endsWith(']') && editBatchContent.includes('[VIEW_')) || // Complete VIEW marker
+                  editBatchContent.length > 150;           // Buffer getting large
+                
+                if (shouldFlushEditContent) {
+                  if (contentFlushTimeoutRef.current) {
+                    clearTimeout(contentFlushTimeoutRef.current);
                     contentFlushTimeoutRef.current = null;
-                  }, 50);
+                  }
+                  setStreamedContent(prev => prev + contentBatchRef.current);
+                  contentBatchRef.current = '';
+                } else if (!contentFlushTimeoutRef.current) {
+                  // Fallback: flush after 80ms if nothing else triggers
+                  contentFlushTimeoutRef.current = setTimeout(() => {
+                    if (contentBatchRef.current) {
+                      setStreamedContent(prev => prev + contentBatchRef.current);
+                      contentBatchRef.current = '';
+                    }
+                    contentFlushTimeoutRef.current = null;
+                  }, 80);
                 }
                 break;
 
@@ -1737,6 +1879,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                       if (card.type === 'image') return false;
                       // Exclude article cards - they're rendered inline via VIEW_ARTICLE markers
                       if (card.type === 'article') return false;
+                      // Exclude chart cards - they're rendered inline via VIEW_CHART markers
+                      if (card.type === 'chart') return false;
                       return true;
                     }).length > 0 && (
                       <motion.div 
@@ -1749,6 +1893,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                           if (card.type === 'event') return false;
                           if (card.type === 'image') return false;
                           if (card.type === 'article') return false;
+                          if (card.type === 'chart') return false;
                           return true;
                         }).map((card, index) => {
                           // Generate a unique key based on card type, data, and index
@@ -1799,6 +1944,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   if (card.type === 'image') return false;
                   // Exclude article cards - they're rendered inline via VIEW_ARTICLE markers
                   if (card.type === 'article') return false;
+                  // Exclude chart cards - they're rendered inline via VIEW_CHART markers
+                  if (card.type === 'chart') return false;
                   return true;
                 }).length > 0 && (
                   <div 
@@ -1809,6 +1956,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                       if (card.type === 'event') return false;
                       if (card.type === 'image') return false;
                       if (card.type === 'article') return false;
+                      if (card.type === 'chart') return false;
                       return true;
                     }).map((card, index) => {
                       // Generate a unique key based on card type, data, and index
