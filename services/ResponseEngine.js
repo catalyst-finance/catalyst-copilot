@@ -474,6 +474,12 @@ Return ONLY valid JSON.`;
         return this.formatQuoteSnapshots(itemsToShow, detailLevel, output);
       
       case 'one_minute_prices':
+        // Skip intraday text analysis when a visual chart is being displayed
+        // The chart already shows the intraday movement visually
+        if (queryIntent?.needsChart && queryIntent?.chartConfig?.timeRange === '1D') {
+          console.log(`⏭️  Skipping intraday text formatting - visual chart is being displayed`);
+          return '';  // Return empty string to skip this section
+        }
         return this.formatIntradayPrices(itemsToShow, detailLevel, output);
       
       case 'daily_prices':
