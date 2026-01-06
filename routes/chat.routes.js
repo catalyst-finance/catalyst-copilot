@@ -1842,13 +1842,21 @@ NOT like this: "• News title [VIEW_ARTICLE:article-TICKER-0]" ← WRONG
 
 Example VIEW_CHART format (FOLLOW THIS EXACTLY):
 
-Tesla (TSLA) is currently trading at $432.02, down 4.35% from yesterday's close of $451.67. [Discuss price context here]
+**Current Price**
+
+Tesla (TSLA) is currently trading at $432.02, down 4.35% from yesterday's close of $451.67. [Discuss price context here - open, high, low, etc.]
 
 **PRICE CHART FOR TSLA:**
 [VIEW_CHART:TSLA:1D]
 
 **Recent News**
 [Continue with rest of analysis]
+
+CRITICAL CHART RULES:
+- When you include a chart, the FIRST section header MUST be "**Current Price**" (exact text)
+- The Current Price section must come BEFORE any news/analysis sections
+- Place the chart marker immediately after the Current Price section
+- The frontend relies on the "Current Price" header to position the chart correctly
 
 ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${intelligenceContext}`;
 }
