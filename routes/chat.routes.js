@@ -81,7 +81,19 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // ===== AI-NATIVE QUERY ENGINE =====
     console.log('🤖 Using AI-Native Query Engine...');
-    sendThinking('analyzing', 'Reading your question...');
+    
+    // AI-generated thinking message for question analysis phase
+    try {
+      const initialThinking = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "Write a 3-5 word status message saying you're analyzing the user's question. Start with a verb. Examples: 'Reading your question...' or 'Understanding your request...'" }],
+        temperature: 0.3,
+        max_tokens: 15
+      });
+      sendThinking('analyzing', initialThinking.choices[0].message.content.trim());
+    } catch (error) {
+      sendThinking('analyzing', 'Analyzing your question...');
+    }
     
     let queryIntent;
     let queryResults = [];
@@ -1040,7 +1052,17 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
       : '';
 
     // STEP 5.5: INTELLIGENT ANALYSIS
-    sendThinking('synthesizing', 'Connecting the dots across sources...');
+    try {
+      const synthesisThinking = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: `Write a 3-5 word status message saying you're analyzing ${intelligenceMetadata.totalSources} data sources. Examples: 'Connecting the dots...' or 'Synthesizing insights...' or 'Analyzing data patterns...'` }],
+        temperature: 0.3,
+        max_tokens: 15
+      });
+      sendThinking('synthesizing', synthesisThinking.choices[0].message.content.trim());
+    } catch (error) {
+      sendThinking('synthesizing', 'Analyzing data patterns...');
+    }
     
     // Multi-step query decomposition
     const subQueries = IntelligenceEngine.decomposeComplexQuery(message, queryIntent);
@@ -1237,7 +1259,17 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     })}\n\n`);
 
     // Send final thinking phase before OpenAI
-    sendThinking('synthesizing', 'Preparing your analysis...');
+    try {
+      const finalThinking = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "Write a 3-5 word status message saying you're preparing the final response. Examples: 'Preparing your analysis...' or 'Crafting your answer...' or 'Finalizing insights...'" }],
+        temperature: 0.3,
+        max_tokens: 15
+      });
+      sendThinking('synthesizing', finalThinking.choices[0].message.content.trim());
+    } catch (error) {
+      sendThinking('synthesizing', 'Finalizing your answer...');
+    }
 
     // Call OpenAI with text-only streaming (SEC.gov blocks image downloads)
     const stream = await openai.chat.completions.create({

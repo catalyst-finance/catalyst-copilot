@@ -245,22 +245,69 @@ class QueryEngine {
   }
 
   /**
-   * Generate contextual thinking message based on query intent
+   * Generate contextual thinking message based on query intent using AI
    */
-  generateThinkingMessage(intent, context = {}) {
-    const intentMessages = {
-      'government_policy': `Looking up ${context.politicians || 'government'} statements${context.topics ? ` about ${context.topics}` : ''}...`,
-      'sec_filings': `Searching SEC filings for ${context.tickers ? context.tickers.join(', ') : 'the company'}...`,
-      'company_research': `Researching ${context.tickers ? context.tickers.join(' and ') : 'company'} information...`,
-      'market_data': `Getting market data${context.tickers ? ` for ${context.tickers.length} stock${context.tickers.length > 1 ? 's' : ''}` : ''}...`,
-      'news': `Checking recent news${context.tickers ? ` about ${context.tickers}` : ''}...`,
-      'analyst_ratings': `Looking up analyst ratings${context.tickers ? ` for ${context.tickers}` : ''}...`,
-      'institutional': `Checking institutional ownership${context.tickers ? ` for ${context.tickers}` : ''}...`,
-      'earnings': `Finding earnings information${context.tickers ? ` for ${context.tickers}` : ''}...`,
-      'events': `Looking up upcoming events${context.tickers ? ` for ${context.tickers}` : ''}...`
-    };
+  async generateThinkingMessage(intent, context = {}) {
+    // Build prompt based on intent and context
+    let prompt = '';
     
-    return intentMessages[intent] || `Looking into that for you...`;
+    if (intent === 'government_policy') {
+      const subject = context.politicians || 'government officials';
+      const topic = context.topics || 'the topic';
+      prompt = `Write a 3-5 word status message saying you're searching for ${subject} statements about ${topic}. Start with a verb. Examples: "Searching government statements..." or "Looking up policy remarks..."`;
+    } else if (intent === 'sec_filings') {
+      const tickers = context.tickers ? context.tickers.join(' and ') : 'the company';
+      prompt = `Write a 3-5 word status message saying you're searching SEC filings for ${tickers}. Examples: "Searching SEC filings..." or "Finding regulatory filings..."`;
+    } else if (intent === 'company_research') {
+      const tickers = context.tickers ? context.tickers.join(' and ') : 'company';
+      prompt = `Write a 3-5 word status message saying you're researching ${tickers}. Examples: "Researching company data..." or "Gathering company info..."`;
+    } else if (intent === 'market_data') {
+      const tickers = context.tickers ? ` for ${context.tickers.length} stock${context.tickers.length > 1 ? 's' : ''}` : '';
+      prompt = `Write a 3-5 word status message saying you're getting market data${tickers}. Examples: "Getting market data..." or "Fetching stock prices..."`;
+    } else if (intent === 'news') {
+      const tickers = context.tickers ? ` about ${context.tickers}` : '';
+      prompt = `Write a 3-5 word status message saying you're checking recent news${tickers}. Examples: "Checking recent news..." or "Finding news articles..."`;
+    } else if (intent === 'analyst_ratings') {
+      const tickers = context.tickers ? ` for ${context.tickers}` : '';
+      prompt = `Write a 3-5 word status message saying you're looking up analyst ratings${tickers}. Examples: "Checking analyst ratings..." or "Finding price targets..."`;
+    } else if (intent === 'institutional') {
+      const tickers = context.tickers ? ` for ${context.tickers}` : '';
+      prompt = `Write a 3-5 word status message saying you're checking institutional ownership${tickers}. Examples: "Checking institutional holders..." or "Finding ownership data..."`;
+    } else if (intent === 'earnings') {
+      const tickers = context.tickers ? ` for ${context.tickers}` : '';
+      prompt = `Write a 3-5 word status message saying you're finding earnings information${tickers}. Examples: "Finding earnings data..." or "Checking earnings calls..."`;
+    } else if (intent === 'events') {
+      const tickers = context.tickers ? ` for ${context.tickers}` : '';
+      prompt = `Write a 3-5 word status message saying you're looking up upcoming events${tickers}. Examples: "Finding upcoming events..." or "Checking event calendar..."`;
+    } else {
+      prompt = `Write a 3-5 word status message saying you're looking into the user's question. Examples: "Searching databases..." or "Gathering information..."`;
+    }
+    
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_tokens: 15
+      });
+      
+      return response.choices[0].message.content.trim();
+    } catch (error) {
+      console.error('QueryEngine thinking message generation failed, using fallback');
+      // Fallback to simple message
+      const fallbacks = {
+        'government_policy': 'Searching government statements...',
+        'sec_filings': 'Searching SEC filings...',
+        'company_research': 'Researching company data...',
+        'market_data': 'Getting market data...',
+        'news': 'Checking recent news...',
+        'analyst_ratings': 'Checking analyst ratings...',
+        'institutional': 'Checking institutional ownership...',
+        'earnings': 'Finding earnings data...',
+        'events': 'Finding upcoming events...'
+      };
+      return fallbacks[intent] || 'Searching databases...';
+    }
   }
 
   /**
@@ -479,9 +526,9 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
       const result = JSON.parse(response.choices[0].message.content.trim());
       console.log('🤖 AI-Generated Queries:', JSON.stringify(result, null, 2));
       
-      // Send contextual thinking message based on intent
+      // Send contextual thinking message based on intent (AI-generated)
       if (sendThinking && result.intent) {
-        const thinkingMsg = this.generateThinkingMessage(result.intent, {
+        const thinkingMsg = await this.generateThinkingMessage(result.intent, {
           tickers: result.tickers || userPortfolio,
           topics: result.intent,
           politicians: result.queries.some(q => q.collection === 'government_policy') ? 
