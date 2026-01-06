@@ -53,9 +53,62 @@ class ResponseEngine {
   }
 
   /**
-   * Generate contextual thinking message for current phase
+   * Generate contextual thinking message for current phase using AI
    */
-  generateThinkingMessage(phase, context) {
+  async generateThinkingMessage(phase, context) {
+    // Build a natural language prompt based on the phase
+    let prompt = '';
+    
+    switch(phase) {
+      case 'plan_start':
+        const collections = context.collections.map(c => this.getCollectionFriendlyName(c)).join(' and ');
+        prompt = `Write a 3-5 word status message saying you're searching ${collections}. Start with a verb. Examples: "Searching SEC filings..." or "Looking up news articles..."`;
+        break;
+        
+      case 'plan_generated':
+        const priority = context.plan.formattingPlan.filter(p => p.priority >= 4);
+        if (priority.length > 0) {
+          const source = this.getCollectionFriendlyName(priority[0].collection);
+          prompt = `Write a 3-5 word status message saying you found relevant ${source}. Examples: "Found relevant SEC filing" or "Located government statements"`;
+        } else {
+          prompt = `Write a 3-5 word status message saying you found ${context.plan.formattingPlan.length} sources. Example: "Found 2 data sources"`;
+        }
+        break;
+        
+      case 'fetching_content':
+        const friendly = this.getCollectionFriendlyName(context.collection);
+        prompt = `Write a 3-5 word status message saying you're reading ${context.count === 1 ? 'the' : context.count} ${friendly}. Examples: "Reading the SEC filing..." or "Reviewing 3 articles..."`;
+        break;
+        
+      case 'formatting':
+        const collectionName = this.getCollectionFriendlyName(context.collection);
+        prompt = `Write a 4-6 word status message saying you're extracting details from ${collectionName}. Examples: "Extracting key financial data..." or "Pulling insights from filing..."`;
+        break;
+        
+      default:
+        return null;
+    }
+    
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_tokens: 15,  // Very short messages only
+      });
+      
+      return response.choices[0].message.content.trim();
+    } catch (error) {
+      console.error('Thinking message generation failed, using fallback');
+      // Fallback to simple hardcoded messages
+      return this.getFallbackThinkingMessage(phase, context);
+    }
+  }
+  
+  /**
+   * Fallback thinking messages if AI generation fails
+   */
+  getFallbackThinkingMessage(phase, context) {
     const messages = {
       'plan_start': () => {
         const count = context.collections.length;
@@ -96,7 +149,7 @@ class ResponseEngine {
     // Send contextual thinking message
     if (sendThinking) {
       const collections = queryResults.map(r => r.collection);
-      const thinkingMsg = this.generateThinkingMessage('plan_start', { collections });
+      const thinkingMsg = await this.generateThinkingMessage('plan_start', { collections });
       if (thinkingMsg) sendThinking('analyzing', thinkingMsg);
     }
     
@@ -205,7 +258,7 @@ Return ONLY valid JSON.`;
       
       // Send contextual thinking message about the plan
       if (sendThinking) {
-        const thinkingMsg = this.generateThinkingMessage('plan_generated', { plan });
+        const thinkingMsg = await this.generateThinkingMessage('plan_generated', { plan });
         if (thinkingMsg) sendThinking('formatting', thinkingMsg);
       }
       
@@ -262,7 +315,7 @@ Return ONLY valid JSON.`;
 
       // Send contextual thinking message
       if (sendThinking) {
-        const thinkingMsg = this.generateThinkingMessage('formatting', {
+        const thinkingMsg = await this.generateThinkingMessage('formatting', {
           collection: formatSpec.collection,
           detailLevel: formatSpec.detailLevel
         });
@@ -316,10 +369,10 @@ Return ONLY valid JSON.`;
           'macro_economics': 'economic reports'
         }[collection] || 'content';
         
-        const thinkingMsg = this.generateThinkingMessage('fetching_content', {
+        const thinkingMsg = await this.generateThinkingMessage('fetching_content', {
           count: itemsToShow.length,
           contentType,
-          collection: this.getCollectionTitle(collection)
+          collection: collection
         });
         if (thinkingMsg) sendThinking('retrieving', thinkingMsg);
       }
