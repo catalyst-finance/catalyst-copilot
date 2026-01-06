@@ -27,7 +27,7 @@ interface ThinkingStep {
 }
 
 interface DataCard {
-  type: 'stock' | 'event-list' | 'event' | 'chart' | 'image';
+  type: 'stock' | 'event-list' | 'event' | 'chart' | 'image' | 'article';
   data: any;
 }
 
@@ -41,6 +41,19 @@ interface ImageCardData {
   filingType?: string;
   filingDate?: string;
   filingUrl?: string;
+}
+
+interface ArticleCardData {
+  id: string;
+  title: string;
+  url: string;
+  source: string;
+  domain: string;
+  ticker?: string;
+  publishedAt?: string;
+  logoUrl?: string;
+  imageUrl?: string;
+  content?: string;
 }
 
 interface StockCardData {
@@ -387,12 +400,29 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       }
     };
     
+    const insertArticleCard = (articleId: string) => {
+      // Find the matching article card
+      if (dataCards) {
+        const articleCard = dataCards.find(card => 
+          card.type === 'article' && card.data.id === articleId
+        );
+        
+        if (articleCard) {
+          elements.push(
+            <div key={`article-card-${articleId}-${elements.length}`} className="my-3">
+              <DataCardComponent card={articleCard} onEventClick={onEventClick} />
+            </div>
+          );
+        }
+      }
+    };
+    
     const parseInlineFormatting = (line: string) => {
       const parts: (string | JSX.Element)[] = [];
       let currentText = line;
       let key = 0;
       
-      // STEP 1: Extract IMAGE_CARD markers FIRST (before backtick stripping)
+      // STEP 1: Extract IMAGE_CARD and VIEW_ARTICLE markers FIRST (before backtick stripping)
       // This handles cases where IMAGE_CARD is inside backticks with citation:
       // `[MNMD 10-Q](url) [IMAGE_CARD:...]` → need to extract IMAGE_CARD first
       const imageCardRegex = /\[IMAGE_CARD:([^\]]+)\]/g;
@@ -410,6 +440,23 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       
       // Remove IMAGE_CARD markers from text
       currentText = currentText.replace(imageCardRegex, '');
+      
+      // Extract VIEW_ARTICLE markers
+      const articleCardRegex = /\[VIEW_ARTICLE:([^\]]+)\]/g;
+      const extractedArticleCardIds: string[] = [];
+      let articleMatch;
+      
+      while ((articleMatch = articleCardRegex.exec(currentText)) !== null) {
+        extractedArticleCardIds.push(articleMatch[1]);
+      }
+      
+      // Render article cards immediately
+      if (extractedArticleCardIds.length > 0) {
+        extractedArticleCardIds.forEach(id => insertArticleCard(id));
+      }
+      
+      // Remove VIEW_ARTICLE markers from text
+      currentText = currentText.replace(articleCardRegex, '');
       
       // STEP 2: Clean up whitespace artifacts from IMAGE_CARD removal
       // Handle pattern: `[text](url) ` → `[text](url)` (trailing space before backtick)
@@ -2213,6 +2260,96 @@ function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClic
           )}
 
           <p className="text-[10px] text-muted-foreground/60 mt-2">SEC Filing Image</p>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  if (card.type === 'article') {
+    const articleData = card.data as ArticleCardData;
+    
+    return (
+      <motion.div
+        whileHover={{ scale: 1.01, y: -2 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Card className="p-4 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg overflow-hidden">
+          <div className="flex gap-4">
+            {/* Article image or site logo */}
+            <div className="flex-shrink-0">
+              {articleData.imageUrl ? (
+                <div className="w-24 h-24 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20">
+                  <img 
+                    src={articleData.imageUrl} 
+                    alt={articleData.title} 
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ) : articleData.logoUrl ? (
+                <div className="w-24 h-24 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20 flex items-center justify-center p-4">
+                  <img 
+                    src={articleData.logoUrl} 
+                    alt={articleData.source} 
+                    className="w-full h-full object-contain"
+                    loading="lazy"
+                  />
+                </div>
+              ) : (
+                <div className="w-24 h-24 rounded-lg border border-border/50 bg-muted/40 flex items-center justify-center">
+                  <FileText className="w-8 h-8 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+
+            {/* Article content */}
+            <div className="flex-1 min-w-0">
+              {/* Header with source and ticker */}
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {articleData.ticker && (
+                  <Badge className="!bg-gradient-to-r !from-ai-accent !to-ai-accent/80 !text-white !border-none text-xs shadow-sm">
+                    {articleData.ticker}
+                  </Badge>
+                )}
+                <span className="text-xs text-muted-foreground font-medium">
+                  {articleData.source || articleData.domain}
+                </span>
+                {articleData.publishedAt && (
+                  <>
+                    <span className="text-xs text-muted-foreground">•</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(articleData.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Article title */}
+              <h4 className="font-semibold text-sm mb-2 line-clamp-2 leading-tight">
+                {articleData.title}
+              </h4>
+
+              {/* Content preview */}
+              {articleData.content && (
+                <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                  {articleData.content}
+                </p>
+              )}
+
+              {/* Read article link */}
+              <a 
+                href={articleData.url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-ai-accent hover:text-ai-accent/80 transition-colors font-medium"
+              >
+                Read Article
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-muted-foreground/60 mt-3">News Article</p>
         </Card>
       </motion.div>
     );

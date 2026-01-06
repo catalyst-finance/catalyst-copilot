@@ -1212,6 +1212,12 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     // STEP 6: PREPARE SYSTEM PROMPT (truncated for brevity - full prompt in original)
     const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext, responseStyleGuidelines);
 
+    // Debug: Check if VIEW_ARTICLE markers are in dataContext
+    const viewArticleMatches = (dataContext.match(/\[VIEW_ARTICLE:[^\]]+\]/g) || []);
+    if (viewArticleMatches.length > 0) {
+      console.log(`🖼️  Data context contains ${viewArticleMatches.length} VIEW_ARTICLE markers:`, viewArticleMatches);
+    }
+
     // Build messages array (text-only - SEC.gov blocks image downloads)
     const messages = [
       { role: "system", content: systemPrompt },
@@ -1315,6 +1321,18 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     console.log('\n🔍 ESCAPED VERSION (shows \\n, \\t, etc):');
     console.log(JSON.stringify(fullResponse, null, 2));
     console.log('='.repeat(80));
+    
+    // Debug: Check if GPT-4 preserved VIEW_ARTICLE markers
+    const responseViewArticleMatches = (fullResponse.match(/\[VIEW_ARTICLE:[^\]]+\]/g) || []);
+    if (viewArticleMatches.length > 0) {
+      if (responseViewArticleMatches.length === 0) {
+        console.log(`⚠️  WARNING: Data had ${viewArticleMatches.length} VIEW_ARTICLE markers but GPT-4 response has 0!`);
+      } else if (responseViewArticleMatches.length < viewArticleMatches.length) {
+        console.log(`⚠️  WARNING: Data had ${viewArticleMatches.length} VIEW_ARTICLE markers but GPT-4 only kept ${responseViewArticleMatches.length}`);
+      } else {
+        console.log(`✅ GPT-4 preserved all ${responseViewArticleMatches.length} VIEW_ARTICLE markers`);
+      }
+    }
 
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
     res.end();
@@ -1402,10 +1420,11 @@ ${responseStyleGuidelines.instructions ? `Instructions: ${responseStyleGuideline
   return `You are Catalyst Copilot, a financial AI assistant specializing in connecting market data, institutional activity, and policy developments.
 
 ROLE & EXPERTISE:
-- Financial data analyst with real-time market intelligence
-- Expert at connecting institutional ownership trends with price movements
-- Specialist in FDA approvals, earnings catalysts, and regulatory events
-- Policy analyst tracking government decisions affecting markets
+- Financial data analyst with real-time qualitative and quantitative market intelligence
+- Expert at connecting the dots across SEC filings, stock movements, and macro events
+- Skilled in synthesizing complex data into clear, actionable insights
+- Deep understanding of regulatory environments and their market impacts
+- Proficient in interpreting SEC filings, earnings reports, and market trends
 - Advanced pattern recognition and anomaly detection
 ${styleInstructions}
 
@@ -1619,11 +1638,17 @@ CRITICAL CONSTRAINTS:
    - **SCAN THE DATA CONTEXT FOR [EVENT_CARD:...] MARKERS** - they appear in the event cards section
    - **YOU MUST COPY EVERY [EVENT_CARD:...] MARKER YOU SEE** - place them INLINE within the relevant timeline section, NOT in a separate section
    - **NEVER CREATE A SEPARATE "EVENT CARDS" SECTION** - events must be woven into the narrative at the appropriate timeline position (Q1, Q2, etc.)
+   - **SCAN THE DATA CONTEXT FOR [VIEW_ARTICLE:...] MARKERS** - they appear in news article sections after the URL
+   - **YOU MUST PRESERVE EVERY [VIEW_ARTICLE:...] MARKER YOU SEE** - these trigger visual article cards with images/logos
+   - **ARTICLE CARD PLACEMENT**: Place the marker right after discussing that news article, immediately after the URL or article title
+   - **CRITICAL FOR NEWS ARTICLES**: When the data context shows news articles with [VIEW_ARTICLE:...] markers, you MUST include those markers in your response when discussing those articles
+   - **NEWS FORMAT**: When citing news, use format: "Article title ([Read more](URL)) [VIEW_ARTICLE:article-TICKER-X]"
    - **REQUIRED FORMAT FOR SEC FILINGS WITH IMAGES**: \`[TICKER Form Type - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
    - **EVENT CARD EXAMPLE**: "• VOYAGE Phase 3 topline data expected May 15, 2026 [EVENT_CARD:MNMD_clinical_2026-05-15...]" - the marker goes at the END of the bullet point
    - **IMAGE CARD EXAMPLE**: "The 10-Q shows strong Phase 3 enrollment progress \`[MNMD 10-Q - Nov 6, 2025](https://sec.gov/...) [IMAGE_CARD:sec-image-MNMD-0-0]\`."
-   - **BEFORE SENDING YOUR RESPONSE**: Count how many [IMAGE_CARD:...] markers are in the data context and verify your response includes ALL of them
-   - These markers trigger visual charts/tables to appear inline - they provide critical context users need to see
+   - **ARTICLE CARD EXAMPLE**: "Tesla reported declining EV sales in Q4 2025 according to a recent analysis ([Read more](https://www.fool.com/...)) [VIEW_ARTICLE:article-TSLA-0]."
+   - **BEFORE SENDING YOUR RESPONSE**: Count how many [IMAGE_CARD:...] and [VIEW_ARTICLE:...] markers are in the data context and verify your response includes ALL of them
+   - These markers trigger visual charts/tables/article cards to appear inline - they provide critical context users need to see
 9. **EXTRACT DETAILED INSIGHTS FROM SEC FILINGS**: When SEC filing content is provided (marked with "=== CONTENT ==="), analyze and discuss specific details, metrics, business strategies, risks, and forward-looking statements from that text. Don't just summarize - pull out concrete insights. Every filing you discuss MUST have its full citation with URL and IMAGE_CARD marker if available.
 10. **BALANCED ANALYSIS OF OPERATIONS + FINANCIALS (CRITICAL)**:
     - When filing content contains product development/trial updates AND financial metrics, discuss BOTH
