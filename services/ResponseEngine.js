@@ -100,7 +100,10 @@ class ResponseEngine {
         max_tokens: 15,  // Very short messages only
       });
       
-      return response.choices[0].message.content.trim();
+      // Sanitize: remove quotes and the word "now"
+      const raw = response.choices[0].message.content || '';
+      const sanitized = raw.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
+      return sanitized;
     } catch (error) {
       console.error('Thinking message generation failed, using fallback');
       // Fallback to simple hardcoded messages
