@@ -11,6 +11,7 @@ const DataConnector = require('../services/DataConnector');
 const ConversationManager = require('../services/ConversationManager');
 const IntelligenceEngine = require('../services/IntelligenceEngine');
 const QueryEngine = require('../services/QueryEngine');
+const ResponseEngine = require('../services/ResponseEngine');
 const { optionalAuth } = require('../middleware/auth');
 
 // Main AI chat endpoint
@@ -115,13 +116,17 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // STEP 2: BUILD DATA CONTEXT FROM RESULTS
+    
+    // Feature flag: Use AI-driven ResponseEngine or legacy hardcoded formatting
+    const USE_AI_FORMATTING = true;  // Toggle to false to use legacy formatting
+    
     let dataContext = "";
     const dataCards = [];
     const eventData = {};
-    let upcomingDatesContext = "";  // Initialize for both AI and legacy paths
+    let upcomingDatesContext = "";
     
     // Intelligence metadata tracking
-    const intelligenceMetadata = {
+    let intelligenceMetadata = {
       totalSources: 0,
       sourceFreshness: [],
       dataCompleteness: { hasExpectedData: false, hasPartialData: false },
@@ -143,6 +148,42 @@ router.post('/', optionalAuth, async (req, res) => {
     // Convert AI query results to data context
     if (queryResults.length > 0) {
       console.log('📝 Building data context from AI query results...');
+      
+      // === AI-DRIVEN FORMATTING (NEW) ===
+      if (USE_AI_FORMATTING) {
+        console.log('🎨 Using AI-Native Response Engine...');
+        sendThinking('formatting', 'Analyzing data presentation strategy...');
+        
+        try {
+          // AI generates intelligent formatting plan
+          const formattingPlan = await ResponseEngine.generateFormattingPlan(
+            queryResults,
+            message,
+            queryIntent
+          );
+          
+          // Execute the AI-generated formatting plan
+          const formatted = await ResponseEngine.executeFormattingPlan(
+            formattingPlan,
+            queryResults,
+            DataConnector,
+            sendThinking
+          );
+          
+          dataContext = formatted.dataContext;
+          dataCards.push(...formatted.dataCards);
+          intelligenceMetadata = { ...intelligenceMetadata, ...formatted.intelligenceMetadata };
+          
+          console.log(`✅ AI formatting complete - ${intelligenceMetadata.totalSources} sources`);
+        } catch (error) {
+          console.error('❌ AI formatting failed, falling back to legacy:', error);
+          // Fall through to legacy formatting below
+        }
+      }
+      
+      // === LEGACY HARDCODED FORMATTING (FALLBACK) ===
+      if (!USE_AI_FORMATTING || dataContext === "") {
+        console.log('📝 Using legacy hardcoded formatting...');
       
       for (const result of queryResults) {
         if (result.error) {
@@ -579,6 +620,7 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           // Add event formatting here
         }
       }
+      } // End legacy formatting
     }
 
     // STEP 3: PRE-GENERATE EVENT CARDS
