@@ -682,14 +682,15 @@ Return ONLY valid JSON.`;
         // Use Google's favicon service for site logo (fallback)
         let logoUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null;
         
-        // ALWAYS try to fetch og:image for visual article preview (not gated by fetchExternal)
-        // This ensures we get article images even when not fetching full content
+        // ALWAYS try to fetch og:image and provider for article preview (metadata only)
+        // This ensures we get article images and correct source attribution
         let imageUrl = article.image || null; // Start with stored image from MongoDB
         let extractedProvider = null; // Provider extracted from Yahoo Finance HTML
         
         if (article.url && items.length <= 10 && !imageUrl) {
           try {
-            const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
+            // metadataOnly = true: only extract og:image and provider, no article content
+            const contentResult = await DataConnector.fetchWebContent(article.url, 8000, true);
             if (contentResult.success) {
               if (contentResult.imageUrl) {
                 imageUrl = contentResult.imageUrl;
@@ -747,20 +748,10 @@ Return ONLY valid JSON.`;
         output += `   [VIEW_ARTICLE:${articleId}]\n`;
       }
 
-      // Show article content - ALWAYS prefer stored 'content' field from MongoDB
+      // Show article content - ONLY use stored 'content' field from MongoDB
       if (article.content && detailLevel !== 'summary') {
         const contentLength = detailLevel === 'full' ? 5000 : (detailLevel === 'detailed' ? 1000 : 300);
         output += `   Content: ${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
-      } else if (detailLevel === 'full' && fetchExternal && article.url && items.length <= 5) {
-        // Only fetch from URL if content field is missing (fallback)
-        try {
-          const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
-          if (contentResult.success && contentResult.content) {
-            output += `\n   === FULL ARTICLE ===\n${contentResult.content}\n   === END ARTICLE ===\n`;
-          }
-        } catch (error) {
-          // Silently fail - no content available
-        }
       }
 
       if (article.url) output += `   URL: ${article.url}\n`;
@@ -813,20 +804,8 @@ Return ONLY valid JSON.`;
       output += `${index + 1}. ${press.title || 'Untitled'} - ${date}\n`;
       if (press.ticker) output += `   Ticker: ${press.ticker}\n`;
 
-      if (fetchExternal && press.url && detailLevel === 'full' && items.length <= 5) {
-        try {
-          const contentResult = await DataConnector.fetchWebContent(press.url, 10000);
-          if (contentResult.success && contentResult.content) {
-            output += `\n   === FULL PRESS RELEASE ===\n${contentResult.content}\n   === END PRESS RELEASE ===\n`;
-          } else if (press.content || press.summary) {
-            output += `   ${press.content || press.summary}\n`;
-          }
-        } catch (error) {
-          if (press.content || press.summary) {
-            output += `   ${press.content || press.summary}\n`;
-          }
-        }
-      } else if (press.content && detailLevel !== 'summary') {
+      // Press releases: rely on stored content/summary field only
+      if (press.content && detailLevel !== 'summary') {
         output += `   Content: ${press.content.substring(0, detailLevel === 'detailed' ? 2000 : 500)}...\n`;
       } else if (press.summary && detailLevel !== 'summary') {
         output += `   Summary: ${press.summary}\n`;

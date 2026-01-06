@@ -821,8 +821,9 @@ class DataConnector {
    * Fetch and parse web content from any URL (news articles, press releases, etc.)
    * @param {string} url - Web page URL
    * @param {number} maxLength - Maximum content length
+   * @param {boolean} metadataOnly - If true, only extract og:image and provider name (no article content)
    */
-  static async fetchWebContent(url, maxLength = 10000) {
+  static async fetchWebContent(url, maxLength = 10000, metadataOnly = true) {
     try {
       console.log(`🌐 Fetching web content from: ${url}`);
       
@@ -913,55 +914,62 @@ class DataConnector {
         }
       }
       
-      // Remove unwanted elements
-      $('script, style, noscript, nav, header, footer, aside, .ad, .advertisement, .sidebar').remove();
+      // Only extract article content if metadataOnly is false
+      let content = null;
       
-      // Try to find the main article content
-      let content = '';
-      
-      // Common article content selectors
-      const articleSelectors = [
-        'article',
-        '[role="main"]',
-        '.article-content',
-        '.article-body',
-        '.post-content',
-        '.entry-content',
-        '.story-body',
-        'main',
-        '.content'
-      ];
-      
-      for (const selector of articleSelectors) {
-        const element = $(selector);
-        if (element.length && element.text().trim().length > 200) {
-          content = element.text();
-          break;
+      if (!metadataOnly) {
+        // Remove unwanted elements
+        $('script, style, noscript, nav, header, footer, aside, .ad, .advertisement, .sidebar').remove();
+        
+        // Try to find the main article content
+        content = '';
+        
+        // Common article content selectors
+        const articleSelectors = [
+          'article',
+          '[role="main"]',
+          '.article-content',
+          '.article-body',
+          '.post-content',
+          '.entry-content',
+          '.story-body',
+          'main',
+          '.content'
+        ];
+        
+        for (const selector of articleSelectors) {
+          const element = $(selector);
+          if (element.length && element.text().trim().length > 200) {
+            content = element.text();
+            break;
+          }
         }
+        
+        // Fallback to body text
+        if (!content || content.length < 200) {
+          content = $('body').text();
+        }
+        
+        // Clean up whitespace
+        content = content
+          .replace(/\s+/g, ' ')
+          .replace(/\n\s*\n/g, '\n')
+          .trim();
+        
+        // Truncate to maxLength
+        if (content.length > maxLength) {
+          content = content.substring(0, maxLength) + '... [truncated]';
+        }
+        
+        console.log(`   Fetched ${content.length} characters of content`);
+      } else {
+        console.log(`   Metadata only mode - skipping content extraction`);
       }
-      
-      // Fallback to body text
-      if (!content || content.length < 200) {
-        content = $('body').text();
-      }
-      
-      // Clean up whitespace
-      content = content
-        .replace(/\s+/g, ' ')
-        .replace(/\n\s*\n/g, '\n')
-        .trim();
-      
-      // Truncate to maxLength
-      if (content.length > maxLength) {
-        content = content.substring(0, maxLength) + '... [truncated]';
-      }
-      
-      console.log(`   Fetched ${content.length} characters of content`);
       
       return {
         success: true,
         content: content,
-        contentLength: content.length,
+        contentLength: content ? content.length : 0,
         imageUrl: imageUrl, // og:image URL if found
         providerName: providerName // Original content provider for Yahoo articles
       };

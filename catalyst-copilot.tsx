@@ -2453,7 +2453,7 @@ function DataCardComponent({ card, onEventClick, onImageClick, onTickerClick }: 
             {/* Article image or country flag (for macro) or site logo */}
             <div className="flex-shrink-0">
               {isMacroArticle && flagUrl ? (
-                <div className="w-16 h-16 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20 flex items-center justify-center">
+                <div className="w-24 h-16 rounded-lg overflow-hidden border border-border/50 bg-white dark:bg-muted/20">
                   <img 
                     src={flagUrl} 
                     alt={`${articleData.country} flag`} 
