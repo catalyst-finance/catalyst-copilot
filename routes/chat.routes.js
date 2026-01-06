@@ -1659,20 +1659,30 @@ CRITICAL CONSTRAINTS:
     - **THINK**: How does cash runway relate to R&D timelines? How do partnership revenues fund clinical programs? Does burn rate align with development milestones?
     - If filing discusses product roadmap AND financial guidance, your response must address both and show how they're interconnected
 11. **FUTURE OUTLOOK QUERIES WITH EVENT CARDS (MANDATORY)**:
-    - **IF eventCardsContext contains events AND query asks about "roadmap", "future", "outlook", "upcoming", or "timeline"**, you MUST create a forward-looking section
-    - **SECTION HEADER**: Use "**Upcoming Catalysts**" or "**Future Timeline**" or "**2026 Roadmap**" depending on context
-    - **STRUCTURE**: Break into time periods (Q1 2026, Q2 2026, H2 2026, etc.) or chronological list
     - **MANDATORY EVENT INTEGRATION**: Every [EVENT_CARD:...] marker listed in the eventCardsContext MUST appear in your response
-    - **PLACEMENT**: Add the marker at the END of the bullet point: "• VOYAGE Phase 3 topline data expected May 15, 2026 [EVENT_CARD:MNMD_clinical_2026-05-15...]"
+    - **PLACEMENT**: Add the marker at the END of the bullet point describing that event: "• VOYAGE Phase 3 topline data expected May 15, 2026 [EVENT_CARD:MNMD_clinical_2026-05-15...]"
     - **COUNT CHECK**: If context shows 3 event cards, your response must include all 3 markers. If you're missing any, you've failed the requirement.
-    - **EXAMPLE**:
+    - **TWO INTEGRATION APPROACHES** (choose based on your response structure):
     
-      **Upcoming Catalysts**
+      **APPROACH A: Integrate into existing sections** (PREFERRED if you already have timeline/roadmap sections)
+      - If your response already has sections like "Operational Progress", "Impact on Product Roadmap", "Recent Developments", etc., integrate events INLINE within those sections
+      - Place event cards at the END of relevant bullet points in existing sections
+      - DO NOT create a separate "Upcoming Catalysts" section - events should flow naturally within your existing structure
+      - Example: In an "Impact on Product Roadmap" section, add "• Phase 3 trial data expected May 2026 [EVENT_CARD:...]" as one of the bullets
       
-      **Q2 2026**
+      **APPROACH B: Create dedicated timeline section** (ONLY if no timeline structure exists)
+      - ONLY if your response doesn't have any forward-looking sections, create "**Upcoming Catalysts**" or "**Future Timeline**"
+      - Structure: Break into time periods (Q1 2026, Q2 2026, H2 2026, etc.)
+      - Example:
       
-      • VOYAGE Phase 3 topline data expected May 15, 2026, which could de-risk MM120 platform [EVENT_CARD:MNMD_clinical_2026-05-15T09:00:00+00:00]
-      • Earnings call scheduled June 2026 to discuss trial results [EVENT_CARD:MNMD_earnings_2026-06-01...]
+        **Upcoming Catalysts**
+        
+        **Q2 2026**
+        
+        • VOYAGE Phase 3 topline data expected May 15, 2026, which could de-risk MM120 platform [EVENT_CARD:MNMD_clinical_2026-05-15T09:00:00+00:00]
+        • Earnings call scheduled June 2026 [EVENT_CARD:MNMD_earnings_2026-06-01...]
+    
+    - **CRITICAL**: Never create an empty "Upcoming Catalysts" section. If you've integrated all events inline elsewhere, you're done - don't add a header with nothing under it.
 
 INTELLIGENCE INSIGHTS:
 • If confidence level is provided, acknowledge data quality in your response
