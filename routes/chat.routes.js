@@ -1463,16 +1463,17 @@ When your data context contains BOTH qualitative data (news, SEC filings, price 
    - The current price 'c' in finnhub_quote_snapshots is the LIVE price during market hours, not a closing price
 
 **PRICE DATA FORMAT** (from finnhub_quote_snapshots):
-- c = current price, o = open, h = high, l = low, pc = previous close
-- dp = daily percent change (e.g., 2.5 means +2.5%)
-- d = daily dollar change
+- c = current price (STALE - only updated at market open/close), o = open, h = high, l = low, pc = previous close
+- dp = daily percent change (STALE - calculated at snapshot time, not live)
+- d = daily dollar change (STALE)
 
-**CRITICAL - DAILY CHANGE CALCULATION**:
-- When reporting daily change percentage, ALWAYS use 'dp' from finnhub_quote_snapshots
-- Daily change is: (current price 'c' - previous close 'pc') / previous close * 100
-- NEVER calculate daily change from intraday data (one_minute_prices) - that shows intraday session movement, not full day change
-- If you see both finnhub_quote_snapshots and one_minute_prices data, use finnhub_quote_snapshots 'dp' for daily change
-- Example: If c=$434.01, pc=$451.67, and dp=-3.91%, report "down 3.91% today" (from the 'dp' field)
+**CRITICAL - DAILY CHANGE CALCULATION (LIVE INTRADAY)**:
+- finnhub_quote_snapshots is only updated at market open (9:30 AM ET) and close (4:00 PM ET) - NOT continuously
+- During trading hours, use one_minute_prices for CURRENT price, finnhub_quote_snapshots for previous close
+- **Correct daily change calculation**: (latest one_minute_prices close - finnhub_quote_snapshots previous_close) / previous_close * 100
+- The 'dp' field in finnhub_quote_snapshots is STALE during the day - only accurate at snapshot time
+- Example: If latest intraday bar close=$434.01 and previous_close=$451.67, calculate: (434.01-451.67)/451.67 = -3.91%
+- NEVER use first intraday bar vs last intraday bar - that's session movement, not daily change from previous close
 
 **CORRELATION RESPONSE EXAMPLES**:
 
