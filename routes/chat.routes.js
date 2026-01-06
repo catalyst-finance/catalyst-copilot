@@ -129,11 +129,18 @@ Analyze the query and return a JSON object:
   "topicKeywords": ["batteries", "tariffs", "South Korea"]
 }
 
-**DETECTING REQUESTED FILING COUNT**:
-- If user says "last 10 filings", "10 most recent filings", "analyze 10 SEC filings" → set requestedFilingCount: 10
-- If user says "last 5 filings", "recent 5 filings" → set requestedFilingCount: 5
+**DETECTING REQUESTED FILING COUNT (CRITICAL - DO NOT CONFUSE WITH DATE RANGES)**:
+- If user says "last 10 filings", "10 most recent filings", "analyze 10 SEC filings" → set requestedFilingCount: 10 AND dateRange: null
+- If user says "last 5 filings", "recent 5 filings" → set requestedFilingCount: 5 AND dateRange: null
+- **"last N filings" means COUNT, not DATE** - do NOT create a date range for "last N filings"
+- **ONLY create dateRange for explicit time periods**: "last week", "past month", "last 30 days", "filings from 2025"
 - If no specific number mentioned → set requestedFilingCount: null (defaults to 3-5)
 - Extract the number from phrases like "last N", "N most recent", "analyze N filings"
+
+**EXAMPLES**:
+❌ WRONG: "last 10 filings" → dateRange: {"start": "2025-12-27", "end": "2026-01-06"} (this is last 10 DAYS, not 10 FILINGS)
+✅ CORRECT: "last 10 filings" → requestedFilingCount: 10, dateRange: null (count-based query)
+✅ CORRECT: "filings from last week" → dateRange: {"start": "2025-12-30", "end": "2026-01-06"}, requestedFilingCount: null (date-based query)
 
 **IMPORTANT NOTE ON formTypes**: 
 - When requesting SEC filings for roadmap/product/business questions, ALWAYS include ["10-K", "10-Q", "8-K"] as a minimum
