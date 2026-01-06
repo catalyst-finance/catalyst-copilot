@@ -587,6 +587,19 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
               // ENHANCED: Now handles both explicit searches AND "which companies?" queries
               sendThinking('retrieving', `Checking for company mentions in policy statements...`);
               try {
+                // Debug: Check the first document's structure
+                if (policyResult.data.length > 0) {
+                  const firstDoc = policyResult.data[0];
+                  console.log(`🔍 First document structure:`, {
+                    title: firstDoc.title,
+                    hasTurns: !!firstDoc.turns,
+                    turnsCount: firstDoc.turns?.length || 0,
+                    turnsType: Array.isArray(firstDoc.turns) ? 'array' : typeof firstDoc.turns,
+                    firstTurnKeys: firstDoc.turns?.[0] ? Object.keys(firstDoc.turns[0]) : [],
+                    firstTurnSample: firstDoc.turns?.[0] ? JSON.stringify(firstDoc.turns[0]).substring(0, 200) : 'none'
+                  });
+                }
+                
                 const policyTexts = policyResult.data.map(item => {
                   const turns = item.turns || [];
                   const text = turns.map(t => t.text).join(' ');
