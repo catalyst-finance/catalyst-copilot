@@ -63,6 +63,8 @@ interface ChartCardData {
   id: string;
   symbol: string;
   timeRange: '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
+  chartData?: any[]; // Pre-loaded chart data from backend
+  previousClose?: number; // Pre-loaded previous close from backend
 }
 
 interface StockCardData {
@@ -341,10 +343,20 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
     while ((chartMatch = chartCardRegex.exec(content)) !== null) {
       const symbol = chartMatch[1];
       const timeRange = chartMatch[2] as '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
+      
+      // Look up pre-loaded chart data from dataCards
+      const chartDataCard = dataCards?.find(card => 
+        card.type === 'chart' && 
+        card.data.symbol === symbol && 
+        card.data.timeRange === timeRange
+      );
+      
       allChartCards.push({
         id: `chart-${symbol}-${timeRange}-${Date.now()}-${allChartCards.length}`,
         symbol,
-        timeRange
+        timeRange,
+        chartData: chartDataCard?.data.chartData,
+        previousClose: chartDataCard?.data.previousClose
       });
     }
     
@@ -365,7 +377,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
     const flushParagraph = () => {
       if (currentParagraph.length > 0) {
         elements.push(
-          <p key={`para-${uniqueKeyCounter++}`} className="mb-3 leading-relaxed">
+          <p key={`para-${uniqueKeyCounter++}`} className="mb-0 leading-relaxed m-[0px]">
             {parseInlineFormatting(currentParagraph.join(' '))}
           </p>
         );
@@ -377,7 +389,13 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
           allChartCards.forEach(chartData => {
             elements.push(
               <div key={`chart-card-${chartData.id}-${uniqueKeyCounter++}`} className="my-3">
-                <InlineChartCard symbol={chartData.symbol} timeRange={chartData.timeRange} onTickerClick={onTickerClick} />
+                <InlineChartCard 
+                  symbol={chartData.symbol} 
+                  timeRange={chartData.timeRange} 
+                  preloadedChartData={chartData.chartData}
+                  preloadedPreviousClose={chartData.previousClose}
+                  onTickerClick={onTickerClick} 
+                />
               </div>
             );
           });
@@ -2547,10 +2565,22 @@ function DataCardComponent({ card, onEventClick, onImageClick, onTickerClick }: 
  * InlineChartCard - Renders a mini price chart for a symbol inline in the response
  * Used when VIEW_CHART markers are detected in AI responses
  */
-function InlineChartCard({ symbol, timeRange, onTickerClick }: { symbol: string; timeRange: string; onTickerClick?: (ticker: string) => void }) {
-  const [chartData, setChartData] = useState<any[] | null>(null);
+function InlineChartCard({ 
+  symbol, 
+  timeRange, 
+  preloadedChartData = null,
+  preloadedPreviousClose = null,
+  onTickerClick 
+}: { 
+  symbol: string; 
+  timeRange: string; 
+  preloadedChartData?: any[] | null;
+  preloadedPreviousClose?: number | null;
+  onTickerClick?: (ticker: string) => void 
+}) {
+  const [chartData, setChartData] = useState<any[] | null>(preloadedChartData);
   const [quoteData, setQuoteData] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!preloadedChartData);
   const [error, setError] = useState(false);
 
   // Subscribe to real-time price updates
@@ -2586,6 +2616,35 @@ function InlineChartCard({ symbol, timeRange, onTickerClick }: { symbol: string;
   }, [symbol]);
 
   useEffect(() => {
+    // Skip fetch if pre-loaded data is already available
+    if (preloadedChartData && preloadedChartData.length > 0) {
+      console.log(`📊 Using pre-loaded chart data for ${symbol} (${preloadedChartData.length} points)`);
+      setChartData(preloadedChartData);
+      setIsLoading(false);
+      
+      // Still fetch quote data for current price
+      const fetchQuote = async () => {
+        try {
+          const { data: quoteResult, error: quoteError } = await supabase
+            .from('finnhub_quote_snapshots')
+            .select('symbol, close, change, change_percent, previous_close, open, high, low, volume, timestamp')
+            .eq('symbol', symbol)
+            .order('timestamp', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (!quoteError && quoteResult) {
+            setQuoteData(quoteResult);
+          }
+        } catch (err) {
+          console.error('Error fetching quote:', err);
+        }
+      };
+      
+      fetchQuote();
+      return;
+    }
+
     const fetchData = async () => {
       setIsLoading(true);
       setError(false);
@@ -2604,7 +2663,7 @@ function InlineChartCard({ symbol, timeRange, onTickerClick }: { symbol: string;
             const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
             startDate = todayStart;
             table = 'one_minute_prices';
-            limit = 390; // ~6.5 hours of trading
+            limit = 720; // Full extended hours: pre-market (90min) + regular (390min) + after-hours (240min)
             break;
           case '5D':
             startDate = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
@@ -2751,11 +2810,11 @@ function InlineChartCard({ symbol, timeRange, onTickerClick }: { symbol: string;
           </div>
         ) : chartData && chartData.length > 0 ? (
           <>
-            {isIntraday && quoteData?.previous_close && quoteData?.close ? (
+            {isIntraday && (quoteData?.previous_close || preloadedPreviousClose) && quoteData?.close ? (
               <IntradayMiniChart 
                 data={chartData}
                 ticker={symbol}
-                previousClose={quoteData.previous_close}
+                previousClose={quoteData?.previous_close || preloadedPreviousClose}
                 currentPrice={quoteData.close}
                 width={350}
                 height={120}

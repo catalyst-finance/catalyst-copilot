@@ -192,9 +192,9 @@ router.post('/', optionalAuth, async (req, res) => {
           dataCards.push(...formatted.dataCards);
           intelligenceMetadata = { ...intelligenceMetadata, ...formatted.intelligenceMetadata };
           
-          // Add VIEW_CHART markers if chartConfig is present
+          // Add VIEW_CHART markers if chartConfig is present and pre-fetch chart data
           if (queryIntent.chartConfig) {
-            dataContext = ResponseEngine.addChartMarkers(dataContext, queryIntent);
+            dataContext = await ResponseEngine.addChartMarkers(dataContext, queryIntent, dataCards, DataConnector);
             console.log(`📈 Added chart marker for ${queryIntent.chartConfig.symbol}`);
           }
           

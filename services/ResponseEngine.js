@@ -390,8 +390,9 @@ Return ONLY valid JSON.`;
 
   /**
    * Add chart markers to data context based on query intent
+   * Also fetches chart data and creates data cards for instant frontend rendering
    */
-  addChartMarkers(dataContext, queryIntent) {
+  async addChartMarkers(dataContext, queryIntent, dataCards, DataConnector) {
     if (!queryIntent || !queryIntent.chartConfig) {
       return dataContext;
     }
@@ -399,6 +400,71 @@ Return ONLY valid JSON.`;
     const { symbol, timeRange } = queryIntent.chartConfig;
     if (!symbol || !timeRange) {
       return dataContext;
+    }
+
+    console.log(`📊 Pre-fetching chart data for ${symbol} (${timeRange})...`);
+
+    // Fetch chart data based on timeRange
+    try {
+      let chartData = null;
+      let previousClose = null;
+
+      // Determine which data to fetch based on timeRange
+      if (timeRange === '1D' || timeRange === '5D') {
+        // Fetch intraday data
+        const intradayResult = await DataConnector.getStockData(symbol, 'intraday');
+        if (intradayResult.success && intradayResult.data.length > 0) {
+          // Transform intraday_prices data to match frontend format
+          chartData = intradayResult.data.map(point => ({
+            timestamp: new Date(point.timestamp_et).getTime(),
+            value: point.price,
+            volume: point.volume
+          }));
+        }
+
+        // Fetch current quote for previous close
+        const quoteResult = await DataConnector.getQuoteWithPreviousClose(symbol);
+        if (quoteResult.success && quoteResult.data) {
+          previousClose = quoteResult.data.previousClose;
+        }
+      } else {
+        // Fetch daily data for longer timeframes
+        const dailyResult = await DataConnector.getStockData(symbol, 'daily');
+        if (dailyResult.success && dailyResult.data.length > 0) {
+          // Transform daily_prices data to match frontend format
+          chartData = dailyResult.data
+            .map(point => ({
+              timestamp: new Date(point.date).getTime(),
+              value: point.close,
+              volume: point.volume
+            }))
+            .reverse(); // Reverse to chronological order
+
+          // Previous close is the close price of the first data point
+          if (dailyResult.data.length > 1) {
+            previousClose = dailyResult.data[1].close;
+          }
+        }
+      }
+
+      if (chartData && chartData.length > 0) {
+        // Create chart data card with pre-fetched data
+        dataCards.push({
+          type: 'chart',
+          data: {
+            id: `chart-${symbol}-${timeRange}`,
+            symbol: symbol,
+            timeRange: timeRange,
+            chartData: chartData,
+            previousClose: previousClose
+          }
+        });
+        console.log(`   ✅ Chart data fetched: ${chartData.length} points, previousClose: ${previousClose}`);
+      } else {
+        console.log(`   ⚠️ No chart data found for ${symbol}`);
+      }
+    } catch (error) {
+      console.error(`   ❌ Error fetching chart data for ${symbol}:`, error);
     }
 
     // Insert VIEW_CHART marker at the end of the context
