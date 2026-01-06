@@ -139,7 +139,7 @@ router.post('/', optionalAuth, async (req, res) => {
     };
     
     // Convert AI query results to data context
-    if (USE_AI_QUERY_ENGINE && queryResults.length > 0) {
+    if (queryResults.length > 0) {
       console.log('📝 Building data context from AI query results...');
       
       for (const result of queryResults) {
