@@ -1124,6 +1124,9 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     }
 
     try {
+      // Get user's timezone for accurate date interpretation
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
       const response = await fetch('https://catalyst-copilot-2nndy.ondigitalocean.app/chat', {
         method: 'POST',
         headers: {
@@ -1134,7 +1137,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
         body: JSON.stringify({
           message: message,
           conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
-          selectedTickers
+          selectedTickers,
+          timezone: userTimezone
         })
       });
 
@@ -1372,6 +1376,9 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     setThinkingCollapsed(true);
 
     try {
+      // Get user's timezone for accurate date interpretation
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
       const response = await fetch('https://catalyst-copilot-2nndy.ondigitalocean.app/chat', {
         method: 'POST',
         headers: {
@@ -1382,7 +1389,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
         body: JSON.stringify({
           message: editingValue,
           conversationHistory: messagesBeforeEdit.map(m => ({ role: m.role, content: m.content })),
-          selectedTickers
+          selectedTickers,
+          timezone: userTimezone
         })
       });
 

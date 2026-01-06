@@ -20,7 +20,8 @@ router.post('/', optionalAuth, async (req, res) => {
     const { 
       message, 
       conversationId = null, 
-      conversationHistory = []
+      conversationHistory = [],
+      timezone = 'America/New_York' // Default to ET if not provided
     } = req.body;
     
     if (!message) {
@@ -32,6 +33,7 @@ router.post('/', optionalAuth, async (req, res) => {
     console.log('Processing message:', message);
     console.log('User ID:', userId);
     console.log('Conversation ID:', conversationId);
+    console.log('User Timezone:', timezone);
     
     // SET UP SSE IMMEDIATELY - Start streaming right away
     const origin = req.headers.origin;
@@ -104,7 +106,8 @@ router.post('/', optionalAuth, async (req, res) => {
       const queryPlan = await QueryEngine.generateQueries(
         message, 
         [],
-        sendThinking  // Pass thinking function for context-aware messages
+        sendThinking,  // Pass thinking function for context-aware messages
+        timezone       // Pass user's timezone for accurate date interpretation
       );
       console.log('📋 Query Plan:', JSON.stringify(queryPlan, null, 2));
       

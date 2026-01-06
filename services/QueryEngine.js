@@ -376,7 +376,7 @@ class QueryEngine {
    - For finnhub_quote_snapshots: filter by symbol, market_date, session, order by timestamp
    - For one_minute_prices: filter by symbol, timestamp range, order by timestamp
 
-**TODAY'S DATE:** ${new Date().toISOString().split('T')[0]}
+**Note:** Today's date will be provided in the query prompt based on user's timezone.
 `;
   }
 
@@ -449,15 +449,46 @@ class QueryEngine {
   }
 
   /**
-   * Generate queries using AI instead of hardcoded logic
+   * Calculate "today" date in user's timezone
    */
-  async generateQueries(userMessage, userPortfolio = [], sendThinking = null) {
+  getTodayInTimezone(timezone = 'America/New_York') {
+    try {
+      // Use Intl.DateTimeFormat to get the date parts in the user's timezone
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', { // en-CA gives YYYY-MM-DD format
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      return formatter.format(now); // Returns YYYY-MM-DD in user's timezone
+    } catch (error) {
+      // Fallback to UTC if timezone is invalid
+      console.warn(`Invalid timezone "${timezone}", falling back to UTC`);
+      return new Date().toISOString().split('T')[0];
+    }
+  }
+
+  /**
+   * Generate queries using AI instead of hardcoded logic
+   * @param {string} userMessage - The user's question
+   * @param {string[]} userPortfolio - User's portfolio tickers
+   * @param {function} sendThinking - Callback to send thinking messages
+   * @param {string} timezone - User's timezone (e.g., 'America/New_York')
+   */
+  async generateQueries(userMessage, userPortfolio = [], sendThinking = null, timezone = 'America/New_York') {
+    // Calculate today's date in user's timezone for accurate query generation
+    const todayInUserTimezone = this.getTodayInTimezone(timezone);
+    console.log(`📅 User timezone: ${timezone}, Today: ${todayInUserTimezone}`);
+    
     const prompt = `You are a database query generator. Based on the user's question, generate the appropriate database queries to answer it.
 
 ${this.schemaContext}
 
 **User's Question:** "${userMessage}"
 **User's Portfolio:** ${userPortfolio.length > 0 ? userPortfolio.join(', ') : 'none'}
+**User's Timezone:** ${timezone}
+**TODAY'S DATE (in user's timezone):** ${todayInUserTimezone}
 
 **Your Task:**
 1. Understand what the user is asking
@@ -470,7 +501,8 @@ ${this.schemaContext}
 - Extract semantic synonyms for concepts (e.g., "take a stake" → ["stake", "investment", "invest", "acquire", ...])
 - Use $or to match ANY keyword when searching transcripts
 - Map speaker names correctly (Trump → search for "trump" OR "hassett")
-- Calculate date ranges based on today's date: ${new Date().toISOString().split('T')[0]}
+- Calculate date ranges based on TODAY'S DATE in the user's timezone: ${todayInUserTimezone}
+- When user says "today", "yesterday", "this week", etc. - interpret relative to THEIR timezone
 - If asking "what companies did [politician] mention?", set extractCompanies: true
 
 **CRITICAL: CONNECTING QUALITATIVE + QUANTITATIVE DATA**
