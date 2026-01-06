@@ -107,172 +107,6 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
   // Don't extract sources into a separate section - keep everything inline
   const mainText = text;
   
-  // Helper to extract date/time value from section header for chronological sorting
-  const extractDateValue = (headerText: string): number => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const lowerHeader = headerText.toLowerCase();
-    
-    // Handle intro/context sections - treat as present (-1000 to 0 range to keep them first)
-    if (/recent|current|overview|summary|background|introduction|operational|financial|assessment|analysis|developments/i.test(lowerHeader)) {
-      return -1000; // Context sections always first
-    }
-    
-    // Handle "Upcoming Catalysts", "Future Timeline", "Roadmap" - treat as present (1) to appear right before timeline
-    if (/upcoming.*catalyst|future.*timeline|catalyst.*timeline|^\s*catalysts?\s*$|roadmap/i.test(lowerHeader)) {
-      return 1; // Just after context sections, before dated timeline
-    }
-    
-    // Handle quarter formats: "Q1 2026", "Q2 2025", etc.
-    const quarterMatch = lowerHeader.match(/q([1-4])\s*(\d{4})/i);
-    if (quarterMatch) {
-      const quarter = parseInt(quarterMatch[1]);
-      const year = parseInt(quarterMatch[2]);
-      // Convert to approximate month (Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct)
-      const month = (quarter - 1) * 3;
-      return new Date(year, month, 1).getTime();
-    }
-    
-    // Handle year formats: "2025", "2026", "FY 2025"
-    const yearMatch = lowerHeader.match(/(?:fy\s*)?(\d{4})/i);
-    if (yearMatch) {
-      const year = parseInt(yearMatch[1]);
-      return new Date(year, 6, 1).getTime(); // Mid-year as default
-    }
-    
-    // Handle month-year formats: "January 2026", "Nov 2025", etc.
-    const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-    const monthYearMatch = lowerHeader.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{4})/i);
-    if (monthYearMatch) {
-      const monthStr = monthYearMatch[1].toLowerCase().slice(0, 3);
-      const monthIdx = monthNames.indexOf(monthStr);
-      const year = parseInt(monthYearMatch[2]);
-      if (monthIdx !== -1) {
-        return new Date(year, monthIdx, 15).getTime();
-      }
-    }
-    
-    // Handle date formats in headers: "May 15, 2026", "2025-11-06"
-    const dateMatch = lowerHeader.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})|(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
-    if (dateMatch) {
-      if (dateMatch[4]) {
-        // YYYY-MM-DD format
-        return new Date(parseInt(dateMatch[4]), parseInt(dateMatch[5]) - 1, parseInt(dateMatch[6])).getTime();
-      } else {
-        // MM/DD/YYYY or similar
-        return new Date(parseInt(dateMatch[3]), parseInt(dateMatch[1]) - 1, parseInt(dateMatch[2])).getTime();
-      }
-    }
-    
-    // Handle relative terms
-    if (/past|historical|previous|earlier|last\s+(?:year|quarter|month)/i.test(lowerHeader)) {
-      return -1; // Past sections
-    }
-    if (/future|upcoming|outlook|roadmap|next|forecast|projected/i.test(lowerHeader)) {
-      return new Date(currentYear + 1, 0, 1).getTime(); // Future sections
-    }
-    
-    // Handle filing dates in headers like "10-Q - Nov 6, 2025"
-    const filingDateMatch = lowerHeader.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
-    if (filingDateMatch) {
-      const monthStr = filingDateMatch[1].toLowerCase().slice(0, 3);
-      const monthIdx = monthNames.indexOf(monthStr);
-      const day = parseInt(filingDateMatch[2]);
-      const year = parseInt(filingDateMatch[3]);
-      if (monthIdx !== -1) {
-        return new Date(year, monthIdx, day).getTime();
-      }
-    }
-    
-    // Default: no date info, keep original order (use large positive number)
-    return Number.MAX_SAFE_INTEGER;
-  };
-  
-  // Parse content into sections based on bold headers, then sort chronologically
-  const sortContentChronologically = (content: string): string => {
-    const lines = content.split('\n');
-    const sections: { header: string; content: string[]; dateValue: number; originalIndex: number }[] = [];
-    
-    let currentSection: { header: string; content: string[]; dateValue: number; originalIndex: number } | null = null;
-    let sectionIndex = 0;
-    
-    // Regex to detect section headers (bold text on its own line)
-    const headerRegex = /^\*\*([^*]+)\*\*$/;
-    
-    lines.forEach((line) => {
-      const trimmedLine = line.trim();
-      const headerMatch = trimmedLine.match(headerRegex);
-      
-      if (headerMatch && trimmedLine.length < 100) {
-        // This is a section header - save previous section and start new one
-        if (currentSection) {
-          sections.push(currentSection);
-        }
-        const headerText = headerMatch[1];
-        currentSection = {
-          header: trimmedLine,
-          content: [],
-          dateValue: extractDateValue(headerText),
-          originalIndex: sectionIndex++
-        };
-      } else if (currentSection) {
-        // Add line to current section
-        currentSection.content.push(line);
-      } else {
-        // No section yet - create an intro section
-        if (!currentSection) {
-          currentSection = {
-            header: '',
-            content: [line],
-            dateValue: -Infinity, // Intro always first
-            originalIndex: sectionIndex++
-          };
-        }
-      }
-    });
-    
-    // Push the last section
-    if (currentSection) {
-      sections.push(currentSection);
-    }
-    
-    // If only one section or no clear sections, return original content
-    if (sections.length <= 1) {
-      return content;
-    }
-    
-    // Categorize sections by their date values
-    const contextSections = sections.filter(s => s.header === '' || s.dateValue < 0); // Intro and context (including -1000 for operational/financial)
-    const upcomingCatalystsSection = sections.filter(s => s.dateValue === 1); // "Upcoming Catalysts" header
-    const datedSections = sections.filter(s => s.dateValue > 1 && s.dateValue !== Number.MAX_SAFE_INTEGER); // Q1 2026, Q2 2026, etc.
-    const undatedSections = sections.filter(s => s.dateValue === Number.MAX_SAFE_INTEGER); // Other undated sections
-    
-    // Sort dated sections chronologically (past → present → future)
-    datedSections.sort((a, b) => a.dateValue - b.dateValue);
-    
-    // Reconstruct content: context → upcoming catalysts header → dated timeline → other undated
-    const sortedSections = [...contextSections, ...upcomingCatalystsSection, ...datedSections, ...undatedSections];
-    
-    // Rebuild the content string
-    const sortedLines: string[] = [];
-    sortedSections.forEach((section, idx) => {
-      if (section.header) {
-        // Add blank line before headers (except first context section)
-        if (idx > 0 || contextSections.length > 0) {
-          sortedLines.push('');
-        }
-        sortedLines.push(section.header);
-      }
-      sortedLines.push(...section.content);
-    });
-    
-    return sortedLines.join('\n');
-  };
-  
-  // Sort content chronologically before rendering - but SKIP during streaming to prevent jumbled content
-  // During streaming, content arrives incrementally and sorting incomplete sections causes mangled output
-  const sortedText = isStreaming ? mainText : sortContentChronologically(mainText);
-  
   const formatRollCallLink = (linkText: string, url: string) => {
     // Check if this is a Roll Call URL
     if (url.includes('rollcall.com')) {
@@ -336,44 +170,14 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
   };
   
   const renderContent = (content: string) => {
-    // PRE-SCAN: Extract all VIEW_CHART markers from the entire text first
-    const chartCardRegex = /\[VIEW_CHART:([A-Z]+):([^\]]+)\]/g;
-    const allChartCards: ChartCardData[] = [];
-    let chartMatch;
-    
-    while ((chartMatch = chartCardRegex.exec(content)) !== null) {
-      const symbol = chartMatch[1];
-      const timeRange = chartMatch[2].toUpperCase() as '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
-      
-      // Look up pre-loaded chart data from dataCards (case-insensitive on timeRange)
-      const chartDataCard = dataCards?.find(card => 
-        card.type === 'chart' && 
-        card.data.symbol === symbol && 
-        card.data.timeRange?.toUpperCase() === timeRange
-      );
-      
-      allChartCards.push({
-        id: `chart-${symbol}-${timeRange}-${Date.now()}-${allChartCards.length}`,
-        symbol,
-        timeRange,
-        chartData: chartDataCard?.data.chartData,
-        previousClose: chartDataCard?.data.previousClose
-      });
-    }
-    
-    // Remove all VIEW_CHART markers from content so they don't get parsed again
-    const cleanedContent = content.replace(chartCardRegex, '');
-    
-    const lines = cleanedContent.split('\n');
+    const lines = content.split('\n');
     const elements: JSX.Element[] = [];
-    let uniqueKeyCounter = 0; // Add unique key counter
+    let uniqueKeyCounter = 0;
     
     let currentList: string[] = [];
     let currentParagraph: string[] = [];
     let pendingImageCards: string[] = []; // Track IMAGE_CARD markers to render after paragraph
     let pendingArticleCards: string[] = []; // Track VIEW_ARTICLE markers to render after paragraph
-    let pendingChartCards: any[] = []; // Track CHART markers to render after paragraph
-    let chartsInserted = false; // Track if charts have been inserted already
     
     const flushParagraph = () => {
       if (currentParagraph.length > 0) {
@@ -383,26 +187,6 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
           </p>
         );
         currentParagraph = [];
-        
-        // Check if we should insert charts after this paragraph (right after Current Price section)
-        if ((elements as any).__insertChartsAfterNextFlush && !chartsInserted && allChartCards.length > 0) {
-          // Insert all charts here (after Current Price content)
-          allChartCards.forEach(chartData => {
-            elements.push(
-              <div key={`chart-card-${chartData.id}-${uniqueKeyCounter++}`} className="my-3">
-                <InlineChartCard 
-                  symbol={chartData.symbol} 
-                  timeRange={chartData.timeRange} 
-                  preloadedChartData={chartData.chartData}
-                  preloadedPreviousClose={chartData.previousClose}
-                  onTickerClick={onTickerClick} 
-                />
-              </div>
-            );
-          });
-          chartsInserted = true; // Mark as inserted
-          delete (elements as any).__insertChartsAfterNextFlush;
-        }
         
         // After flushing paragraph, add any pending image cards
         if (pendingImageCards.length > 0) {
@@ -450,14 +234,6 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
             insertArticleCard(articleId);
           });
           pendingArticleCards = [];
-        }
-        
-        // After flushing list, add any pending chart cards
-        if (pendingChartCards.length > 0) {
-          pendingChartCards.forEach(chartData => {
-            insertChartCard(chartData);
-          });
-          pendingChartCards = [];
         }
       }
     };
@@ -511,21 +287,6 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
           );
         }
       }
-    };
-    
-    const insertChartCard = (chartData: ChartCardData) => {
-      // Render an inline mini chart for the symbol with pre-loaded data
-      elements.push(
-        <div key={`chart-card-${chartData.id}-${uniqueKeyCounter++}`} className="my-3">
-          <InlineChartCard 
-            symbol={chartData.symbol} 
-            timeRange={chartData.timeRange} 
-            preloadedChartData={chartData.chartData}
-            preloadedPreviousClose={chartData.previousClose}
-            onTickerClick={onTickerClick} 
-          />
-        </div>
-      );
     };
     
     const parseInlineFormatting = (line: string) => {
@@ -739,8 +500,15 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
       const imageCardMatch = trimmedLine.match(/\[IMAGE_CARD:([^\]]+)\]/);
       const hasImageCard = imageCardMatch !== null;
       
+      // Check for VIEW_CHART marker
+      const viewChartMatch = trimmedLine.match(/\[VIEW_CHART:([A-Z]+):([^\]]+)\]/);
+      const hasViewChart = viewChartMatch !== null;
+      
       // Check if line is ONLY an IMAGE_CARD (standalone) - not mixed with text
       const isStandaloneImageCard = hasImageCard && trimmedLine.replace(/\[IMAGE_CARD:([^\]]+)\]/, '').trim().length === 0;
+      
+      // Check if line is ONLY a VIEW_CHART (standalone) - not mixed with text
+      const isStandaloneViewChart = hasViewChart && trimmedLine.replace(/\[VIEW_CHART:([A-Z]+):([^\]]+)\]/, '').trim().length === 0;
       
       // Check if this is a list item (with or without event card)
       const isListItem = trimmedLine.match(/^\d+\.\s+/) || trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ');
@@ -782,12 +550,6 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
             {parseInlineFormatting(trimmedLine)}
           </h3>
         );
-        
-        // If this is "Current Price" header and we have pending charts, mark for insertion
-        if (isCurrentPriceHeader) {
-          // Set a flag to insert charts after the next content flush
-          (elements as any).__insertChartsAfterNextFlush = true;
-        }
       } else if (isListItem) {
         flushParagraph();
         // List item - extract text and remove EVENT_CARD/IMAGE_CARD markers if present
@@ -824,6 +586,21 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
         flushParagraph();
         flushList();
         insertImageCard(imageCardMatch[1]);
+      } else if (isStandaloneViewChart && viewChartMatch) {
+        // View chart on its own line - render chart inline
+        flushParagraph();
+        flushList();
+        const symbol = viewChartMatch[1];
+        const timeRange = viewChartMatch[2];
+        elements.push(
+          <div key={`chart-${symbol}-${timeRange}-${uniqueKeyCounter++}`} className="my-3">
+            <InlineChartCard 
+              symbol={symbol} 
+              timeRange={timeRange} 
+              onTickerClick={onTickerClick} 
+            />
+          </div>
+        );
       } else if (trimmedLine) {
         flushList();
         // Regular paragraph text - IMAGE_CARD markers will be extracted by parseInlineFormatting
