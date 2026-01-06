@@ -399,7 +399,7 @@ Return ONLY valid JSON.`;
         return this.formatGovernmentPolicy(itemsToShow, detailLevel, output, queryIntent);
       
       case 'news':
-        return await this.formatNews(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output);
+        return await this.formatNews(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards);
       
       case 'price_targets':
         return this.formatPriceTargets(itemsToShow, detailLevel, output);
@@ -574,16 +574,64 @@ Return ONLY valid JSON.`;
   /**
    * Format news articles
    */
-  async formatNews(items, detailLevel, fetchExternal, DataConnector, output) {
+  async formatNews(items, detailLevel, fetchExternal, DataConnector, output, dataCards) {
     for (let index = 0; index < items.length; index++) {
       const article = items[index];
       const date = article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown date';
       
+      // Extract actual source from URL (prioritize domain over aggregator like "Yahoo")
+      const domain = article.url ? this.extractDomain(article.url) : null;
+      const actualSource = domain || article.origin || 'Unknown';
+      
       output += `${index + 1}. ${article.title || 'Untitled'} - ${date}\n`;
       if (article.ticker) output += `   Ticker: ${article.ticker}\n`;
-      if (article.origin) output += `   Source: ${article.origin}\n`;
+      output += `   Source: ${actualSource}\n`;
 
-      if (fetchExternal && article.url && detailLevel === 'full' && items.length <= 5) {
+      // Create article card with image/logo for visual display
+      if (article.url) {
+        const articleId = `article-${article.ticker || 'news'}-${index}`;
+        
+        // Use Google's favicon service for site logo (fallback)
+        const logoUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null;
+        
+        // Try to fetch og:image for visual article preview (always for news, not just full detail)
+        let imageUrl = null;
+        if (fetchExternal && article.url && items.length <= 10) {
+          try {
+            const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
+            if (contentResult.success && contentResult.content) {
+              // Extract og:image meta tag
+              const imageMatch = contentResult.content.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
+              if (imageMatch && imageMatch[1]) {
+                imageUrl = imageMatch[1];
+              }
+            }
+          } catch (error) {
+            // Silently fail - will use logo fallback
+          }
+        }
+        
+        dataCards.push({
+          type: 'article',
+          data: {
+            id: articleId,
+            title: article.title || 'Untitled Article',
+            url: article.url,
+            source: actualSource,
+            domain: domain,
+            ticker: article.ticker,
+            publishedAt: article.published_at,
+            logoUrl: logoUrl,
+            imageUrl: imageUrl,
+            content: article.content ? article.content.substring(0, 200) : null
+          }
+        });
+        
+        output += `   [VIEW_ARTICLE:${articleId}]\n`;
+      }
+
+      // Show article content if detail level requires it (full content already fetched above for images)
+      if (detailLevel === 'full' && fetchExternal && article.url && items.length <= 5) {
         try {
           const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
           if (contentResult.success && contentResult.content) {
@@ -746,6 +794,18 @@ Return ONLY valid JSON.`;
       output += `\n`;
     });
     return output;
+  }
+
+  /**
+   * Extract domain from URL for logo/favicon
+   */
+  extractDomain(url) {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname.replace('www.', '');
+    } catch (error) {
+      return null;
+    }
   }
 
   /**
