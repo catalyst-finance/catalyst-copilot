@@ -132,15 +132,34 @@ Analyze the query and return a JSON object:
   "extractCompaniesFromTranscripts": true | false
 }
 
+**CRITICAL ROUTING DISTINCTION - GOVERNMENT STATEMENTS vs INSTITUTIONAL FILINGS:**
+
+**GOVERNMENT POLICY QUERIES** (what politicians SAID about companies/investments):
+- "What companies did [politician] mention/discuss/take a stake in?"
+- "Which companies did [politician] talk about investing in?"
+- "What companies are involved in [politician]'s policy?"
+- Route to: government_policy collection
+- Set: extractCompaniesFromTranscripts: true
+- Set: speaker: [politician name]
+- Set: searchTerms with relevant keywords
+
+**INSTITUTIONAL/SEC FILING QUERIES** (actual SEC filings, insider trading, institutional ownership):
+- "What are Trump's stock holdings?" (actual personal holdings)
+- "Show me Form 4 filings for Trump-affiliated entities"
+- "What stocks do hedge funds own?"
+- Route to: sec_filings or institutional_ownership collections
+- These are about ACTUAL investments filed with SEC, not statements
+
 **DETECTING COMPANY EXTRACTION REQUESTS** (CRITICAL):
-- When user asks "has [politician] mentioned any companies" or "which companies did [politician] mention" or "what companies would be involved"
+- When user asks "has [politician] mentioned any companies" or "which companies did [politician] mention" or "what companies would be involved" or "what companies did [politician] take a stake in"
 - Set extractCompaniesFromTranscripts: true to trigger extraction of company names from transcript content
 - This is different from searchTerms - user is asking "what companies?" not "did they mention X?"
 - Examples:
-  * "Has Trump mentioned that any companies would be involved?" → extractCompaniesFromTranscripts: true
-  * "Which companies did Biden discuss?" → extractCompaniesFromTranscripts: true
-  * "What companies are involved in the infrastructure deal?" → extractCompaniesFromTranscripts: true
-  * "Did Trump mention Chevron?" → extractCompaniesFromTranscripts: false, searchTerms: ["Chevron"]
+  * "Has Trump mentioned that any companies would be involved?" → government_policy + extractCompaniesFromTranscripts: true
+  * "Which companies did Biden discuss?" → government_policy + extractCompaniesFromTranscripts: true
+  * "What companies are involved in the infrastructure deal?" → government_policy + extractCompaniesFromTranscripts: true
+  * "What companies did Trump take a stake in?" → government_policy + extractCompaniesFromTranscripts: true + searchTerms: ["stake", "investment", ...]
+  * "Did Trump mention Chevron?" → government_policy + extractCompaniesFromTranscripts: false, searchTerms: ["Chevron"]
 
 **DETECTING REQUESTED COUNTS (APPLIES TO ALL DATA TYPES)**:
 - "last 10 filings" → requestedFilingCount: 10
