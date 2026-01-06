@@ -119,6 +119,7 @@ Analyze the query and return a JSON object:
   "speaker": "hassett" | "biden" | "trump" | "yellen" | "powell" | null,
   "eventTypes": ["earnings", "fda", "product", "merger", "legal", "regulatory"],
   "formTypes": ["10-K", "10-Q", "8-K", "4", "S-1", "13F"],
+  "preferredFormType": "10-Q" | "10-K" | "8-K" | null,
   "scope": "focus_stocks" | "outside_focus" | "all_stocks" | "specific_tickers",
   "needsChart": true | false,
   "isFutureOutlook": true | false,
@@ -132,17 +133,27 @@ Analyze the query and return a JSON object:
 - 8-K filings contain the most recent material events and are CRITICAL for up-to-date analysis
 - Never return formTypes with only ["10-K", "10-Q"] - always add "8-K"
 
+**FILING TYPE PREFERENCES BY QUERY TYPE** (intelligent prioritization):
+- **Product development, clinical trials, R&D, pipeline**: PREFER 10-Q first - contains detailed MD&A with operational updates, trial progress, business strategy
+- **Roadmap, outlook, future plans**: PREFER 10-Q first - has forward-looking statements and management discussion
+- **Financial results, earnings**: PREFER 10-Q for quarterly, 10-K for annual, 8-K for announcements
+- **Material events, announcements, offerings**: PREFER 8-K - contains time-sensitive disclosures
+- **Annual overview, risk factors, full business description**: PREFER 10-K - comprehensive annual report
+- **Insider trading, executive compensation**: PREFER Form 4, DEF 14A
+- When the query is about detailed business operations or product progress, 10-Q filings have MORE SUBSTANCE than 8-Ks
+
 ROUTING INTELLIGENCE - Use MULTIPLE data sources when relevant:
-- Roadmap/outlook questions → event_data (upcoming events) + sec_filings (10-K, 10-Q for guidance/strategy)
+- Roadmap/outlook questions → event_data (upcoming events) + sec_filings (PRIORITIZE 10-Q for detailed MD&A)
+- Product development/clinical trials → sec_filings (PRIORITIZE 10-Q for trial progress details) + event_data
 - "Use SEC filings" / "based on filings" → ALWAYS include sec_filings + event_data
 - Earnings questions → event_data (dates) + sec_filings (10-Q, 8-K for actual results)
-- FDA/regulatory → event_data (trial milestones) + sec_filings (8-K, S-1 for details)
+- FDA/regulatory → event_data (trial milestones) + sec_filings (10-Q for trial details, 8-K for announcements)
 - Price questions ("how has it performed", "price action", "trading") → intraday_prices or daily_prices (for chart)
 - Ownership/investors → institutional_ownership (MongoDB)
 - Government policy/tariffs → government_policy (MongoDB)
 - Economic indicators → macro_economics (MongoDB)
 - Insider trading → sec_filings (MongoDB, Form 4)
-- Business updates → sec_filings (10-K, 10-Q for detailed info)
+- Business updates → sec_filings (PRIORITIZE 10-Q for detailed operational info)
 - Political statements → government_policy
 
 **CRITICAL MULTI-SOURCE RULES:**
@@ -376,7 +387,26 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                 });
                 
                 const substantiveTypes = ['10-K', '10-Q', '8-K', 'S-1', '10-K/A', '10-Q/A', '8-K/A', 'DEF 14A', '424B'];
-                const substantiveFilings = secResult.data.filter(f => substantiveTypes.some(t => f.form_type?.includes(t)));
+                let substantiveFilings = secResult.data.filter(f => substantiveTypes.some(t => f.form_type?.includes(t)));
+                
+                // Sort filings by preferred form type if specified (e.g., prefer 10-Q for product development queries)
+                const preferredFormType = queryIntent.preferredFormType || null;
+                if (preferredFormType && substantiveFilings.length > 1) {
+                  substantiveFilings.sort((a, b) => {
+                    const aIsPreferred = a.form_type?.includes(preferredFormType);
+                    const bIsPreferred = b.form_type?.includes(preferredFormType);
+                    if (aIsPreferred && !bIsPreferred) return -1;
+                    if (!aIsPreferred && bIsPreferred) return 1;
+                    // Secondary sort: prefer 10-Q over 8-K for detailed content
+                    const aIs10Q = a.form_type?.includes('10-Q');
+                    const bIs10Q = b.form_type?.includes('10-Q');
+                    if (aIs10Q && !bIs10Q) return -1;
+                    if (!aIs10Q && bIs10Q) return 1;
+                    // Fall back to date (most recent first)
+                    return new Date(b.acceptance_datetime || 0) - new Date(a.acceptance_datetime || 0);
+                  });
+                  console.log(`📋 Sorted filings by preferred type: ${preferredFormType}`);
+                }
                 
                 dataContext += `\n\n${ticker} SEC Filings Analysis:\n`;
                 
