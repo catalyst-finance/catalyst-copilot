@@ -290,8 +290,9 @@ class QueryEngine {
         temperature: 0.3,
         max_tokens: 15
       });
-      
-      return response.choices[0].message.content.trim();
+      const raw = response.choices[0].message.content || '';
+      const sanitized = raw.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
+      return sanitized;
     } catch (error) {
       console.error('QueryEngine thinking message generation failed, using fallback');
       // Fallback to simple message
@@ -306,7 +307,8 @@ class QueryEngine {
         'earnings': 'Finding earnings data...',
         'events': 'Finding upcoming events...'
       };
-      return fallbacks[intent] || 'Searching databases...';
+      const fb = fallbacks[intent] || 'Searching databases...';
+      return fb.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
     }
   }
 

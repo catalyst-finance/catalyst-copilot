@@ -90,7 +90,10 @@ router.post('/', optionalAuth, async (req, res) => {
         temperature: 0.3,
         max_tokens: 15
       });
-      sendThinking('analyzing', initialThinking.choices[0].message.content.trim());
+      // sanitize: remove quotes and the word 'now'
+      const rawInit = initialThinking.choices[0].message.content || '';
+      const sanitizedInit = rawInit.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
+      sendThinking('analyzing', sanitizedInit || 'Analyzing your question...');
     } catch (error) {
       sendThinking('analyzing', 'Analyzing your question...');
     }
@@ -1055,11 +1058,13 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     try {
       const synthesisThinking = await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        messages: [{ role: "user", content: `Write a 3-5 word status message saying you're analyzing ${intelligenceMetadata.totalSources} data sources. Examples: 'Connecting the dots...' or 'Synthesizing insights...' or 'Analyzing data patterns...'` }],
+        messages: [{ role: "user", content: `Write a 3-5 word status message saying you're analyzing ${intelligenceMetadata.totalSources} data sources. Examples: Connecting the dots..., Synthesizing insights..., Analyzing data patterns...` }],
         temperature: 0.3,
         max_tokens: 15
       });
-      sendThinking('synthesizing', synthesisThinking.choices[0].message.content.trim());
+      const rawSynth = synthesisThinking.choices[0].message.content || '';
+      const sanitizedSynth = rawSynth.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
+      sendThinking('synthesizing', sanitizedSynth || 'Analyzing data patterns...');
     } catch (error) {
       sendThinking('synthesizing', 'Analyzing data patterns...');
     }
@@ -1262,11 +1267,13 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     try {
       const finalThinking = await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        messages: [{ role: "user", content: "Write a 3-5 word status message saying you're preparing the final response. Examples: 'Preparing your analysis...' or 'Crafting your answer...' or 'Finalizing insights...'" }],
+        messages: [{ role: "user", content: "Write a 3-5 word status message saying you're preparing the final response. Examples: Preparing your analysis..., Crafting your answer..., Finalizing insights..." }],
         temperature: 0.3,
         max_tokens: 15
       });
-      sendThinking('synthesizing', finalThinking.choices[0].message.content.trim());
+      const rawFinal = finalThinking.choices[0].message.content || '';
+      const sanitizedFinal = rawFinal.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
+      sendThinking('synthesizing', sanitizedFinal || 'Finalizing your answer...');
     } catch (error) {
       sendThinking('synthesizing', 'Finalizing your answer...');
     }

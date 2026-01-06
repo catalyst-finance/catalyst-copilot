@@ -65,12 +65,15 @@ class ResponseEngine {
         prompt = `Write a 3-5 word status message saying you're searching ${collections}. Start with a verb. Examples: "Searching SEC filings..." or "Looking up news articles..."`;
         break;
         
-      case 'plan_generated':
-        const priority = context.plan.formattingPlan.filter(p => p.priority >= 4);
+      // sanitize thinking message: remove quotation marks and the word "now"
+      const raw = response.choices[0].message.content || '';
+      const sanitized = raw.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
+      return sanitized;
         if (priority.length > 0) {
           const source = this.getCollectionFriendlyName(priority[0].collection);
           prompt = `Write a 3-5 word status message saying you found relevant ${source}. Examples: "Found relevant SEC filing" or "Located government statements"`;
-        } else {
+      const fallback = this.getFallbackThinkingMessage(phase, context);
+      return fallback ? fallback.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim() : fallback;
           prompt = `Write a 3-5 word status message saying you found ${context.plan.formattingPlan.length} sources. Example: "Found 2 data sources"`;
         }
         break;
