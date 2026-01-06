@@ -1573,6 +1573,8 @@ INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 • Add a blank line BEFORE and AFTER each time period header
 • Use format: "**Q1 2026**", "**Q2 2026**", etc. or "**Phase 1**", "**Phase 2**"
 • List specific milestones under each period as bullet points
+• **CRITICAL**: If EVENT_CARD markers are provided in the context, you MUST create a "**Upcoming Catalysts**" or "**Future Timeline**" section and integrate ALL event cards into the appropriate time periods
+• **EVENT CARD PLACEMENT**: Each event card marker goes at the END of the bullet point describing that event: "• Trial data expected May 2026 [EVENT_CARD:MNMD_clinical_...]"
 • Example:
 
   **Recent Developments**
@@ -1586,7 +1588,7 @@ INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
   
   **Q2 2026**
   
-  • Top-line data readout anticipated
+  • Top-line data readout anticipated [EVENT_CARD:MNMD_clinical_2026-05-15...]
 
 **COMPARISON queries** (compare, versus, vs, difference between):
 • Structure as side-by-side comparison
@@ -1656,6 +1658,21 @@ CRITICAL CONSTRAINTS:
     - **NEVER**: Discuss only trial progress without mentioning cash position, or only financials without operational context
     - **THINK**: How does cash runway relate to R&D timelines? How do partnership revenues fund clinical programs? Does burn rate align with development milestones?
     - If filing discusses product roadmap AND financial guidance, your response must address both and show how they're interconnected
+11. **FUTURE OUTLOOK QUERIES WITH EVENT CARDS (MANDATORY)**:
+    - **IF eventCardsContext contains events AND query asks about "roadmap", "future", "outlook", "upcoming", or "timeline"**, you MUST create a forward-looking section
+    - **SECTION HEADER**: Use "**Upcoming Catalysts**" or "**Future Timeline**" or "**2026 Roadmap**" depending on context
+    - **STRUCTURE**: Break into time periods (Q1 2026, Q2 2026, H2 2026, etc.) or chronological list
+    - **MANDATORY EVENT INTEGRATION**: Every [EVENT_CARD:...] marker listed in the eventCardsContext MUST appear in your response
+    - **PLACEMENT**: Add the marker at the END of the bullet point: "• VOYAGE Phase 3 topline data expected May 15, 2026 [EVENT_CARD:MNMD_clinical_2026-05-15...]"
+    - **COUNT CHECK**: If context shows 3 event cards, your response must include all 3 markers. If you're missing any, you've failed the requirement.
+    - **EXAMPLE**:
+    
+      **Upcoming Catalysts**
+      
+      **Q2 2026**
+      
+      • VOYAGE Phase 3 topline data expected May 15, 2026, which could de-risk MM120 platform [EVENT_CARD:MNMD_clinical_2026-05-15T09:00:00+00:00]
+      • Earnings call scheduled June 2026 to discuss trial results [EVENT_CARD:MNMD_earnings_2026-06-01...]
 
 INTELLIGENCE INSIGHTS:
 • If confidence level is provided, acknowledge data quality in your response
