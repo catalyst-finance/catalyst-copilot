@@ -218,11 +218,9 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       let currentText = line;
       let key = 0;
       
-      // Strip backticks from around bracket patterns first: `[text](url)` → [text](url) and `[text]` → [text]
-      currentText = currentText.replace(/`\[([^\]]+)\]\(([^)]+)\)`/g, '[$1]($2)');
-      currentText = currentText.replace(/`\[([^\]]+)\]`/g, '[$1]');
-      
-      // Handle inline IMAGE_CARD markers by collecting them and removing from text
+      // STEP 1: Extract IMAGE_CARD markers FIRST (before backtick stripping)
+      // This handles cases where IMAGE_CARD is inside backticks with citation:
+      // `[MNMD 10-Q](url) [IMAGE_CARD:...]` → need to extract IMAGE_CARD first
       const imageCardRegex = /\[IMAGE_CARD:([^\]]+)\]/g;
       const imageCardIds: string[] = [];
       let imageMatch;
@@ -232,7 +230,17 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       }
       
       // Remove IMAGE_CARD markers from text
-      currentText = currentText.replace(imageCardRegex, '').trim();
+      currentText = currentText.replace(imageCardRegex, '');
+      
+      // STEP 2: Clean up whitespace artifacts from IMAGE_CARD removal
+      // Handle pattern: `[text](url) ` → `[text](url)` (trailing space before backtick)
+      currentText = currentText.replace(/(\]|\))\s+`/g, '$1`');
+      
+      // STEP 3: Strip backticks from around bracket patterns: `[text](url)` → [text](url) and `[text]` → [text]
+      currentText = currentText.replace(/`\[([^\]]+)\]\(([^)]+)\)`/g, '[$1]($2)');
+      currentText = currentText.replace(/`\[([^\]]+)\]`/g, '[$1]');
+      
+      currentText = currentText.trim();
       
       // First, parse [text](url) patterns - these become clickable blue badges (for sources with URLs)
       const linkWithBracketRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
@@ -266,7 +274,6 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
               {formattedLinkText}
             </a>
           );
-        }
         } else {
           // Regular link (not a source citation)
           const formattedLinkText = formatRollCallLink(linkText, linkUrl);
