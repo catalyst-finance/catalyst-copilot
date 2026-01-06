@@ -610,25 +610,27 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                 console.log(`📝 Transcript preview: ${policyTexts.substring(0, 500)}...`);
                 
                 // Enhanced prompt: explicitly ask to extract companies mentioned IN THE TRANSCRIPTS
-                const companyCheckPrompt = `Analyze this government policy transcript to find which publicly traded companies are mentioned by the speaker(s).
+                const companyCheckPrompt = `You are a company name extractor. Find ALL publicly traded company names mentioned in this government policy transcript.
 
-User Query: "${message}"
+Policy Transcript Content (excerpt):
+${policyTexts.substring(0, 8000)}
 
-Policy Transcript Content:
-${policyTexts.substring(0, 3000)}
+CRITICAL INSTRUCTIONS:
+1. Search the transcript for ANY mention of publicly traded company names
+2. Look for: Chevron, ExxonMobil, BP, Shell, ConocoPhillips, Occidental Petroleum, Halliburton, Schlumberger, Baker Hughes, Tesla, Apple, Microsoft, Amazon, Google, Meta, NVIDIA, etc.
+3. Even if the speaker says "Chevron's in" or "Chevron has been there" - extract "Chevron"
+4. If you see a company name ANYWHERE in the transcript text, add it to the list
+5. Be AGGRESSIVE - if there's any chance it's a company name, include it
 
-Task: Extract the names of any publicly traded companies that are mentioned in the TRANSCRIPT CONTENT (not just the query).
-- Look for company names like "Tesla", "Chevron", "ExxonMobil", "Apple", "Microsoft", "NVIDIA", etc.
-- Include companies referenced as "major oil companies" ONLY if specific company names appear in the transcript
-- Focus on companies mentioned BY THE SPEAKERS in the policy statement
+Return JSON format: {"companies": ["CompanyName1", "CompanyName2"]}
+If NO company names found in the transcript: {"companies": []}
 
-Return a JSON object with a "companies" array of company names found IN THE TRANSCRIPT.
-Examples:
-- If transcript says "We'll have Chevron go in..." → {"companies": ["Chevron"]}
-- If transcript says "the big oil companies" but names Chevron and Exxon → {"companies": ["Chevron", "ExxonMobil"]}
-- If transcript says "tariffs on imports" with no company names → {"companies": []}
+EXAMPLES:
+- Transcript: "Chevron's in, as you know" → {"companies": ["Chevron"]}
+- Transcript: "Tesla announced new factory" → {"companies": ["Tesla"]}  
+- Transcript: "major oil companies" (no specific names) → {"companies": []}
 
-Return ONLY the JSON object, no explanation.`;
+Return ONLY the JSON object.`;
 
                 const companyCheckResponse = await openai.chat.completions.create({
                   model: "gpt-4o-mini",
