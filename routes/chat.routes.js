@@ -858,133 +858,63 @@ Return ONLY the JSON object, no explanation.`;
       const today = new Date().toISOString();
       // For roadmap/outlook queries, fetch ALL event types, not just requested ones
       const requestedEventTypes = queryIntent.isFutureOutlook ? [] : (queryIntent.eventTypes || []);
-      const isFocusOnlyQuery = queryIntent.scope === 'focus_stocks';
-      const isOutsideFocusQuery = queryIntent.scope === 'outside_focus';
-      const isSpecificTickersQuery = queryIntent.scope === 'specific_tickers';
       
+      // Use AI to determine which tickers to fetch events for (replaces 135 lines of hardcoded logic)
       let tickersForEvents = [];
       
-      if (isFocusOnlyQuery) {
-        tickersForEvents = selectedTickers || [];
-      } else if (isSpecificTickersQuery) {
-        // When user asks about specific tickers (e.g., "What is the roadmap for MNMD?"), 
-        // use ONLY those tickers for events, not the portfolio
-        tickersForEvents = queryIntent.tickers || [];
-        console.log(`💭 Thinking: Fetching events for specifically requested tickers: ${tickersForEvents.join(', ')}`);
-      } else if (isOutsideFocusQuery) {
-        try {
-          const eventsQuery = { 
-            ticker: { $nin: selectedTickers || [] },
-            title: { $ne: null },
-            aiInsight: { $ne: null }
-          };
-          
-          if (requestedEventTypes.length > 0) {
-            eventsQuery.type = { $in: requestedEventTypes };
-          }
-          
-          if (isUpcomingQuery) {
-            eventsQuery.actualDateTime_et = { $gte: today };
-          }
-          
-          const eventsResult = await DataConnector.getEvents({ 
-            query: eventsQuery,
-            limit: 20,
-            sort: isUpcomingQuery ? { actualDateTime_et: 1 } : { actualDateTime_et: -1 }
-          });
-          
-          if (eventsResult.success && eventsResult.data.length > 0) {
-            const uniqueTickersSet = new Set();
-            for (const event of eventsResult.data) {
-              if (uniqueTickersSet.size >= 6) break;
-              uniqueTickersSet.add(event.ticker);
-            }
-            tickersForEvents = Array.from(uniqueTickersSet).slice(0, 6);
-          }
-        } catch (error) {
-          console.error('Error querying database for outside focus stocks:', error);
-        }
-      } else {
-        const focusStocksWithEvents = [];
+      try {
+        const tickerSelectionPrompt = `You are an intelligent ticker selection system. Determine which stock tickers should have their events fetched.
+
+User Query: "${message}"
+User's Portfolio/Watchlist: ${selectedTickers.length > 0 ? selectedTickers.join(', ') : 'none'}
+Query Scope: ${queryIntent.scope} (focus_stocks = user's portfolio only, specific_tickers = tickers mentioned in query, outside_focus = exclude portfolio, all_stocks = any relevant)
+Specific Tickers Mentioned: ${queryIntent.tickers.length > 0 ? queryIntent.tickers.join(', ') : 'none'}
+Event Types Requested: ${queryIntent.eventTypes.length > 0 ? queryIntent.eventTypes.join(', ') : 'all types'}
+
+Task: Return a list of stock tickers (max 6) that should have their events fetched. Rules:
+1. If scope = "specific_tickers" and tickers mentioned → use ONLY those tickers (e.g., "What is MNMD's roadmap?" → ["MNMD"])
+2. If scope = "focus_stocks" → use user's portfolio tickers
+3. If scope = "outside_focus" → suggest relevant tickers NOT in the user's portfolio
+4. If scope = "all_stocks" → mix of portfolio + most relevant others (max 6 total)
+5. For broad market queries with no specific tickers → suggest most relevant tickers based on query topic
+6. If user's portfolio is empty, suggest relevant tickers based on the query
+
+Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"}`;
+
+        const tickerSelectionResponse = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: tickerSelectionPrompt }],
+          temperature: 0.2,
+          max_tokens: 300,
+          response_format: { type: "json_object" }
+        });
         
-        if (selectedTickers && selectedTickers.length > 0) {
-          for (const ticker of selectedTickers) {
-            try {
-              const checkQuery = {
-                ticker,
-                title: { $ne: null },
-                aiInsight: { $ne: null }
-              };
-              
-              if (requestedEventTypes.length > 0) {
-                checkQuery.type = { $in: requestedEventTypes };
-              }
-              
-              if (isUpcomingQuery) {
-                checkQuery.actualDateTime_et = { $gte: today };
-              }
-              
-              const checkResult = await DataConnector.getEvents({ 
-                query: checkQuery,
-                limit: 1 
-              });
-              
-              if (checkResult.success && checkResult.data.length > 0) {
-                focusStocksWithEvents.push(ticker);
-              }
-            } catch (error) {
-              console.error(`Error checking focus stock ${ticker}:`, error);
-            }
-          }
-        }
+        const tickerSelection = JSON.parse(tickerSelectionResponse.choices[0].message.content.trim());
+        tickersForEvents = tickerSelection.tickers || [];
         
-        const targetCount = 6;
-        const remainingSlots = Math.max(0, targetCount - focusStocksWithEvents.length);
-        
-        if (remainingSlots > 0) {
-          try {
-            const eventsQuery = {
-              ticker: { $nin: selectedTickers || [] },
-              title: { $ne: null },
-              aiInsight: { $ne: null }
-            };
-            
-            if (requestedEventTypes.length > 0) {
-              eventsQuery.type = { $in: requestedEventTypes };
-            }
-            
-            if (isUpcomingQuery) {
-              eventsQuery.actualDateTime_et = { $gte: today };
-            }
-            
-            const eventsResult = await DataConnector.getEvents({
-              query: eventsQuery,
-              limit: 20,
-              sort: isUpcomingQuery ? { actualDateTime_et: 1 } : { actualDateTime_et: -1 }
-            });
-            
-            if (eventsResult.success && eventsResult.data.length > 0) {
-              const outsideTickersSet = new Set();
-              for (const event of eventsResult.data) {
-                if (outsideTickersSet.size >= remainingSlots) break;
-                outsideTickersSet.add(event.ticker);
-              }
-              
-              const outsideTickers = Array.from(outsideTickersSet);
-              tickersForEvents = [...focusStocksWithEvents, ...outsideTickers];
-            } else {
-              tickersForEvents = focusStocksWithEvents;
-            }
-          } catch (error) {
-            console.error('Error querying for outside stocks:', error);
-            tickersForEvents = focusStocksWithEvents;
-          }
+        if (tickersForEvents.length > 0) {
+          console.log(`🎯 AI selected tickers for events: ${tickersForEvents.join(', ')} - ${tickerSelection.reasoning}`);
         } else {
-          tickersForEvents = focusStocksWithEvents;
+          // Fallback: use portfolio or first ticker from query
+          tickersForEvents = selectedTickers.length > 0 ? selectedTickers.slice(0, 6) : queryIntent.tickers.slice(0, 6);
+          console.log(`⚠️ AI returned no tickers, using fallback: ${tickersForEvents.join(', ')}`);
         }
+      } catch (error) {
+        console.error('Error in AI ticker selection:', error);
+        // Fallback logic if AI fails
+        if (queryIntent.scope === 'specific_tickers' && queryIntent.tickers.length > 0) {
+          tickersForEvents = queryIntent.tickers;
+        } else if (queryIntent.scope === 'focus_stocks' && selectedTickers.length > 0) {
+          tickersForEvents = selectedTickers;
+        } else if (selectedTickers.length > 0) {
+          tickersForEvents = selectedTickers.slice(0, 6);
+        } else if (queryIntent.tickers.length > 0) {
+          tickersForEvents = queryIntent.tickers.slice(0, 6);
+        }
+        console.log(`⚠️ Fallback ticker selection: ${tickersForEvents.join(', ')}`);
       }
       
-      const uniqueTickers = [...new Set(tickersForEvents)];
+      const uniqueTickers = [...new Set(tickersForEvents)].slice(0, 6);
       
       try {
         const eventPromises = uniqueTickers.map(async (ticker) => {
