@@ -369,7 +369,16 @@ Return ONLY valid JSON.`;
           const contentResult = await DataConnector.fetchSecFilingContent(filing.url, [], 25000);
           
           if (contentResult.success && contentResult.content) {
-            output += `\n   ⚠️ IMPORTANT: Extract SPECIFIC NUMBERS from the content below (cash: $X, revenue: $X, expenses: $X, trial enrollment: X patients, etc.)\n`;
+            output += `\n   ⚠️⚠️⚠️ CRITICAL EXTRACTION INSTRUCTIONS ⚠️⚠️⚠️\n`;
+            output += `   YOU MUST FIND AND CITE THESE SPECIFIC NUMBERS FROM THE CONTENT BELOW:\n`;
+            output += `   • Cash/cash equivalents: Look for "cash equivalents of $X" or "$X million as of"\n`;
+            output += `   • Net loss: Look for "net loss of $X" or "Net loss $ (X,XXX)"\n`;
+            output += `   • Investments: Look for "investments of $X" or "total investments"\n`;
+            output += `   • Operating expenses: Look for "operating expenses" or "R&D expenses"\n`;
+            output += `   • TABLE DATA: Numbers in "(in thousands)" tables - multiply by 1000 for actual value\n`;
+            output += `   • Example: "15,634" in thousands = $15.6 million\n`;
+            output += `   • Example: "(133,357)" = negative $133.4 million (loss)\n`;
+            output += `   FAILURE TO EXTRACT NUMBERS = FAILED RESPONSE\n`;
             output += `   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
             
             intelligenceMetadata.secFilings.push({
