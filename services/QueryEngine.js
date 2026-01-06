@@ -473,6 +473,26 @@ ${this.schemaContext}
 - Calculate date ranges based on today's date: ${new Date().toISOString().split('T')[0]}
 - If asking "what companies did [politician] mention?", set extractCompanies: true
 
+**CRITICAL: CONNECTING QUALITATIVE + QUANTITATIVE DATA**
+When users ask about news, price movements, or "why" questions, ALWAYS query BOTH qualitative AND quantitative data:
+
+1. **News queries → Also get price data:**
+   - When asking "latest news for [ticker]" → also query finnhub_quote_snapshots for recent prices
+   - This allows speculating whether news sentiment correlates with price movement
+
+2. **Price movement queries → Also get news/filings:**
+   - When asking "why did [ticker] go up/down" → query news, price_targets, sec_filings from that time period
+   - When asking about "all-time high", "52-week high", "big move" → find the price data FIRST, then query news/filings from that date range
+
+3. **Correlation analysis:**
+   - If news is overwhelmingly positive/negative, speculate it may have caused recent price movement
+   - Always include price data when discussing news to show actual market reaction
+   - Set needsChart=true when discussing price movements so a mini chart can be included
+
+4. **Time-based correlation queries:**
+   - For "why did X happen on [date]" → query all sources (news, price_targets, sec_filings, press_releases) filtered to that date range
+   - For "what caused the spike/drop" → first identify when the spike occurred from price data, then query news from ±1-2 days
+
 Return JSON with this structure:
 {
   "queries": [
@@ -489,6 +509,11 @@ Return JSON with this structure:
   "needsChart": true | false,
   "needsDeepAnalysis": true | false,  // Set true for SEC filing analysis, detailed content examination
   "analysisKeywords": ["keyword1", "keyword2"],  // Keywords to search for in SEC filing content
+  "chartConfig": {  // Optional - specify chart parameters when needsChart is true
+    "symbol": "TSLA",
+    "timeRange": "1d" | "5d" | "1m" | "3m" | "1y",  // How much history to show
+    "highlightDate": "2026-01-05"  // Optional - date to highlight on chart
+  },
   "intent": "brief description of user's intent"
 }
 
@@ -717,6 +742,148 @@ Response:
   "needsDeepAnalysis": false,
   "analysisKeywords": [],
   "intent": "Get current stock price for TSLA"
+}
+
+**EXAMPLE 9 (News + Price Correlation):**
+User: "What's the latest news for TSLA stock?"
+Response:
+{
+  "queries": [
+    {
+      "database": "mongodb",
+      "collection": "news",
+      "query": {"symbols": "TSLA"},
+      "sort": {"published_date": -1},
+      "limit": 8,
+      "reasoning": "Get recent news articles for TSLA"
+    },
+    {
+      "database": "supabase",
+      "collection": "finnhub_quote_snapshots",
+      "query": {"symbol": "TSLA"},
+      "sort": {"timestamp": "desc"},
+      "limit": 1,
+      "reasoning": "Get current price to correlate with news sentiment"
+    },
+    {
+      "database": "supabase",
+      "collection": "one_minute_prices",
+      "query": {"symbol": "TSLA", "timestamp_gte": "24h_ago"},
+      "sort": {"timestamp": "desc"},
+      "limit": 60,
+      "reasoning": "Get recent price history to show movement alongside news"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": true,
+  "needsDeepAnalysis": false,
+  "analysisKeywords": [],
+  "intent": "Get latest news for TSLA with price context",
+  "chartConfig": {
+    "symbol": "TSLA",
+    "timeRange": "1D",
+    "highlightDate": null
+  }
+}
+
+**EXAMPLE 10 (Explaining Price Movement):**
+User: "Why did NVDA spike today?" or "What caused the drop in AAPL?"
+Response:
+{
+  "queries": [
+    {
+      "database": "supabase",
+      "collection": "finnhub_quote_snapshots",
+      "query": {"symbol": "NVDA"},
+      "sort": {"timestamp": "desc"},
+      "limit": 1,
+      "reasoning": "Get current price and daily change percentage"
+    },
+    {
+      "database": "supabase",
+      "collection": "one_minute_prices",
+      "query": {"symbol": "NVDA", "timestamp_gte": "24h_ago"},
+      "sort": {"timestamp": "asc"},
+      "limit": 120,
+      "reasoning": "Get intraday price action to identify when the spike occurred"
+    },
+    {
+      "database": "mongodb",
+      "collection": "news",
+      "query": {"symbols": "NVDA", "published_date_gte": "24h_ago"},
+      "sort": {"published_date": -1},
+      "limit": 10,
+      "reasoning": "Find news that may have caused the price movement"
+    },
+    {
+      "database": "mongodb",
+      "collection": "sec_filings",
+      "query": {"ticker": "NVDA", "filing_date_gte": "7d_ago"},
+      "sort": {"filing_date": -1},
+      "limit": 3,
+      "reasoning": "Check for recent SEC filings that may have impacted price"
+    },
+    {
+      "database": "mongodb",
+      "collection": "price_targets",
+      "query": {"ticker": "NVDA", "date_gte": "7d_ago"},
+      "sort": {"date": -1},
+      "limit": 5,
+      "reasoning": "Check for analyst upgrades/downgrades"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": true,
+  "needsDeepAnalysis": true,
+  "analysisKeywords": ["spike", "caused", "why"],
+  "intent": "Explain what caused NVDA's price movement today",
+  "chartConfig": {
+    "symbol": "NVDA",
+    "timeRange": "1D",
+    "highlightDate": null
+  }
+}
+
+**EXAMPLE 11 (Earnings Impact Analysis):**
+User: "How did MSFT react to their last earnings?"
+Response:
+{
+  "queries": [
+    {
+      "database": "mongodb",
+      "collection": "earnings_transcripts",
+      "query": {"ticker": "MSFT"},
+      "sort": {"date": -1},
+      "limit": 1,
+      "reasoning": "Get most recent earnings transcript for context"
+    },
+    {
+      "database": "mongodb",
+      "collection": "news",
+      "query": {"symbols": "MSFT", "title_contains": ["earnings", "quarterly", "results"]},
+      "sort": {"published_date": -1},
+      "limit": 5,
+      "reasoning": "Get news coverage of the earnings report"
+    },
+    {
+      "database": "supabase",
+      "collection": "daily_prices",
+      "query": {"symbol": "MSFT"},
+      "sort": {"timestamp": "desc"},
+      "limit": 10,
+      "reasoning": "Get daily price data around earnings date to see reaction"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": true,
+  "needsDeepAnalysis": true,
+  "analysisKeywords": ["react", "earnings"],
+  "intent": "Analyze MSFT stock reaction to most recent earnings",
+  "chartConfig": {
+    "symbol": "MSFT",
+    "timeRange": "1W",
+    "highlightDate": "earnings_date"
+  }
 }
 
 Return ONLY valid JSON, no explanation outside the JSON structure.`;

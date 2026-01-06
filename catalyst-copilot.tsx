@@ -59,6 +59,12 @@ interface ArticleCardData {
   category?: string;
 }
 
+interface ChartCardData {
+  id: string;
+  symbol: string;
+  timeRange: '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
+}
+
 interface StockCardData {
   ticker: string;
   company: string;
@@ -334,6 +340,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
     let currentParagraph: string[] = [];
     let pendingImageCards: string[] = []; // Track IMAGE_CARD markers to render after paragraph
     let pendingArticleCards: string[] = []; // Track VIEW_ARTICLE markers to render after paragraph
+    let pendingChartCards: ChartCardData[] = []; // Track VIEW_CHART markers to render after paragraph
     
     const flushParagraph = () => {
       if (currentParagraph.length > 0) {
@@ -358,6 +365,14 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
             insertArticleCard(articleId);
           });
           pendingArticleCards = [];
+        }
+        
+        // After flushing paragraph, add any pending chart cards
+        if (pendingChartCards.length > 0) {
+          pendingChartCards.forEach(chartData => {
+            insertChartCard(chartData);
+          });
+          pendingChartCards = [];
         }
       }
     };
@@ -390,6 +405,14 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
             insertArticleCard(articleId);
           });
           pendingArticleCards = [];
+        }
+        
+        // After flushing list, add any pending chart cards
+        if (pendingChartCards.length > 0) {
+          pendingChartCards.forEach(chartData => {
+            insertChartCard(chartData);
+          });
+          pendingChartCards = [];
         }
       }
     };
@@ -445,6 +468,15 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
       }
     };
     
+    const insertChartCard = (chartData: ChartCardData) => {
+      // Render an inline mini chart for the symbol
+      elements.push(
+        <div key={`chart-card-${chartData.id}-${uniqueKeyCounter++}`} className="my-3">
+          <InlineChartCard symbol={chartData.symbol} timeRange={chartData.timeRange} />
+        </div>
+      );
+    };
+    
     const parseInlineFormatting = (line: string) => {
       const parts: (string | JSX.Element)[] = [];
       let currentText = line;
@@ -486,6 +518,24 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
       
       // Remove VIEW_ARTICLE markers from text
       currentText = currentText.replace(articleCardRegex, '');
+      
+      // Extract VIEW_CHART markers (similar to IMAGE_CARD handling)
+      // Format: [VIEW_CHART:SYMBOL:TIMERANGE] e.g., [VIEW_CHART:TSLA:1D]
+      const chartCardRegex = /\[VIEW_CHART:([A-Z]+):([^\]]+)\]/g;
+      let chartMatch;
+      
+      while ((chartMatch = chartCardRegex.exec(currentText)) !== null) {
+        const symbol = chartMatch[1];
+        const timeRange = chartMatch[2] as '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
+        pendingChartCards.push({
+          id: `chart-${symbol}-${timeRange}-${Date.now()}`,
+          symbol,
+          timeRange
+        });
+      }
+      
+      // Remove VIEW_CHART markers from text
+      currentText = currentText.replace(chartCardRegex, '');
       
       // Remove "Read more" links that appear right before VIEW_ARTICLE markers
       // Pattern: ([Read more](URL)) or (Read more) right before where marker was
@@ -2397,12 +2447,12 @@ function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCar
               {(articleData.country || articleData.category) && (
                 <div className="flex gap-2 mb-2">
                   {articleData.country && (
-                    <span className="text-xs bg-muted/50 px-2 py-0.5 rounded-full">
+                    <span className="text-xs bg-muted/50 px-2 py-0.5 rounded-full text-center">
                       {articleData.country}
                     </span>
                   )}
                   {articleData.category && (
-                    <span className="text-xs bg-muted/50 px-2 py-0.5 rounded-full">
+                    <span className="text-xs bg-muted/50 px-2 py-0.5 rounded-full text-center">
                       {articleData.category}
                     </span>
                   )}
@@ -2429,6 +2479,192 @@ function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCar
   }
 
   return null;
+}
+
+/**
+ * InlineChartCard - Renders a mini price chart for a symbol inline in the response
+ * Used when VIEW_CHART markers are detected in AI responses
+ */
+function InlineChartCard({ symbol, timeRange }: { symbol: string; timeRange: string }) {
+  const [chartData, setChartData] = useState<any[] | null>(null);
+  const [quoteData, setQuoteData] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(false);
+
+      try {
+        // Determine date range based on timeRange
+        const now = new Date();
+        let startDate: Date;
+        let table = 'one_minute_prices';
+        let limit = 500;
+
+        switch (timeRange) {
+          case '1D':
+            startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            table = 'one_minute_prices';
+            limit = 390; // ~6.5 hours of trading
+            break;
+          case '5D':
+            startDate = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+            table = 'one_minute_prices';
+            limit = 1950;
+            break;
+          case '1W':
+            startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            table = 'daily_prices';
+            limit = 7;
+            break;
+          case '1M':
+            startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            table = 'daily_prices';
+            limit = 30;
+            break;
+          case '3M':
+            startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+            table = 'daily_prices';
+            limit = 90;
+            break;
+          case '6M':
+            startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+            table = 'daily_prices';
+            limit = 180;
+            break;
+          case '1Y':
+            startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+            table = 'daily_prices';
+            limit = 365;
+            break;
+          case '5Y':
+            startDate = new Date(now.getTime() - 5 * 365 * 24 * 60 * 60 * 1000);
+            table = 'daily_prices';
+            limit = 1825;
+            break;
+          default:
+            startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        }
+
+        // Fetch price data
+        const priceParams = new URLSearchParams();
+        priceParams.append('select', 'timestamp,open,high,low,close,volume');
+        priceParams.append('symbol', `eq.${symbol}`);
+        priceParams.append('timestamp', `gte.${startDate.toISOString()}`);
+        priceParams.append('order', 'timestamp.asc');
+        priceParams.append('limit', limit.toString());
+
+        const priceUrl = `https://${projectId}.supabase.co/rest/v1/${table}?${priceParams}`;
+        
+        // Fetch current quote
+        const quoteParams = new URLSearchParams();
+        quoteParams.append('select', '*');
+        quoteParams.append('symbol', `eq.${symbol}`);
+        quoteParams.append('order', 'timestamp.desc');
+        quoteParams.append('limit', '1');
+        
+        const quoteUrl = `https://${projectId}.supabase.co/rest/v1/finnhub_quote_snapshots?${quoteParams}`;
+
+        const [priceRes, quoteRes] = await Promise.all([
+          fetch(priceUrl, {
+            headers: {
+              'apikey': publicAnonKey,
+              'Authorization': `Bearer ${publicAnonKey}`
+            }
+          }),
+          fetch(quoteUrl, {
+            headers: {
+              'apikey': publicAnonKey,
+              'Authorization': `Bearer ${publicAnonKey}`
+            }
+          })
+        ]);
+
+        if (!priceRes.ok) throw new Error('Failed to fetch price data');
+        
+        const prices = await priceRes.json();
+        const quotes = await quoteRes.json();
+
+        // Map to chart format
+        const mappedData = prices.map((row: any) => ({
+          timestamp: row.timestamp,
+          price: row.close,
+          value: row.close,
+          volume: row.volume
+        }));
+
+        setChartData(mappedData);
+        if (quotes && quotes.length > 0) {
+          setQuoteData(quotes[0]);
+        }
+        setIsLoading(false);
+      } catch (err) {
+        console.error('InlineChartCard fetch error:', err);
+        setError(true);
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [symbol, timeRange]);
+
+  const isPositive = quoteData ? (quoteData.dp || 0) >= 0 : true;
+  const isIntraday = timeRange === '1D' || timeRange === '5D';
+
+  return (
+    <motion.div
+      whileHover={{ scale: 1.01, y: -2 }}
+      transition={{ duration: 0.2 }}
+    >
+      <Card className="p-3 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-base">{symbol}</span>
+            <Badge variant="outline" className="text-xs">{timeRange}</Badge>
+          </div>
+          {quoteData && (
+            <div className="text-right">
+              <div className="font-semibold">${quoteData.c?.toFixed(2)}</div>
+              <div className={`text-xs flex items-center gap-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {isPositive ? '+' : ''}{quoteData.dp?.toFixed(2)}%
+              </div>
+            </div>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center h-24">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+            Unable to load chart
+          </div>
+        ) : chartData && chartData.length > 0 ? (
+          <div className="h-24">
+            {isIntraday ? (
+              <IntradayMiniChart 
+                data={chartData}
+                ticker={symbol}
+                previousClose={quoteData?.pc}
+              />
+            ) : (
+              <SimpleMiniChart data={chartData} ticker={symbol} />
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+            No data available
+          </div>
+        )}
+
+        <p className="text-[10px] text-muted-foreground/60 mt-2">Data from Catalyst (Supabase)</p>
+      </Card>
+    </motion.div>
+  );
 }
 
 function StockCard({ data }: { data: StockCardData }) {

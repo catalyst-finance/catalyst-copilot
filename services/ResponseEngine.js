@@ -12,6 +12,8 @@ class ResponseEngine {
     this.dataSchemaContext = `
 **AVAILABLE DATA FIELDS BY COLLECTION:**
 
+**MongoDB Collections:**
+
 **government_policy:**
 - title, date, participants (array), url
 - turns: array of {speaker, text} - full transcript
@@ -49,6 +51,30 @@ class ResponseEngine {
 **hype:**
 - ticker, sentiment, buzz, social_sentiment
 - No external content
+
+**Supabase Collections (Quantitative Data):**
+
+**finnhub_quote_snapshots (Real-time Prices):**
+- symbol, timestamp
+- c (current price), o (open), h (high), l (low), pc (previous close)
+- d (daily $ change), dp (daily % change)
+- Use for current stock prices and daily performance
+
+**one_minute_prices (Intraday Data):**
+- symbol, timestamp, open, high, low, close, volume
+- 1-minute OHLCV bars for intraday analysis
+- Use for price action around specific events
+
+**daily_prices (Historical Data):**
+- symbol, timestamp, open, high, low, close, volume
+- Daily OHLCV bars for multi-day/week/month analysis
+- Use for historical price trends and patterns
+
+**company_information (Company Profile):**
+- symbol, name, exchange, country, currency
+- sector, industry, market_cap, shares_outstanding
+- ipo_date, website_url, logo_url, phone, address
+- Use for company metadata and fundamentals
 `;
   }
 
@@ -424,6 +450,19 @@ Return ONLY valid JSON.`;
       
       case 'hype':
         return this.formatHype(itemsToShow, detailLevel, output);
+      
+      // Supabase price data collections
+      case 'finnhub_quote_snapshots':
+        return this.formatQuoteSnapshots(itemsToShow, detailLevel, output);
+      
+      case 'one_minute_prices':
+        return this.formatIntradayPrices(itemsToShow, detailLevel, output);
+      
+      case 'daily_prices':
+        return this.formatDailyPrices(itemsToShow, detailLevel, output);
+      
+      case 'company_information':
+        return this.formatCompanyInformation(itemsToShow, detailLevel, output);
       
       default:
         return output + `(Unsupported collection type)\n`;
@@ -856,7 +895,11 @@ Return ONLY valid JSON.`;
       'price_targets': 'analyst ratings',
       'macro_economics': 'economic data',
       'ownership': 'institutional holdings',
-      'hype': 'sentiment data'
+      'hype': 'sentiment data',
+      'finnhub_quote_snapshots': 'current stock prices',
+      'one_minute_prices': 'intraday price data',
+      'daily_prices': 'daily price history',
+      'company_information': 'company details'
     };
     return names[collection] || collection;
   }
@@ -874,9 +917,148 @@ Return ONLY valid JSON.`;
       'price_targets': 'ANALYST PRICE TARGETS',
       'macro_economics': 'ECONOMIC DATA',
       'ownership': 'INSTITUTIONAL OWNERSHIP',
-      'hype': 'SENTIMENT DATA'
+      'hype': 'SENTIMENT DATA',
+      'finnhub_quote_snapshots': 'CURRENT STOCK PRICES',
+      'one_minute_prices': 'INTRADAY PRICE DATA',
+      'daily_prices': 'DAILY PRICE HISTORY',
+      'company_information': 'COMPANY INFORMATION'
     };
     return titles[collection] || collection.toUpperCase();
+  }
+
+  /**
+   * Format Finnhub quote snapshots (real-time price data)
+   * Fields: symbol, c (current), o (open), h (high), l (low), pc (previous close), d (change), dp (change %)
+   */
+  formatQuoteSnapshots(items, detailLevel, output) {
+    items.forEach((quote, index) => {
+      const changePrefix = quote.dp >= 0 ? '+' : '';
+      const changeColor = quote.dp >= 0 ? '📈' : '📉';
+      
+      output += `${index + 1}. ${quote.symbol} - Current Price: $${quote.c?.toFixed(2) || 'N/A'}\n`;
+      output += `   ${changeColor} Daily Change: ${changePrefix}${quote.dp?.toFixed(2) || 0}% ($${changePrefix}${quote.d?.toFixed(2) || 0})\n`;
+      output += `   Open: $${quote.o?.toFixed(2) || 'N/A'} | High: $${quote.h?.toFixed(2) || 'N/A'} | Low: $${quote.l?.toFixed(2) || 'N/A'}\n`;
+      output += `   Previous Close: $${quote.pc?.toFixed(2) || 'N/A'}\n`;
+      if (quote.timestamp) {
+        output += `   As of: ${new Date(quote.timestamp).toLocaleString()}\n`;
+      }
+      output += `\n`;
+    });
+    return output;
+  }
+
+  /**
+   * Format intraday price bars (one_minute_prices)
+   * Fields: symbol, timestamp, open, high, low, close, volume
+   */
+  formatIntradayPrices(items, detailLevel, output) {
+    if (items.length === 0) return output;
+    
+    // Group by symbol
+    const bySymbol = {};
+    items.forEach(bar => {
+      if (!bySymbol[bar.symbol]) bySymbol[bar.symbol] = [];
+      bySymbol[bar.symbol].push(bar);
+    });
+    
+    for (const symbol of Object.keys(bySymbol)) {
+      const bars = bySymbol[symbol].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const firstBar = bars[0];
+      const lastBar = bars[bars.length - 1];
+      
+      // Calculate session high/low/range
+      const sessionHigh = Math.max(...bars.map(b => b.high));
+      const sessionLow = Math.min(...bars.map(b => b.low));
+      const totalVolume = bars.reduce((sum, b) => sum + (b.volume || 0), 0);
+      
+      const priceChange = lastBar.close - firstBar.open;
+      const pctChange = ((priceChange / firstBar.open) * 100).toFixed(2);
+      const changePrefix = priceChange >= 0 ? '+' : '';
+      
+      output += `**${symbol} Intraday Price Action**\n`;
+      output += `   Time Range: ${new Date(firstBar.timestamp).toLocaleTimeString()} - ${new Date(lastBar.timestamp).toLocaleTimeString()}\n`;
+      output += `   Open: $${firstBar.open?.toFixed(2)} → Close: $${lastBar.close?.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
+      output += `   Session High: $${sessionHigh.toFixed(2)} | Session Low: $${sessionLow.toFixed(2)}\n`;
+      output += `   Range: $${(sessionHigh - sessionLow).toFixed(2)} | Volume: ${totalVolume.toLocaleString()}\n`;
+      output += `\n`;
+      
+      // If detailed, show recent bars
+      if (detailLevel === 'full' && bars.length <= 20) {
+        output += `   Recent Bars:\n`;
+        bars.slice(-10).forEach(bar => {
+          output += `   ${new Date(bar.timestamp).toLocaleTimeString()}: O:$${bar.open?.toFixed(2)} H:$${bar.high?.toFixed(2)} L:$${bar.low?.toFixed(2)} C:$${bar.close?.toFixed(2)}\n`;
+        });
+        output += `\n`;
+      }
+    }
+    return output;
+  }
+
+  /**
+   * Format daily price history
+   * Fields: symbol, timestamp, open, high, low, close, volume
+   */
+  formatDailyPrices(items, detailLevel, output) {
+    if (items.length === 0) return output;
+    
+    // Group by symbol
+    const bySymbol = {};
+    items.forEach(bar => {
+      if (!bySymbol[bar.symbol]) bySymbol[bar.symbol] = [];
+      bySymbol[bar.symbol].push(bar);
+    });
+    
+    for (const symbol of Object.keys(bySymbol)) {
+      const bars = bySymbol[symbol].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const firstBar = bars[0];
+      const lastBar = bars[bars.length - 1];
+      
+      const priceChange = lastBar.close - firstBar.open;
+      const pctChange = ((priceChange / firstBar.open) * 100).toFixed(2);
+      const changePrefix = priceChange >= 0 ? '+' : '';
+      
+      output += `**${symbol} Daily Price History** (${bars.length} days)\n`;
+      output += `   Period: ${new Date(firstBar.timestamp).toLocaleDateString()} - ${new Date(lastBar.timestamp).toLocaleDateString()}\n`;
+      output += `   Start: $${firstBar.open?.toFixed(2)} → End: $${lastBar.close?.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
+      
+      // Calculate period high/low
+      const periodHigh = Math.max(...bars.map(b => b.high));
+      const periodLow = Math.min(...bars.map(b => b.low));
+      output += `   Period High: $${periodHigh.toFixed(2)} | Period Low: $${periodLow.toFixed(2)}\n`;
+      output += `\n`;
+      
+      // Show recent daily bars
+      if (detailLevel === 'full' || detailLevel === 'moderate') {
+        output += `   Recent Days:\n`;
+        bars.slice(-5).forEach(bar => {
+          const dayChange = bar.close - bar.open;
+          const dayPct = ((dayChange / bar.open) * 100).toFixed(2);
+          const dayPrefix = dayChange >= 0 ? '+' : '';
+          output += `   ${new Date(bar.timestamp).toLocaleDateString()}: $${bar.close?.toFixed(2)} (${dayPrefix}${dayPct}%) | Vol: ${(bar.volume || 0).toLocaleString()}\n`;
+        });
+        output += `\n`;
+      }
+    }
+    return output;
+  }
+
+  /**
+   * Format company information
+   * Fields: symbol, name, exchange, market_cap, shares_outstanding, country, sector, industry, etc.
+   */
+  formatCompanyInformation(items, detailLevel, output) {
+    items.forEach((company, index) => {
+      output += `${index + 1}. ${company.name} (${company.symbol})\n`;
+      if (company.exchange) output += `   Exchange: ${company.exchange}\n`;
+      if (company.sector) output += `   Sector: ${company.sector} | Industry: ${company.industry || 'N/A'}\n`;
+      if (company.country) output += `   Country: ${company.country}\n`;
+      if (company.market_cap) output += `   Market Cap: $${(company.market_cap / 1e9).toFixed(2)}B\n`;
+      if (company.shares_outstanding) output += `   Shares Outstanding: ${(company.shares_outstanding / 1e6).toFixed(2)}M\n`;
+      if (company.ipo_date) output += `   IPO Date: ${new Date(company.ipo_date).toLocaleDateString()}\n`;
+      if (company.website_url) output += `   Website: ${company.website_url}\n`;
+      output += `\n`;
+    });
+    return output;
   }
 }
 
