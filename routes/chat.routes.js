@@ -593,6 +593,9 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                   return `${item.title}: ${text}`;
                 }).join('\n\n');
                 
+                console.log(`📝 Transcript excerpt length: ${policyTexts.length} chars`);
+                console.log(`📝 Transcript preview: ${policyTexts.substring(0, 500)}...`);
+                
                 // Enhanced prompt: explicitly ask to extract companies mentioned IN THE TRANSCRIPTS
                 const companyCheckPrompt = `Analyze this government policy transcript to find which publicly traded companies are mentioned by the speaker(s).
 
@@ -622,8 +625,13 @@ Return ONLY the JSON object, no explanation.`;
                   response_format: { type: "json_object" }
                 });
                 
-                const companyData = JSON.parse(companyCheckResponse.choices[0].message.content.trim());
+                const companyCheckResult = companyCheckResponse.choices[0].message.content.trim();
+                console.log(`🔍 Company extraction AI response: ${companyCheckResult}`);
+                
+                const companyData = JSON.parse(companyCheckResult);
                 const companyNames = companyData.companies || [];
+                
+                console.log(`📊 Extracted companies: ${companyNames.length > 0 ? companyNames.join(', ') : 'none found'}`);
                 
                 if (companyNames.length > 0) {
                   console.log(`🏢 Companies mentioned in policy query: ${companyNames.join(', ')}`);
