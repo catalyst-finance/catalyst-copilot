@@ -132,6 +132,24 @@ Determine the optimal way to present this data to answer the user's question. Fo
 - Government policy: always show full (content is in database)
 - Price targets/ownership: moderate (no external content needed)
 
+**CRITICAL - RESPONSE STYLE RECOMMENDATION:**
+Also provide a "responseStyle" recommendation that tells the AI how to structure and present the final response:
+
+**Response Style Options:**
+- **structured_analysis**: Use bold section headers, bullet points, clear organization (for SEC filings, earnings analysis)
+- **chronological_narrative**: Timeline format with dates, sequential events (for government policy, roadmap questions)
+- **comparison_format**: Side-by-side comparison with clear distinctions (for "compare X vs Y" questions)
+- **executive_summary**: Brief, high-level overview with key takeaways (for "highlights" or "tldr" questions)
+- **detailed_breakdown**: In-depth sections with subsections and thorough explanation (for "analyze" or "explain" questions)
+- **list_format**: Numbered or bulleted list of items (for "list recent", "show me top 5")
+- **conversational**: Natural flowing paragraphs with context (for general questions)
+
+**Tone Options:**
+- **analytical**: Professional, data-focused, objective
+- **concise**: Brief, to-the-point, minimal elaboration
+- **comprehensive**: Detailed, thorough, includes context
+- **explanatory**: Educational, walks through concepts
+
 Return JSON:
 {
   "formattingPlan": [
@@ -154,7 +172,12 @@ Return JSON:
       "formattingNotes": "Show headlines for context but don't fetch full articles"
     }
   ],
-  "overallStrategy": "Lead with SEC filing deep dive, then show news headlines for market context"
+  "overallStrategy": "Lead with SEC filing deep dive, then show news headlines for market context",
+  "responseStyle": {
+    "format": "structured_analysis",
+    "tone": "analytical",
+    "instructions": "Use bold section headers for Financial Position, Operational Progress, and Risk Factors. Extract specific dollar amounts and metrics. Lead with most important insights."
+  }
 }
 
 Return ONLY valid JSON.`;

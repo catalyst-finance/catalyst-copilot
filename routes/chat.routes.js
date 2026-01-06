@@ -126,6 +126,7 @@ router.post('/', optionalAuth, async (req, res) => {
     const dataCards = [];
     const eventData = {};
     let upcomingDatesContext = "";
+    let responseStyleGuidelines = null;  // AI-recommended response style
     
     // Intelligence metadata tracking
     let intelligenceMetadata = {
@@ -175,6 +176,12 @@ router.post('/', optionalAuth, async (req, res) => {
           dataContext = formatted.dataContext;
           dataCards.push(...formatted.dataCards);
           intelligenceMetadata = { ...intelligenceMetadata, ...formatted.intelligenceMetadata };
+          
+          // Store AI-recommended response style
+          if (formattingPlan.responseStyle) {
+            responseStyleGuidelines = formattingPlan.responseStyle;
+            console.log('📐 Response Style:', responseStyleGuidelines.format, '-', responseStyleGuidelines.tone);
+          }
           
           console.log(`✅ AI formatting complete - ${intelligenceMetadata.totalSources} sources`);
         } catch (error) {
@@ -1175,7 +1182,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     }
 
     // STEP 6: PREPARE SYSTEM PROMPT (truncated for brevity - full prompt in original)
-    const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext);
+    const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext, responseStyleGuidelines);
 
     // Build messages array (text-only - SEC.gov blocks image downloads)
     const messages = [
@@ -1337,7 +1344,21 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
 /**
  * Build the system prompt for OpenAI
  */
-function buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext = '') {
+function buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext = '', responseStyleGuidelines = null) {
+  // Build AI-recommended style section
+  let styleInstructions = '';
+  if (responseStyleGuidelines) {
+    styleInstructions = `
+
+**AI-RECOMMENDED RESPONSE STYLE:**
+Format: ${responseStyleGuidelines.format}
+Tone: ${responseStyleGuidelines.tone}
+${responseStyleGuidelines.instructions ? `Instructions: ${responseStyleGuidelines.instructions}` : ''}
+
+**APPLY THIS STYLE TO YOUR RESPONSE** - The AI has analyzed the user's question and data type to determine the optimal presentation format above. Structure your response accordingly.
+`;
+  }
+  
   return `You are Catalyst Copilot, a financial AI assistant specializing in connecting market data, institutional activity, and policy developments.
 
 ROLE & EXPERTISE:
@@ -1346,6 +1367,7 @@ ROLE & EXPERTISE:
 - Specialist in FDA approvals, earnings catalysts, and regulatory events
 - Policy analyst tracking government decisions affecting markets
 - Advanced pattern recognition and anomaly detection
+${styleInstructions}
 
 **CRITICAL: FORMATTING APPLIES TO ALL RESPONSES**
 These formatting guidelines apply to EVERY response you generate - whether it's the first message in a conversation or a follow-up question. Never revert to plain paragraph format for follow-ups. Always use structured formatting with bold headers, bullet points, and proper spacing.
