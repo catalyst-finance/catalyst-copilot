@@ -736,13 +736,16 @@ Return ONLY valid JSON.`;
       const item = items[index];
       const date = item.date ? new Date(item.date).toLocaleDateString() : 'Unknown date';
       
+      // Build full URL from tradingeconomics.com base + relative path
+      const fullUrl = item.url ? `https://tradingeconomics.com${item.url}` : null;
+      
       output += `${index + 1}. ${item.title || 'Untitled'} - ${date}\n`;
       if (item.country) output += `   Country: ${item.country}\n`;
       if (item.category) output += `   Category: ${item.category}\n`;
 
-      if (fetchExternal && item.url && detailLevel === 'full' && items.length <= 5) {
+      if (fetchExternal && fullUrl && detailLevel === 'full' && items.length <= 5) {
         try {
-          const contentResult = await DataConnector.fetchWebContent(item.url, 8000);
+          const contentResult = await DataConnector.fetchWebContent(fullUrl, 8000);
           if (contentResult.success && contentResult.content) {
             output += `\n   === FULL REPORT ===\n${contentResult.content}\n   === END REPORT ===\n`;
           } else if (item.description) {
@@ -758,7 +761,7 @@ Return ONLY valid JSON.`;
         output += `   Description: ${item.description.substring(0, descLength)}...\n`;
       }
 
-      if (item.url) output += `   URL: ${item.url}\n`;
+      if (fullUrl) output += `   URL: ${fullUrl}\n`;
       output += `\n`;
     }
     return output;

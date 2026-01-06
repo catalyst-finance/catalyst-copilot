@@ -415,6 +415,10 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           for (let index = 0; index < result.data.length; index++) {
             const item = result.data[index];
             const date = item.date ? new Date(item.date).toLocaleDateString() : 'Unknown date';
+            
+            // Build full URL from tradingeconomics.com base + relative path
+            const fullUrl = item.url ? `https://tradingeconomics.com${item.url}` : null;
+            
             dataContext += `${index + 1}. ${item.title || 'Untitled'} - ${date}\n`;
             if (item.country) {
               dataContext += `   Country: ${item.country}\n`;
@@ -424,9 +428,9 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
             }
             
             // If deep analysis requested and we have a URL, fetch full content
-            if (needsDeepAnalysis && item.url && result.data.length <= 5) {
+            if (needsDeepAnalysis && fullUrl && result.data.length <= 5) {
               try {
-                const contentResult = await DataConnector.fetchWebContent(item.url, 8000);
+                const contentResult = await DataConnector.fetchWebContent(fullUrl, 8000);
                 if (contentResult.success && contentResult.content) {
                   dataContext += `\n   === FULL REPORT ===\n${contentResult.content}\n   === END REPORT ===\n`;
                   console.log(`   ✅ Fetched ${contentResult.contentLength} chars from economic source`);
@@ -443,8 +447,8 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
               dataContext += `   Description: ${item.description.substring(0, 200)}...\n`;
             }
             
-            if (item.url) {
-              dataContext += `   URL: ${item.url}\n`;
+            if (fullUrl) {
+              dataContext += `   URL: ${fullUrl}\n`;
             }
             dataContext += `\n`;
           }
@@ -1574,8 +1578,7 @@ INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 • **DO** use thematic section headers (e.g., "**Competitive Pressures**", "**Sales Strategy**", "**Market Conditions**")
 • **DO** explain the implications and connect the dots between stories
 • **MUST include temporal context** - Mention when the news was published (e.g., "reported on January 5", "announced this week", "as of early January") and any relevant timeframes mentioned in the article (e.g., "hearings starting in January", "Q4 2025 results")
-• Each news item should be 4-6 sentences of detailed, substantive analysis covering the key points, implications, and market context
-• **Place [VIEW_ARTICLE:...] marker at the END of the last sentence, right after the final word before the period**: "...market context[VIEW_ARTICLE:article-TMC-0]."
+• Each news item should be 3-6 sentences of detailed, substantive analysis covering the key points, implications, and market context. Decide whether key points should be presented as a list or in paragraph form based on what flows best.
 • **Explain WHY it matters** - Don't just report what happened, analyze the competitive dynamics, strategic implications, or market impact
 • **CORRECT FORMAT EXAMPLE:**
   
