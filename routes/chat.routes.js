@@ -341,7 +341,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
                 model: "gpt-4o-mini",
                 messages: [{ role: "user", content: keywordPrompt }],
                 temperature: 0.2,
-                max_tokens: 500,
+                max_tokens: 1000,
                 response_format: { type: "json_object" }
               });
               
@@ -1393,8 +1393,8 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     const stream = await openai.chat.completions.create({
       model: "gpt-4o",
       messages,
-      temperature: 0.5,
-      max_tokens: 15000,
+      temperature: 0.7,
+      max_tokens: 20000,
       stream: true
     });
 
