@@ -82,6 +82,165 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
   // Don't extract sources into a separate section - keep everything inline
   const mainText = text;
   
+  // Helper to extract date/time value from section header for chronological sorting
+  const extractDateValue = (headerText: string): number => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const lowerHeader = headerText.toLowerCase();
+    
+    // Handle "Recent Developments", "Current Status", "Overview" - treat as present (0)
+    if (/recent|current|overview|summary|background|introduction/i.test(lowerHeader)) {
+      return 0; // Present/intro sections first
+    }
+    
+    // Handle quarter formats: "Q1 2026", "Q2 2025", etc.
+    const quarterMatch = lowerHeader.match(/q([1-4])\s*(\d{4})/i);
+    if (quarterMatch) {
+      const quarter = parseInt(quarterMatch[1]);
+      const year = parseInt(quarterMatch[2]);
+      // Convert to approximate month (Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct)
+      const month = (quarter - 1) * 3;
+      return new Date(year, month, 1).getTime();
+    }
+    
+    // Handle year formats: "2025", "2026", "FY 2025"
+    const yearMatch = lowerHeader.match(/(?:fy\s*)?(\d{4})/i);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[1]);
+      return new Date(year, 6, 1).getTime(); // Mid-year as default
+    }
+    
+    // Handle month-year formats: "January 2026", "Nov 2025", etc.
+    const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const monthYearMatch = lowerHeader.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{4})/i);
+    if (monthYearMatch) {
+      const monthStr = monthYearMatch[1].toLowerCase().slice(0, 3);
+      const monthIdx = monthNames.indexOf(monthStr);
+      const year = parseInt(monthYearMatch[2]);
+      if (monthIdx !== -1) {
+        return new Date(year, monthIdx, 15).getTime();
+      }
+    }
+    
+    // Handle date formats in headers: "May 15, 2026", "2025-11-06"
+    const dateMatch = lowerHeader.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})|(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+    if (dateMatch) {
+      if (dateMatch[4]) {
+        // YYYY-MM-DD format
+        return new Date(parseInt(dateMatch[4]), parseInt(dateMatch[5]) - 1, parseInt(dateMatch[6])).getTime();
+      } else {
+        // MM/DD/YYYY or similar
+        return new Date(parseInt(dateMatch[3]), parseInt(dateMatch[1]) - 1, parseInt(dateMatch[2])).getTime();
+      }
+    }
+    
+    // Handle relative terms
+    if (/past|historical|previous|earlier|last\s+(?:year|quarter|month)/i.test(lowerHeader)) {
+      return -1; // Past sections
+    }
+    if (/future|upcoming|outlook|roadmap|next|forecast|projected/i.test(lowerHeader)) {
+      return new Date(currentYear + 1, 0, 1).getTime(); // Future sections
+    }
+    
+    // Handle filing dates in headers like "10-Q - Nov 6, 2025"
+    const filingDateMatch = lowerHeader.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
+    if (filingDateMatch) {
+      const monthStr = filingDateMatch[1].toLowerCase().slice(0, 3);
+      const monthIdx = monthNames.indexOf(monthStr);
+      const day = parseInt(filingDateMatch[2]);
+      const year = parseInt(filingDateMatch[3]);
+      if (monthIdx !== -1) {
+        return new Date(year, monthIdx, day).getTime();
+      }
+    }
+    
+    // Default: no date info, keep original order (use large positive number)
+    return Number.MAX_SAFE_INTEGER;
+  };
+  
+  // Parse content into sections based on bold headers, then sort chronologically
+  const sortContentChronologically = (content: string): string => {
+    const lines = content.split('\n');
+    const sections: { header: string; content: string[]; dateValue: number; originalIndex: number }[] = [];
+    
+    let currentSection: { header: string; content: string[]; dateValue: number; originalIndex: number } | null = null;
+    let sectionIndex = 0;
+    
+    // Regex to detect section headers (bold text on its own line)
+    const headerRegex = /^\*\*([^*]+)\*\*$/;
+    
+    lines.forEach((line) => {
+      const trimmedLine = line.trim();
+      const headerMatch = trimmedLine.match(headerRegex);
+      
+      if (headerMatch && trimmedLine.length < 100) {
+        // This is a section header - save previous section and start new one
+        if (currentSection) {
+          sections.push(currentSection);
+        }
+        const headerText = headerMatch[1];
+        currentSection = {
+          header: trimmedLine,
+          content: [],
+          dateValue: extractDateValue(headerText),
+          originalIndex: sectionIndex++
+        };
+      } else if (currentSection) {
+        // Add line to current section
+        currentSection.content.push(line);
+      } else {
+        // No section yet - create an intro section
+        if (!currentSection) {
+          currentSection = {
+            header: '',
+            content: [line],
+            dateValue: -Infinity, // Intro always first
+            originalIndex: sectionIndex++
+          };
+        }
+      }
+    });
+    
+    // Push the last section
+    if (currentSection) {
+      sections.push(currentSection);
+    }
+    
+    // If only one section or no clear sections, return original content
+    if (sections.length <= 1) {
+      return content;
+    }
+    
+    // Separate intro section (no header) from dated sections
+    const introSections = sections.filter(s => s.header === '' || s.dateValue === -Infinity);
+    const datedSections = sections.filter(s => s.header !== '' && s.dateValue !== -Infinity && s.dateValue !== Number.MAX_SAFE_INTEGER);
+    const undatedSections = sections.filter(s => s.header !== '' && s.dateValue === Number.MAX_SAFE_INTEGER);
+    
+    // Sort dated sections chronologically (past → present → future)
+    datedSections.sort((a, b) => a.dateValue - b.dateValue);
+    
+    // Reconstruct content: intro first, then sorted dated sections, then undated sections
+    const sortedSections = [...introSections, ...datedSections, ...undatedSections];
+    
+    // Rebuild the content string
+    const sortedLines: string[] = [];
+    sortedSections.forEach((section, idx) => {
+      if (section.header) {
+        // Add blank line before headers (except first)
+        if (idx > 0 || introSections.length > 0) {
+          sortedLines.push('');
+        }
+        sortedLines.push(section.header);
+      }
+      sortedLines.push(...section.content);
+    });
+    
+    return sortedLines.join('\n');
+  };
+  
+  // Sort content chronologically before rendering
+  const sortedText = sortContentChronologically(mainText);
+  
   const formatRollCallLink = (linkText: string, url: string) => {
     // Check if this is a Roll Call URL
     if (url.includes('rollcall.com')) {
@@ -511,7 +670,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
   
   return (
     <div className="space-y-0.5">
-      <div>{renderContent(mainText)}</div>
+      <div>{renderContent(sortedText)}</div>
     </div>
   );
 }
