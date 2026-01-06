@@ -62,28 +62,28 @@ class ResponseEngine {
     switch(phase) {
       case 'plan_start':
         const collections = context.collections.map(c => this.getCollectionFriendlyName(c)).join(' and ');
-        prompt = `Write a 3-5 word status message saying you're looking up ${collections}. Use professional language. Words like "exploring", "investigating", "analyzing", "examining" are good. NEVER use exclamation marks. Avoid overly enthusiastic phrases like "Just found", "Diving into", "Grabbing". Avoid database jargon like "querying", "extracting", "processing". Examples: "Analyzing ${collections}..." or "Investigating ${collections}..."`;
+        prompt = `Write a 3-5 word status message saying you're looking up ${collections}. Use professional language. Words like "exploring", "investigating", "analyzing", "examining" are good. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Avoid overly enthusiastic phrases like "Just found", "Diving into", "Grabbing". Avoid database jargon like "querying", "extracting", "processing". Examples: "Analyzing ${collections}..." or "Investigating ${collections}..."`;
         break;
         
       case 'plan_generated':
         const priority = context.plan.formattingPlan.filter(p => p.priority >= 4);
         if (priority.length > 0) {
           const source = this.getCollectionFriendlyName(priority[0].collection);
-          prompt = `Write a 3-5 word status message saying you found relevant ${source}. Use professional but straightforward language. NEVER use exclamation marks. Avoid overly enthusiastic phrases like "Just found", "Got some". Examples: "Found relevant filing" or "Located ${source}"`;
+          prompt = `Write a 3-5 word status message saying you found relevant ${source}. Use professional but straightforward language. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Avoid overly enthusiastic phrases like "Just found", "Got some". Examples: "Found relevant filing..." or "Located ${source}..."`;
         } else {
-          prompt = `Write a 3-5 word status message saying you found ${context.plan.formattingPlan.length} sources. Use professional but straightforward language. NEVER use exclamation marks. Example: "Found ${context.plan.formattingPlan.length} sources"`;
+          prompt = `Write a 3-5 word status message saying you found ${context.plan.formattingPlan.length} sources. Use professional but straightforward language. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Example: "Found ${context.plan.formattingPlan.length} sources..."`;
         }
         break;
         
       case 'fetching_content':
         const friendly = this.getCollectionFriendlyName(context.collection);
         const countText = context.count === 1 ? 'the' : `${context.count}`;
-        prompt = `Write a 3-5 word status message saying you're reading ${countText} ${friendly}. Use professional language. Words like "exploring", "investigating", "analyzing", "examining" are good. NEVER use exclamation marks. Avoid overly enthusiastic phrases like "Diving into", "Checking out". Avoid database jargon like "querying", "extracting", "processing". Examples: "Analyzing ${countText} ${friendly}..." or "Examining ${countText} ${friendly}..."`;
+        prompt = `Write a 3-5 word status message saying you're reading ${countText} ${friendly}. Use professional language. Words like "exploring", "investigating", "analyzing", "examining" are good. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Avoid overly enthusiastic phrases like "Diving into", "Checking out". Avoid database jargon like "querying", "extracting", "processing". Examples: "Analyzing ${countText} ${friendly}..." or "Examining ${countText} ${friendly}..."`;
         break;
         
       case 'formatting':
         const collectionName = this.getCollectionFriendlyName(context.collection);
-        prompt = `Write a 4-6 word status message saying you're pulling details from ${collectionName}. Use professional language. Words like "exploring", "investigating", "analyzing" are good. NEVER use exclamation marks. Avoid overly enthusiastic phrases like "Grabbing", "Just getting". Avoid database jargon like "extracting", "processing", "querying". Examples: "Analyzing details from ${collectionName}..." or "Investigating ${collectionName}..."`;
+        prompt = `Write a 4-6 word status message saying you're pulling details from ${collectionName}. Use professional language. Words like "exploring", "investigating", "analyzing" are good. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Avoid overly enthusiastic phrases like "Grabbing", "Just getting". Avoid database jargon like "extracting", "processing", "querying". Examples: "Analyzing details from ${collectionName}..." or "Investigating ${collectionName}..."`;
         break;
         
       default:
@@ -127,11 +127,11 @@ class ResponseEngine {
         const priority = context.plan?.formattingPlan?.filter(p => p.priority >= 4) || [];
         if (priority.length > 0) {
           const source = this.getCollectionFriendlyName(priority[0].collection);
-          return `Found relevant ${source}`;
+          return `Found relevant ${source}...`;
         }
         const count = context.plan?.formattingPlan?.length || 0;
-        if (count === 0) return 'Looking for data...';
-        return `Found ${count} sources`;
+        if (count === 0) return 'Looking things up...';
+        return `Found ${count} sources...`;
       },
       'fetching_content': () => {
         const friendly = this.getCollectionFriendlyName(context.collection);
