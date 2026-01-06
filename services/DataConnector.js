@@ -493,8 +493,9 @@ class DataConnector {
       
       // Limit to 30 recent items for comprehensive policy coverage (10 for other categories)
       const defaultLimit = category === 'policy' ? 30 : 10;
+      const sortField = filters.sort || { inserted_at: -1 };
       const data = await collection.find(query)
-        .sort({ inserted_at: -1 })
+        .sort(sortField)
         .limit(filters.limit || defaultLimit)
         .toArray();
       
