@@ -502,6 +502,10 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
         // GOVERNMENT POLICY
         if (collection === 'government_policy') {
           sendThinking('retrieving', `Fetching government policy statements...`);
+          
+          // Detect if query is asking for most recent/last statement
+          const isRecentQuery = /\b(last|latest|most recent|newest|recent)\b/i.test(message);
+          
           const macroFilters = {
             category: 'policy'
           };
@@ -514,6 +518,14 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
           }
           if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
             macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
+          }
+          
+          // Always sort by date descending to get most recent first
+          macroFilters.sort = { date: -1 };
+          
+          // If asking for "last" or "most recent", limit to recent entries
+          if (isRecentQuery) {
+            macroFilters.limit = 5;
           }
           
           try {
