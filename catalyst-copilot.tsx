@@ -2810,19 +2810,16 @@ function InlineChartCard({
           </div>
         ) : chartData && chartData.length > 0 ? (
           <>
-            {isIntraday && (quoteData?.previous_close || preloadedPreviousClose) && quoteData?.close ? (
-              <IntradayMiniChart 
-                data={chartData}
-                ticker={symbol}
-                previousClose={quoteData?.previous_close || preloadedPreviousClose}
-                currentPrice={quoteData.close}
-                width={350}
-                height={120}
-                onTickerClick={onTickerClick}
-              />
-            ) : (
-              <SimpleMiniChart data={chartData} ticker={symbol} />
-            )}
+            {/* Always use IntradayMiniChart in copilot - it doesn't show future timeline/upcoming events */}
+            <IntradayMiniChart 
+              data={chartData}
+              ticker={symbol}
+              previousClose={(quoteData?.previous_close || preloadedPreviousClose) ?? null}
+              currentPrice={quoteData?.close ?? (chartData[chartData.length - 1]?.value || 0)}
+              width={350}
+              height={120}
+              onTickerClick={onTickerClick}
+            />
           </>
         ) : (
           <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
