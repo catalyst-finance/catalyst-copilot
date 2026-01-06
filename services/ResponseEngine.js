@@ -390,7 +390,7 @@ Return ONLY valid JSON.`;
 
   /**
    * Add chart markers to data context based on query intent
-   * Also fetches chart data and creates data cards for instant frontend rendering
+   * Frontend will handle fetching the chart data itself
    */
   async addChartMarkers(dataContext, queryIntent, dataCards, DataConnector) {
     if (!queryIntent || !queryIntent.chartConfig) {
@@ -404,85 +404,18 @@ Return ONLY valid JSON.`;
       return dataContext;
     }
 
-    console.log(`📊 Pre-fetching chart data for ${symbol} (${timeRange})...`);
+    console.log(`📊 Adding chart marker for ${symbol} (${timeRange})`);
 
-    // Fetch chart data based on timeRange
-    try {
-      let chartData = null;
-      let previousClose = null;
-
-      // Determine which data to fetch based on timeRange
-      if (timeRange === '1D' || timeRange === '5D') {
-        // Fetch intraday data
-        const intradayResult = await DataConnector.getStockData(symbol, 'intraday');
-        if (intradayResult.success && intradayResult.data.length > 0) {
-          // Transform intraday_prices data to match frontend format
-          // timestamp_et is a timestamptz column, so Supabase returns it as ISO 8601 string with timezone
-          // e.g., "2026-01-06T09:30:00-05:00" (already in ET with proper offset)
-          // We just need to parse it and convert to Unix milliseconds
-          chartData = intradayResult.data.map(point => {
-            // Parse timestamp_et - it already includes timezone info from Postgres
-            const utcTimestamp = new Date(point.timestamp_et).getTime();
-            
-            return {
-              timestamp: utcTimestamp,
-              value: point.price,
-              volume: point.volume
-            };
-          });
-        }
-
-        // Fetch current quote for previous close
-        const quoteResult = await DataConnector.getQuoteWithPreviousClose(symbol);
-        if (quoteResult.success && quoteResult.data) {
-          previousClose = quoteResult.data.previousClose;
-        }
-      } else {
-        // Fetch daily data for longer timeframes
-        const dailyResult = await DataConnector.getStockData(symbol, 'daily');
-        if (dailyResult.success && dailyResult.data.length > 0) {
-          // Transform daily_prices data to match frontend format
-          chartData = dailyResult.data
-            .map(point => ({
-              timestamp: new Date(point.date).getTime(),
-              value: point.close,
-              volume: point.volume
-            }))
-            .reverse(); // Reverse to chronological order
-
-          // Previous close is the close price of the first data point
-          if (dailyResult.data.length > 1) {
-            previousClose = dailyResult.data[1].close;
-          }
-        }
+    // Create lightweight chart card without data - frontend will fetch it
+    // This keeps SSE payloads small and avoids timestamp serialization issues
+    dataCards.push({
+      type: 'chart',
+      data: {
+        id: `chart-${symbol}-${timeRange}`,
+        symbol: symbol,
+        timeRange: timeRange
       }
-
-      if (chartData && chartData.length > 0) {
-        // Debug: Log sample data points to verify timestamp conversion
-        console.log(`   🔍 Sample chart data points:`, {
-          first: chartData[0],
-          middle: chartData[Math.floor(chartData.length / 2)],
-          last: chartData[chartData.length - 1]
-        });
-        
-        // Create chart data card with pre-fetched data
-        dataCards.push({
-          type: 'chart',
-          data: {
-            id: `chart-${symbol}-${timeRange}`,
-            symbol: symbol,
-            timeRange: timeRange,
-            chartData: chartData,
-            previousClose: previousClose
-          }
-        });
-        console.log(`   ✅ Chart data fetched: ${chartData.length} points, previousClose: ${previousClose}`);
-      } else {
-        console.log(`   ⚠️ No chart data found for ${symbol}`);
-      }
-    } catch (error) {
-      console.error(`   ❌ Error fetching chart data for ${symbol}:`, error);
-    }
+    });
 
     // Insert VIEW_CHART marker at the end of the context
     const chartMarker = `\n\n[VIEW_CHART:${symbol}:${timeRange}]\n`;
