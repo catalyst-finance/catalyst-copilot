@@ -561,6 +561,9 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       const imageCardMatch = trimmedLine.match(/\[IMAGE_CARD:([^\]]+)\]/);
       const hasImageCard = imageCardMatch !== null;
       
+      // Check if line is ONLY an IMAGE_CARD (standalone) - not mixed with text
+      const isStandaloneImageCard = hasImageCard && trimmedLine.replace(/\[IMAGE_CARD:([^\]]+)\]/, '').trim().length === 0;
+      
       // Check if this is a list item (with or without event card)
       const isListItem = trimmedLine.match(/^\d+\.\s+/) || trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ');
       
@@ -628,14 +631,14 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         flushParagraph();
         flushList();
         insertEventCard(eventCardMatch[1]);
-      } else if (hasImageCard && imageCardMatch) {
-        // Image card on its own line (not in a list item)
+      } else if (isStandaloneImageCard && imageCardMatch) {
+        // Image card on its own line (not in a list item) - ONLY if standalone
         flushParagraph();
         flushList();
         insertImageCard(imageCardMatch[1]);
       } else if (trimmedLine) {
         flushList();
-        // Regular paragraph text - keep IMAGE_CARD markers inline for now
+        // Regular paragraph text - IMAGE_CARD markers will be extracted by parseInlineFormatting
         currentParagraph.push(trimmedLine);
       } else {
         // Empty line - flush current paragraph
