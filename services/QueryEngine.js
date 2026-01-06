@@ -375,10 +375,10 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",  // Faster and cheaper - query generation is a structured task
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.2,
-        max_tokens: 4000,
+        temperature: 0.1,  // Lower for more deterministic query generation
+        max_tokens: 1500,  // JSON response rarely exceeds 500-800 tokens
         response_format: { type: "json_object" }
       });
 
