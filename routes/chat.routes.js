@@ -20,8 +20,7 @@ router.post('/', optionalAuth, async (req, res) => {
     const { 
       message, 
       conversationId = null, 
-      conversationHistory = [],
-      selectedTickers = [] 
+      conversationHistory = []
     } = req.body;
     
     if (!message) {
@@ -33,7 +32,6 @@ router.post('/', optionalAuth, async (req, res) => {
     console.log('Processing message:', message);
     console.log('User ID:', userId);
     console.log('Conversation ID:', conversationId);
-    console.log('User portfolio:', selectedTickers);
     
     // SET UP SSE IMMEDIATELY - Start streaming right away
     const origin = req.headers.origin;
@@ -105,7 +103,7 @@ router.post('/', optionalAuth, async (req, res) => {
       // AI generates the queries directly (with contextual thinking messages)
       const queryPlan = await QueryEngine.generateQueries(
         message, 
-        selectedTickers,
+        [],
         sendThinking  // Pass thinking function for context-aware messages
       );
       console.log('📋 Query Plan:', JSON.stringify(queryPlan, null, 2));
@@ -121,14 +119,14 @@ router.post('/', optionalAuth, async (req, res) => {
         needsChart: queryPlan.needsChart,
         needsDeepAnalysis: queryPlan.needsDeepAnalysis || false,
         analysisKeywords: queryPlan.analysisKeywords || [],
-        tickers: selectedTickers,
+        tickers: queryPlan.tickers || [],
         queries: queryPlan.queries
       };
       
     } catch (error) {
       console.error('❌ AI Query Engine failed:', error);
       // Fallback to empty results
-      queryIntent = { intent: 'general', tickers: selectedTickers };
+      queryIntent = { intent: 'general', tickers: [] };
       queryResults = [];
     }
 
@@ -673,20 +671,16 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
         const tickerSelectionPrompt = `You are an intelligent ticker selection system. Determine which stock tickers should have their events fetched.
 
 User Query: "${message}"
-User's Portfolio/Watchlist: ${selectedTickers.length > 0 ? selectedTickers.join(', ') : 'none'}
-Query Scope: ${queryIntent.scope} (focus_stocks = user's portfolio only, specific_tickers = tickers mentioned in query, outside_focus = exclude portfolio, all_stocks = any relevant)
 Specific Tickers Mentioned: ${queryIntent.tickers.length > 0 ? queryIntent.tickers.join(', ') : 'none'}
 Event Types Requested: ${queryIntent.eventTypes.length > 0 ? queryIntent.eventTypes.join(', ') : 'all types'}
 
 Task: Return a list of stock tickers (max 6) that should have their events fetched. Rules:
-1. If scope = "specific_tickers" and tickers mentioned → use ONLY those tickers (e.g., "What is MNMD's roadmap?" → ["MNMD"])
-2. If scope = "focus_stocks" → use user's portfolio tickers
-3. If scope = "outside_focus" → suggest relevant tickers NOT in the user's portfolio
-4. If scope = "all_stocks" → mix of portfolio + most relevant others (max 6 total)
-5. For broad market queries with no specific tickers → suggest most relevant tickers based on query topic
-6. If user's portfolio is empty, suggest relevant tickers based on the query
+1. If specific tickers are mentioned in the query → use ONLY those tickers (e.g., "What is MNMD's roadmap?" → ["MNMD"])
+2. For broad market queries → suggest the most relevant tickers based on query topic and context
+3. Maximum 6 tickers total
 
 Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"}`;
+
 
         const tickerSelectionResponse = await openai.chat.completions.create({
           model: "gpt-4o-mini",
@@ -702,21 +696,17 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
         if (tickersForEvents.length > 0) {
           console.log(`🎯 AI selected tickers for events: ${tickersForEvents.join(', ')} - ${tickerSelection.reasoning}`);
         } else {
-          // Fallback: use portfolio or first ticker from query
-          tickersForEvents = selectedTickers.length > 0 ? selectedTickers.slice(0, 6) : queryIntent.tickers.slice(0, 6);
+          // Fallback: use first ticker from query
+          tickersForEvents = queryIntent.tickers.slice(0, 6);
           console.log(`⚠️ AI returned no tickers, using fallback: ${tickersForEvents.join(', ')}`);
         }
       } catch (error) {
         console.error('Error in AI ticker selection:', error);
-        // Fallback logic if AI fails
-        if (queryIntent.scope === 'specific_tickers' && queryIntent.tickers.length > 0) {
-          tickersForEvents = queryIntent.tickers;
-        } else if (queryIntent.scope === 'focus_stocks' && selectedTickers.length > 0) {
-          tickersForEvents = selectedTickers;
-        } else if (selectedTickers.length > 0) {
-          tickersForEvents = selectedTickers.slice(0, 6);
-        } else if (queryIntent.tickers.length > 0) {
+        // Fallback logic if AI fails - use tickers from query intent
+        if (queryIntent.tickers.length > 0) {
           tickersForEvents = queryIntent.tickers.slice(0, 6);
+        } else {
+          tickersForEvents = [];
         }
         console.log(`⚠️ Fallback ticker selection: ${tickersForEvents.join(', ')}`);
       }
@@ -799,9 +789,9 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     // STEP 4: GENERATE STOCK CARDS
     const isBiggestMoversQuery = queryIntent.isBiggestMoversQuery || false;
     
-    if (isBiggestMoversQuery && selectedTickers && selectedTickers.length > 0) {
+    if (isBiggestMoversQuery && queryIntent.tickers && queryIntent.tickers.length > 0) {
       try {
-        const stockDataPromises = selectedTickers.map(async (ticker) => {
+        const stockDataPromises = queryIntent.tickers.map(async (ticker) => {
           try {
             const stockResult = await DataConnector.getStockData(ticker, 'current');
             if (stockResult.success && stockResult.data.length > 0) {
@@ -840,7 +830,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
         const companyNameMap = Object.fromEntries(companyNames.map(c => [c.symbol, c.name]));
         
         if (topMovers.length > 0) {
-          dataContext += `\n\n=== WATCHLIST BIGGEST MOVERS (TOP ${topMovers.length}) ===\n`;
+          dataContext += `\n\n=== BIGGEST MOVERS (TOP ${topMovers.length}) ===\n`;
           for (const quote of topMovers) {
             const company = companyNameMap[quote.symbol] || quote.symbol;
             dataContext += `\n${quote.symbol} (${company}):\n`;
@@ -866,7 +856,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
           });
         }
       } catch (error) {
-        console.error("Error fetching watchlist movers:", error);
+        console.error("Error fetching biggest movers:", error);
       }
     } else {
       // Check if price data is requested in dataSources (intraday_prices or daily_prices)
@@ -1054,9 +1044,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     }
 
     // STEP 5: BUILD CONTEXT MESSAGE
-    const contextMessage = selectedTickers.length > 0 
-      ? `The user is tracking: ${selectedTickers.join(', ')}.`
-      : '';
+    const contextMessage = '';
 
     // STEP 5.5: INTELLIGENT ANALYSIS
     try {
@@ -1242,7 +1230,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
           .insert([{
             user_id: userId,
             title: ConversationManager.generateTitle(message),
-            metadata: { selectedTickers }
+            metadata: {}
           }])
           .select()
           .single();
@@ -1352,7 +1340,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
             token_count: ConversationManager.estimateTokens(message),
             metadata: { 
               query_intent: queryIntent,
-              tickers_queried: tickersToQuery,
+              tickers_queried: queryIntent.tickers || [],
               data_sources: (queryIntent.dataSources || []).map(ds => ds.collection)
             }
           },
