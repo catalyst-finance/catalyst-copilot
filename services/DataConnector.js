@@ -9,10 +9,10 @@ const http = require('http');
 const https = require('https');
 const { supabase, mongoClient, connectMongo } = require('../config/database');
 
-// Increase max header size for HTTP requests (Yahoo Finance sends large headers)
-// Default is 8KB, we increase to 256KB to handle Yahoo Finance and similar sites
-const httpAgent = new http.Agent({ maxHeaderSize: 262144 }); // 256KB
-const httpsAgent = new https.Agent({ maxHeaderSize: 262144 }); // 256KB
+// Increase max header size for HTTP requests (Yahoo Finance sends very large headers)
+// Default is 8KB, we increase to 512KB to handle Yahoo Finance and similar sites
+const httpAgent = new http.Agent({ maxHeaderSize: 524288 }); // 512KB
+const httpsAgent = new https.Agent({ maxHeaderSize: 524288 }); // 512KB
 
 class DataConnector {
   /**
@@ -52,24 +52,30 @@ class DataConnector {
       const currentResult = await this.getCurrentQuote(symbol);
       
       // Fetch previous close and OHLC from finnhub_quote_snapshots
+      // Note: This table uses snake_case columns: previous_close, not pc
       const { data: snapshotData, error: snapshotError } = await supabase
         .from('finnhub_quote_snapshots')
-        .select('*')
+        .select('symbol, timestamp, close, open, high, low, previous_close, change, change_percent, volume')
         .eq('symbol', symbol)
         .order('timestamp', { ascending: false })
         .limit(1)
         .single();
       
-      if (!currentResult.success && snapshotError) {
+      if (snapshotError) {
+        console.error(`Error fetching finnhub_quote_snapshots for ${symbol}:`, snapshotError.message);
+      }
+      
+      if (!currentResult.success && !snapshotData) {
         return { success: false, error: 'Failed to fetch quote data', data: null };
       }
       
       // Use current price from stock_quote_now if available, otherwise fall back to finnhub snapshot
-      const currentPrice = currentResult.data?.close || snapshotData?.c;
-      const previousClose = snapshotData?.pc;
-      const open = snapshotData?.o;
-      const high = snapshotData?.h;
-      const low = snapshotData?.l;
+      const currentPrice = currentResult.data?.close || snapshotData?.close;
+      // finnhub_quote_snapshots uses snake_case: previous_close (not pc)
+      const previousClose = snapshotData?.previous_close;
+      const open = snapshotData?.open;
+      const high = snapshotData?.high;
+      const low = snapshotData?.low;
       
       // Calculate change and percent change
       let change = null;
@@ -77,6 +83,10 @@ class DataConnector {
       if (currentPrice && previousClose) {
         change = currentPrice - previousClose;
         changePercent = ((change / previousClose) * 100);
+      } else {
+        // Fall back to stored values if calculation not possible
+        change = snapshotData?.change;
+        changePercent = snapshotData?.change_percent;
       }
       
       const quote = {
@@ -94,7 +104,7 @@ class DataConnector {
         source: currentResult.data ? 'stock_quote_now' : 'finnhub_quote_snapshots'
       };
       
-      console.log(`📊 Quote for ${symbol}: $${currentPrice?.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent?.toFixed(2)}%) from ${quote.source}`);
+      console.log(`📊 Quote for ${symbol}: $${currentPrice?.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent?.toFixed(2)}%) [pc: $${previousClose?.toFixed(2)}] from ${quote.source}`);
       
       return { success: true, data: quote };
     } catch (error) {

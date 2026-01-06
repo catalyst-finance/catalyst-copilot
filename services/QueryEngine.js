@@ -999,8 +999,23 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
             // Apply query filters
             Object.keys(query.query).forEach(key => {
               const value = query.query[key];
-              if (typeof value === 'object' && value !== null) {
-                // Handle operators like { gte: "2026-01-05T00:00:00Z" }
+              
+              // Handle AI-generated queries like "timestamp_gte" or "timestamp_lte"
+              // Convert them to proper Supabase filter calls
+              if (key.endsWith('_gte')) {
+                const actualKey = key.replace('_gte', '');
+                supabaseQuery = supabaseQuery.gte(actualKey, value);
+              } else if (key.endsWith('_lte')) {
+                const actualKey = key.replace('_lte', '');
+                supabaseQuery = supabaseQuery.lte(actualKey, value);
+              } else if (key.endsWith('_gt')) {
+                const actualKey = key.replace('_gt', '');
+                supabaseQuery = supabaseQuery.gt(actualKey, value);
+              } else if (key.endsWith('_lt')) {
+                const actualKey = key.replace('_lt', '');
+                supabaseQuery = supabaseQuery.lt(actualKey, value);
+              } else if (typeof value === 'object' && value !== null) {
+                // Handle nested operators like { gte: "2026-01-05T00:00:00Z" }
                 Object.keys(value).forEach(op => {
                   if (op === 'gte') {
                     supabaseQuery = supabaseQuery.gte(key, value[op]);
