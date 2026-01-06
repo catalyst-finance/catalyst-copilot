@@ -1589,6 +1589,8 @@ INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 • Use **bold section headers** for topic areas (e.g., "**Venezuelan Oil Infrastructure**", "**Trade Policy**", "**Economic Outlook**")
 • Break content into themed sections with blank lines between them
 • Use bullet points (•) for individual statements or policy points
+• **MANDATORY: Include 3-5 direct quotes** from the speaker in quotation marks - extract actual verbatim statements from the transcript
+• Place quotes inline within bullet points or as standalone quoted statements
 • Example structure:
 
   **January 4, 2026 - Press Gaggle Aboard Air Force One**
@@ -1596,13 +1598,14 @@ INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
   **Venezuelan Oil Infrastructure**
   
   • U.S. plans to have major oil companies repair Venezuelan oil infrastructure
-  • Current output significantly below capacity due to mismanagement
+  • Trump stated: "We're going to have the big oil companies go in and fix it"
+  • Current output significantly below capacity: "The oil is flowing, but at a much lower level than it should be"
   • Infrastructure improvements will benefit Venezuelan-Americans, not direct U.S. investment
   
   **Impact on Cuba**
   
   • Cuba previously relied on Venezuelan oil revenues
-  • These revenue streams have been eliminated under current policy
+  • Trump noted: "Cuba had that. They don't have it anymore. They have no income"
 
 **ROADMAP queries** (roadmap, timeline, plan, outlook, future):
 • Structure as chronological timeline with clear phases
