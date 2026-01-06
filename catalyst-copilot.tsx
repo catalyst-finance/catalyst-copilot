@@ -358,6 +358,7 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: s
     let currentParagraph: string[] = [];
     let pendingImageCards: string[] = []; // Track IMAGE_CARD markers to render after paragraph
     let pendingArticleCards: string[] = []; // Track VIEW_ARTICLE markers to render after paragraph
+    let pendingChartCards: any[] = []; // Track CHART markers to render after paragraph
     let chartsInserted = false; // Track if charts have been inserted already
     
     const flushParagraph = () => {

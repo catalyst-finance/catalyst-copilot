@@ -1826,7 +1826,7 @@ INTELLIGENCE INSIGHTS:
 **FINAL REMINDER - CARD MARKER PLACEMENT (MOST IMPORTANT):**
 When you include any card markers ([VIEW_ARTICLE:...], [VIEW_CHART:...], [IMAGE_CARD:...], [EVENT_CARD:...]):
 1. **VIEW_ARTICLE markers** → MUST be on their own line after the article paragraph, NEVER inline or in bullets
-2. **VIEW_CHART markers** → Place on own line after relevant price discussion
+2. **VIEW_CHART markers** → CRITICAL: If you see "**PRICE CHART FOR [SYMBOL]:**" followed by "[VIEW_CHART:...]" in the data context, you MUST include BOTH lines in your response exactly as shown. Place it right after you discuss the current price/daily change. DO NOT skip or omit the chart marker.
 3. **IMAGE_CARD markers** → Inline with SEC filing citations is OK
 4. **EVENT_CARD markers** → At end of bullet point describing the event
 
@@ -1839,6 +1839,16 @@ Analysis paragraph explaining the news story and its implications for the stock.
 [VIEW_ARTICLE:article-TICKER-0]
 
 NOT like this: "• News title [VIEW_ARTICLE:article-TICKER-0]" ← WRONG
+
+Example VIEW_CHART format (FOLLOW THIS EXACTLY):
+
+Tesla (TSLA) is currently trading at $432.02, down 4.35% from yesterday's close of $451.67. [Discuss price context here]
+
+**PRICE CHART FOR TSLA:**
+[VIEW_CHART:TSLA:1D]
+
+**Recent News**
+[Continue with rest of analysis]
 
 ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${intelligenceContext}`;
 }
