@@ -514,6 +514,9 @@ class DataConnector {
           if (doc.url) summary.source = doc.url;
           if (doc.participants) summary.participants = doc.participants.join(', ');
           
+          // CRITICAL: Include raw turns array for company extraction
+          if (doc.turns) summary.turns = doc.turns;
+          
           // Extract key quotes from turns (limit to 8 most relevant)
           if (doc.turns && doc.turns.length > 0) {
             let relevantTurns = doc.turns;
