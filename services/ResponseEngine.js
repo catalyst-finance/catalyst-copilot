@@ -191,8 +191,16 @@ Determine the optimal way to present this data to answer the user's question. Fo
 - If user wants "list" or "recent" → detailLevel: summary
 - SEC filings: default to full when analyzing, moderate for lists
 - News: full only if specifically asked about article content
-- Government policy: always show full (content is in database)
+- Government policy: IMPORTANT - transcripts are very long! 
+  * detailLevel: full is OK, but ALWAYS limit maxItems to 5-10 maximum to avoid token overflow
+  * The system will intelligently filter to show only relevant turns from transcripts
 - Price targets/ownership: moderate (no external content needed)
+
+**CRITICAL TOKEN LIMITS:**
+- Government policy transcripts are VERY long (often 50,000+ tokens per transcript)
+- When using detailLevel: "full" for government_policy, NEVER set maxItems > 10
+- Prefer maxItems: 3-5 for government_policy with full detail
+- System will auto-filter to show only relevant portions of transcripts
 
 **CRITICAL - RESPONSE STYLE RECOMMENDATION:**
 Also provide a "responseStyle" recommendation that tells the AI how to structure and present the final response:
@@ -293,7 +301,7 @@ Return ONLY valid JSON.`;
   /**
    * Execute the formatting plan to build data context
    */
-  async executeFormattingPlan(plan, queryResults, DataConnector, sendThinking) {
+  async executeFormattingPlan(plan, queryResults, DataConnector, sendThinking, queryIntent = null) {
     let dataContext = "";
     const dataCards = [];
     const intelligenceMetadata = {
@@ -329,7 +337,8 @@ Return ONLY valid JSON.`;
         DataConnector,
         sendThinking,
         dataCards,
-        intelligenceMetadata
+        intelligenceMetadata,
+        queryIntent
       );
 
       if (formatted) {
@@ -347,7 +356,7 @@ Return ONLY valid JSON.`;
   /**
    * Format a specific collection based on formatting spec
    */
-  async formatCollection(result, formatSpec, DataConnector, sendThinking, dataCards, intelligenceMetadata) {
+  async formatCollection(result, formatSpec, DataConnector, sendThinking, dataCards, intelligenceMetadata, queryIntent = null) {
     const { collection, detailLevel, fetchExternalContent, maxItems, formattingNotes } = formatSpec;
     
     let output = `\n\n═══ ${this.getCollectionTitle(collection)} (${result.data.length} items) ═══\n`;
@@ -384,7 +393,7 @@ Return ONLY valid JSON.`;
         return await this.formatSecFilings(itemsToShow, detailLevel, fetchExternalContent, DataConnector, dataCards, intelligenceMetadata, output);
       
       case 'government_policy':
-        return this.formatGovernmentPolicy(itemsToShow, detailLevel, output);
+        return this.formatGovernmentPolicy(itemsToShow, detailLevel, output, queryIntent);
       
       case 'news':
         return await this.formatNews(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output);
@@ -499,7 +508,13 @@ Return ONLY valid JSON.`;
   /**
    * Format government policy documents
    */
-  formatGovernmentPolicy(items, detailLevel, output) {
+  formatGovernmentPolicy(items, detailLevel, output, queryContext = null) {
+    // Smart filtering: extract keywords from query context to show only relevant turns
+    let keywords = [];
+    if (queryContext && queryContext.analysisKeywords) {
+      keywords = queryContext.analysisKeywords;
+    }
+    
     items.forEach((doc, index) => {
       output += `${index + 1}. ${doc.title || 'Untitled'} - ${doc.date || 'No date'}\n`;
       if (doc.participants && doc.participants.length > 0) {
@@ -510,13 +525,40 @@ Return ONLY valid JSON.`;
       }
 
       if (detailLevel !== 'summary' && doc.turns && doc.turns.length > 0) {
-        const maxTurns = detailLevel === 'full' ? doc.turns.length : Math.min(20, doc.turns.length);
-        output += `\n   === TRANSCRIPT ===\n`;
-        doc.turns.slice(0, maxTurns).forEach(turn => {
-          output += `   ${turn.speaker}: ${turn.text}\n`;
+        // If showing full detail, intelligently filter to relevant turns only
+        let turnsToShow = doc.turns;
+        
+        if (detailLevel === 'full' && keywords.length > 0) {
+          // Show only turns containing relevant keywords
+          turnsToShow = doc.turns.filter(turn => 
+            keywords.some(keyword => 
+              turn.text.toLowerCase().includes(keyword.toLowerCase())
+            )
+          );
+          
+          // If no keyword matches, show first 10 turns as fallback
+          if (turnsToShow.length === 0) {
+            turnsToShow = doc.turns.slice(0, 10);
+          } else {
+            // Limit to 15 relevant turns per document to avoid token explosion
+            turnsToShow = turnsToShow.slice(0, 15);
+          }
+        } else {
+          // For moderate detail or no keywords, limit turns
+          const maxTurns = detailLevel === 'full' ? 20 : 10;
+          turnsToShow = doc.turns.slice(0, maxTurns);
+        }
+        
+        output += `\n   === TRANSCRIPT (showing ${turnsToShow.length} of ${doc.turns.length} turns) ===\n`;
+        turnsToShow.forEach(turn => {
+          // Truncate very long turns (over 1000 chars)
+          const truncatedText = turn.text.length > 1000 ? 
+            turn.text.substring(0, 1000) + '... [truncated]' : 
+            turn.text;
+          output += `   ${turn.speaker}: ${truncatedText}\n`;
         });
-        if (doc.turns.length > maxTurns) {
-          output += `   ... (${doc.turns.length - maxTurns} more turns omitted)\n`;
+        if (doc.turns.length > turnsToShow.length) {
+          output += `   ... (${doc.turns.length - turnsToShow.length} more turns omitted)\n`;
         }
         output += `   === END TRANSCRIPT ===\n`;
       }

@@ -369,7 +369,7 @@ Response:
   "extractCompanies": true,
   "needsChart": false,
   "needsDeepAnalysis": false,
-  "analysisKeywords": [],
+  "analysisKeywords": ["stake", "investment", "invest", "acquire", "company", "companies"],
   "intent": "Find companies mentioned by Trump administration in context of taking stakes/investments"
 }
 

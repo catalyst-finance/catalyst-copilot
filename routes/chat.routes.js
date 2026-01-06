@@ -170,7 +170,8 @@ router.post('/', optionalAuth, async (req, res) => {
             formattingPlan,
             queryResults,
             DataConnector,
-            sendThinking
+            sendThinking,
+            queryIntent  // Pass query intent with analysisKeywords for smart filtering
           );
           
           dataContext = formatted.dataContext;
