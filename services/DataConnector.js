@@ -5,7 +5,14 @@
 
 const axios = require('axios');
 const cheerio = require('cheerio');
+const http = require('http');
+const https = require('https');
 const { supabase, mongoClient, connectMongo } = require('../config/database');
+
+// Increase max header size for HTTP requests (Yahoo Finance sends large headers)
+// Default is 8KB, we increase to 128KB to handle Yahoo Finance and similar sites
+const httpAgent = new http.Agent({ maxHeaderSize: 131072 }); // 128KB
+const httpsAgent = new https.Agent({ maxHeaderSize: 131072 }); // 128KB
 
 class DataConnector {
   /**
@@ -603,7 +610,9 @@ class DataConnector {
         timeout: 15000, // 15 second timeout
         headers: {
           'User-Agent': 'Catalyst Copilot Financial Analysis Tool contact@catalyst.finance'
-        }
+        },
+        httpAgent: httpAgent,
+        httpsAgent: httpsAgent
       });
       
       const html = response.data;
@@ -735,7 +744,9 @@ class DataConnector {
         timeout: 10000,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        },
+        httpAgent: httpAgent,
+        httpsAgent: httpsAgent
       });
       
       const html = response.data;
