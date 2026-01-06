@@ -101,6 +101,8 @@ router.post('/', optionalAuth, async (req, res) => {
         intent: queryPlan.intent,
         extractCompaniesFromTranscripts: queryPlan.extractCompanies,
         needsChart: queryPlan.needsChart,
+        needsDeepAnalysis: queryPlan.needsDeepAnalysis || false,
+        analysisKeywords: queryPlan.analysisKeywords || [],
         tickers: selectedTickers,
         queries: queryPlan.queries
       };
@@ -159,6 +161,9 @@ router.post('/', optionalAuth, async (req, res) => {
             }
             if (doc.source) {
               dataContext += `   Source: ${doc.source}\n`;
+            }
+            if (doc.url) {
+              dataContext += `   URL: ${doc.url}\n`;
             }
             
             // Extract transcript text if available
@@ -326,15 +331,77 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           dataContext += `\n\n═══ SEC FILINGS (${result.data.length} filings) ═══\n`;
           dataContext += `Reasoning: ${result.reasoning}\n\n`;
           
-          result.data.forEach((filing, index) => {
+          // Check if we need deep analysis (fetch actual filing content)
+          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
+          const analysisKeywords = queryIntent.analysisKeywords || [];
+          
+          if (needsDeepAnalysis) {
+            sendThinking('retrieving', `Fetching detailed content from ${result.data.length} SEC filing(s)...`);
+            console.log('📄 Deep analysis requested - fetching SEC filing content...');
+          }
+          
+          for (let index = 0; index < result.data.length; index++) {
+            const filing = result.data[index];
             const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
             dataContext += `${index + 1}. ${filing.form_type} filed on ${date}\n`;
             dataContext += `   Ticker: ${filing.ticker}\n`;
             if (filing.url) {
               dataContext += `   URL: ${filing.url}\n`;
             }
+            
+            // If deep analysis requested, fetch the actual filing content
+            if (needsDeepAnalysis && filing.url) {
+              try {
+                const contentResult = await DataConnector.fetchSecFilingContent(
+                  filing.url,
+                  analysisKeywords,
+                  25000  // Max content length
+                );
+                
+                if (contentResult.success && contentResult.content) {
+                  dataContext += `\n   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
+                  console.log(`   ✅ Fetched ${contentResult.contentLength} chars of content from ${filing.form_type}`);
+                  
+                  // Store filing data for sentiment and entity analysis
+                  intelligenceMetadata.secFilings.push({
+                    ticker: filing.ticker,
+                    formType: filing.form_type,
+                    date: filing.acceptance_datetime,
+                    content: contentResult.content.substring(0, 5000),
+                    url: filing.url
+                  });
+                  
+                  // Extract and add images as data cards
+                  if (contentResult.images && contentResult.images.length > 0) {
+                    console.log(`   📊 Found ${contentResult.images.length} images in ${filing.form_type}`);
+                    contentResult.images.slice(0, 5).forEach((img, idx) => {
+                      const imageId = `sec-image-${filing.ticker}-${index}-${idx}`;
+                      dataCards.push({
+                        type: 'image',
+                        data: {
+                          id: imageId,
+                          ticker: filing.ticker,
+                          source: 'sec_filing',
+                          title: img.alt || `Chart/Diagram from ${filing.form_type}`,
+                          imageUrl: img.url,
+                          context: img.context || null,
+                          filingType: filing.form_type,
+                          filingDate: date,
+                          filingUrl: filing.url
+                        }
+                      });
+                      // Add inline marker for the image
+                      dataContext += `   [IMAGE_CARD:${imageId}]\n`;
+                    });
+                  }
+                }
+              } catch (error) {
+                console.error(`   ❌ Error fetching content from ${filing.url}:`, error.message);
+              }
+            }
+            
             dataContext += `\n`;
-          });
+          }
           
           intelligenceMetadata.secFilingTypes.push(...result.data.map(f => f.form_type));
           intelligenceMetadata.totalSources++;
@@ -378,6 +445,28 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
             }
             if (hype.social_sentiment) {
               dataContext += `   Social Score: ${hype.social_sentiment.score} | Mentions: ${hype.social_sentiment.mention}\n`;
+            }
+            dataContext += `\n`;
+          });
+          
+          intelligenceMetadata.totalSources++;
+        }
+        
+        if (result.collection === 'press_releases' && result.data.length > 0) {
+          dataContext += `\n\n═══ PRESS RELEASES (${result.data.length} releases) ═══\n`;
+          dataContext += `Reasoning: ${result.reasoning}\n\n`;
+          
+          result.data.forEach((press, index) => {
+            const date = press.published_date ? new Date(press.published_date).toLocaleDateString() : 'Unknown date';
+            dataContext += `${index + 1}. ${press.title || 'Untitled'} - ${date}\n`;
+            if (press.ticker) {
+              dataContext += `   Ticker: ${press.ticker}\n`;
+            }
+            if (press.summary) {
+              dataContext += `   Summary: ${press.summary.substring(0, 200)}...\n`;
+            }
+            if (press.url) {
+              dataContext += `   URL: ${press.url}\n`;
             }
             dataContext += `\n`;
           });

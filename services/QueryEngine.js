@@ -283,8 +283,23 @@ Return JSON with this structure:
   ],
   "extractCompanies": true | false,
   "needsChart": true | false,
+  "needsDeepAnalysis": true | false,  // Set true for SEC filing analysis, detailed content examination
+  "analysisKeywords": ["keyword1", "keyword2"],  // Keywords to search for in SEC filing content
   "intent": "brief description of user's intent"
 }
+
+**CRITICAL: needsDeepAnalysis flag**
+Set needsDeepAnalysis=true when:
+- User says "analyze", "examine", "review", "look at", "what does it say"
+- User wants detailed information from SEC filings (financials, R&D, products, risks)
+- User mentions specific filing types (10-Q, 10-K, 8-K) and wants content
+- User asks about financial figures, revenue, cash position, expenses
+- User asks about product development, trials, pipeline, research
+
+Set needsDeepAnalysis=false when:
+- User just wants a list of recent filings
+- User asks "when was the last 10-Q filed?"
+- Simple metadata queries
 
 **EXAMPLE 1:**
 User: "What companies did Trump take a stake in last year?"
@@ -322,6 +337,8 @@ Response:
   ],
   "extractCompanies": true,
   "needsChart": false,
+  "needsDeepAnalysis": false,
+  "analysisKeywords": [],
   "intent": "Find companies mentioned by Trump administration in context of taking stakes/investments"
 }
 
@@ -349,6 +366,8 @@ Response:
   ],
   "extractCompanies": false,
   "needsChart": false,
+  "needsDeepAnalysis": false,
+  "analysisKeywords": [],
   "intent": "Analyst sentiment and ratings for TSLA"
 }
 
@@ -368,7 +387,51 @@ Response:
   ],
   "extractCompanies": false,
   "needsChart": false,
+  "needsDeepAnalysis": false,
+  "analysisKeywords": [],
   "intent": "Find CEO statements from TMC's latest earnings call"
+}
+
+**EXAMPLE 4 (SEC Filing Deep Analysis - IMPORTANT):**
+User: "Analyze the last 10-Q from MNMD"
+Response:
+{
+  "queries": [
+    {
+      "database": "mongodb",
+      "collection": "sec_filings",
+      "query": {"$and": [{"ticker": "MNMD"}, {"form_type": "10-Q"}]},
+      "sort": {"publication_date": -1},
+      "limit": 1,
+      "reasoning": "Get the most recent 10-Q filing for MNMD to analyze its contents"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": false,
+  "needsDeepAnalysis": true,
+  "analysisKeywords": ["revenue", "cash", "trial", "phase", "expense", "product", "development", "pipeline", "risk"],
+  "intent": "Deep analysis of MNMD's latest 10-Q filing including financials and product development"
+}
+
+**EXAMPLE 5 (SEC Filing List - No Deep Analysis):**
+User: "When was AAPL's last 10-K filed?"
+Response:
+{
+  "queries": [
+    {
+      "database": "mongodb",
+      "collection": "sec_filings",
+      "query": {"$and": [{"ticker": "AAPL"}, {"form_type": "10-K"}]},
+      "sort": {"publication_date": -1},
+      "limit": 1,
+      "reasoning": "Get the most recent 10-K filing date for AAPL"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": false,
+  "needsDeepAnalysis": false,
+  "analysisKeywords": [],
+  "intent": "Find filing date of AAPL's most recent 10-K"
 }
 
 Return ONLY valid JSON, no explanation outside the JSON structure.`;
