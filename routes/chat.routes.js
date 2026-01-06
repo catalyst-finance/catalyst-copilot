@@ -532,7 +532,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
           if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
             macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
           }
-          Apply intelligent limiting based on user request or timeframe
+          // Apply intelligent limiting based on user request or timeframe
           if (requestedItemCount) {
             macroFilters.limit = requestedItemCount;
           } else if (isCurrentTimeframe) {
