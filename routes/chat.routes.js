@@ -863,13 +863,13 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
         const topEvents = allEvents.slice(0, 5);
         
         if (topEvents.length > 0) {
-          eventCardsContext = `\n\n**CRITICAL - EVENT CARDS TO DISPLAY:**\nYou will be showing the following ${topEvents.length} event cards to the user. Your response MUST mention and briefly describe ALL of these events:\n\n`;
+          eventCardsContext = `\n\n**CRITICAL - EVENT CARDS TO DISPLAY INLINE:**\nThe following ${topEvents.length} events MUST be integrated into your timeline/roadmap sections - DO NOT create a separate "Event Cards" or "Important Events" section at the end. Each event should appear in the appropriate time period section (Q1, Q2, etc.) with its [EVENT_CARD:...] marker placed at the end of the bullet point describing that event:\n\n`;
           topEvents.forEach((event, index) => {
             const eventDate = new Date(event.actualDateTime_et || event.actualDateTime).toLocaleDateString();
             const eventId = event.id || `${event.ticker}_${event.type}_${(event.actualDateTime_et || event.actualDateTime)}`;
-            eventCardsContext += `${index + 1}. ${event.ticker} - ${event.title} (${event.type}) on ${eventDate}\n   AI Insight: ${event.aiInsight}\n   **IMPORTANT**: After describing this event in your response, insert the marker: [EVENT_CARD:${eventId}]\n\n`;
+            eventCardsContext += `${index + 1}. ${event.ticker} - ${event.title} (${event.type}) on ${eventDate}\n   AI Insight: ${event.aiInsight}\n   Marker to use: [EVENT_CARD:${eventId}]\n\n`;
           });
-          eventCardsContext += `\nMake sure your response discusses ALL ${topEvents.length} events listed above and includes the [EVENT_CARD:id] marker immediately after each event's description. Do not omit any.`;
+          eventCardsContext += `\n**INTEGRATION RULES:**\n- Place each event in the appropriate timeline section (e.g., May 2026 events go in Q2 2026)\n- Add the [EVENT_CARD:...] marker at the END of the bullet point describing that specific event\n- NEVER create a separate section like "Important Event Cards" or "Events Summary" - events must be woven into the narrative\n- Example: "• VOYAGE Phase 3 topline data expected May 15, 2026, which could de-risk the MM120 platform [EVENT_CARD:MNMD_clinical_2026-05-15T09:00:00+00:00]"`;
           console.log(`📋 Event Cards Context Built: ${topEvents.length} events with inline markers`);
         }
         
@@ -1587,9 +1587,11 @@ CRITICAL CONSTRAINTS:
    - **SCAN THE DATA CONTEXT FOR [IMAGE_CARD:...] MARKERS** - they appear after "=== END CONTENT ===" for SEC filings
    - **YOU MUST COPY EVERY [IMAGE_CARD:...] MARKER YOU SEE** - place them in your response right after discussing that filing
    - **SCAN THE DATA CONTEXT FOR [EVENT_CARD:...] MARKERS** - they appear in the event cards section
-   - **YOU MUST COPY EVERY [EVENT_CARD:...] MARKER YOU SEE** - place them after mentioning each event
+   - **YOU MUST COPY EVERY [EVENT_CARD:...] MARKER YOU SEE** - place them INLINE within the relevant timeline section, NOT in a separate section
+   - **NEVER CREATE A SEPARATE "EVENT CARDS" SECTION** - events must be woven into the narrative at the appropriate timeline position (Q1, Q2, etc.)
    - **REQUIRED FORMAT**: When you mention a filing's content or findings, immediately add: \`[TICKER Form Type - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
-   - **EXAMPLE**: "The 10-Q shows strong Phase 3 enrollment progress \`[MNMD 10-Q - Nov 6, 2025](https://sec.gov/...) [IMAGE_CARD:sec-image-MNMD-0-0]\`. The company completed a $258M offering \`[MNMD 8-K - Oct 31, 2025](https://sec.gov/...) [IMAGE_CARD:sec-image-MNMD-1-0]\`."
+   - **EVENT CARD EXAMPLE**: "• VOYAGE Phase 3 topline data expected May 15, 2026 [EVENT_CARD:MNMD_clinical_2026-05-15...]" - the marker goes at the END of the bullet point
+   - **IMAGE CARD EXAMPLE**: "The 10-Q shows strong Phase 3 enrollment progress \`[MNMD 10-Q - Nov 6, 2025](https://sec.gov/...) [IMAGE_CARD:sec-image-MNMD-0-0]\`."
    - **DO NOT SKIP IMAGE_CARD MARKERS** - if the data has 3 images, your response must include all 3 markers
    - These markers trigger visual charts/tables to appear inline - they provide critical context users need to see
 9. **EXTRACT DETAILED INSIGHTS FROM SEC FILINGS**: When SEC filing content is provided (marked with "=== CONTENT ==="), analyze and discuss specific details, metrics, business strategies, risks, and forward-looking statements from that text. Don't just summarize - pull out concrete insights.
