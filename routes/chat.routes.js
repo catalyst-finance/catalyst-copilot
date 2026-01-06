@@ -234,9 +234,155 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
         }
         
         // Handle other collection types
+        if (result.collection === 'price_targets' && result.data.length > 0) {
+          dataContext += `\n\n═══ ANALYST PRICE TARGETS (${result.data.length} ratings) ═══\n`;
+          dataContext += `Reasoning: ${result.reasoning}\n\n`;
+          
+          result.data.forEach((target, index) => {
+            const date = target.date ? new Date(target.date).toLocaleDateString() : 'Unknown date';
+            dataContext += `${index + 1}. ${target.analyst || 'Unknown Analyst'} - ${date}\n`;
+            if (target.action) {
+              dataContext += `   Action: ${target.action}\n`;
+            }
+            if (target.rating_change) {
+              dataContext += `   Rating Change: ${target.rating_change}\n`;
+            }
+            if (target.price_target_change) {
+              dataContext += `   Price Target: ${target.price_target_change}\n`;
+            }
+            dataContext += `\n`;
+          });
+          
+          intelligenceMetadata.totalSources++;
+        }
+        
+        if (result.collection === 'news' && result.data.length > 0) {
+          dataContext += `\n\n═══ NEWS ARTICLES (${result.data.length} articles) ═══\n`;
+          dataContext += `Reasoning: ${result.reasoning}\n\n`;
+          
+          result.data.forEach((article, index) => {
+            const date = article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown date';
+            dataContext += `${index + 1}. ${article.title || 'Untitled'} - ${date}\n`;
+            if (article.ticker) {
+              dataContext += `   Ticker: ${article.ticker}\n`;
+            }
+            if (article.origin) {
+              dataContext += `   Source: ${article.origin}\n`;
+            }
+            if (article.content) {
+              dataContext += `   Content: ${article.content.substring(0, 300)}...\n`;
+            }
+            if (article.url) {
+              dataContext += `   URL: ${article.url}\n`;
+            }
+            dataContext += `\n`;
+          });
+          
+          intelligenceMetadata.totalSources++;
+        }
+        
+        if (result.collection === 'earnings_transcripts' && result.data.length > 0) {
+          dataContext += `\n\n═══ EARNINGS TRANSCRIPTS (${result.data.length} transcripts) ═══\n`;
+          dataContext += `Reasoning: ${result.reasoning}\n\n`;
+          
+          result.data.forEach((transcript, index) => {
+            const date = transcript.report_date ? new Date(transcript.report_date).toLocaleDateString() : 'Unknown date';
+            dataContext += `${index + 1}. ${transcript.ticker} Q${transcript.quarter} ${transcript.year} - ${date}\n`;
+            if (transcript.content) {
+              dataContext += `   Content: ${transcript.content.substring(0, 2000)}...\n`;
+            }
+            dataContext += `\n`;
+          });
+          
+          intelligenceMetadata.totalSources++;
+        }
+        
+        if (result.collection === 'macro_economics' && result.data.length > 0) {
+          dataContext += `\n\n═══ ECONOMIC DATA (${result.data.length} items) ═══\n`;
+          dataContext += `Reasoning: ${result.reasoning}\n\n`;
+          
+          result.data.forEach((item, index) => {
+            const date = item.date ? new Date(item.date).toLocaleDateString() : 'Unknown date';
+            dataContext += `${index + 1}. ${item.title || 'Untitled'} - ${date}\n`;
+            if (item.country) {
+              dataContext += `   Country: ${item.country}\n`;
+            }
+            if (item.category) {
+              dataContext += `   Category: ${item.category}\n`;
+            }
+            if (item.description) {
+              dataContext += `   Description: ${item.description.substring(0, 200)}...\n`;
+            }
+            if (item.url) {
+              dataContext += `   URL: ${item.url}\n`;
+            }
+            dataContext += `\n`;
+          });
+          
+          intelligenceMetadata.totalSources++;
+        }
+        
         if (result.collection === 'sec_filings' && result.data.length > 0) {
           dataContext += `\n\n═══ SEC FILINGS (${result.data.length} filings) ═══\n`;
-          // Add SEC filing formatting here
+          dataContext += `Reasoning: ${result.reasoning}\n\n`;
+          
+          result.data.forEach((filing, index) => {
+            const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
+            dataContext += `${index + 1}. ${filing.form_type} filed on ${date}\n`;
+            dataContext += `   Ticker: ${filing.ticker}\n`;
+            if (filing.url) {
+              dataContext += `   URL: ${filing.url}\n`;
+            }
+            dataContext += `\n`;
+          });
+          
+          intelligenceMetadata.secFilingTypes.push(...result.data.map(f => f.form_type));
+          intelligenceMetadata.totalSources++;
+        }
+        
+        if (result.collection === 'ownership' && result.data.length > 0) {
+          dataContext += `\n\n═══ INSTITUTIONAL OWNERSHIP (${result.data.length} holdings) ═══\n`;
+          dataContext += `Reasoning: ${result.reasoning}\n\n`;
+          
+          result.data.forEach((holding, index) => {
+            const date = holding.file_date ? new Date(holding.file_date).toLocaleDateString() : 'Unknown date';
+            dataContext += `${index + 1}. ${holding.holder_name || 'Unknown Holder'} - ${date}\n`;
+            dataContext += `   Ticker: ${holding.ticker}\n`;
+            if (holding.shares) {
+              dataContext += `   Shares: ${holding.shares.toLocaleString()}\n`;
+            }
+            if (holding.shares_change) {
+              dataContext += `   Change: ${holding.shares_change > 0 ? '+' : ''}${holding.shares_change.toLocaleString()} shares\n`;
+            }
+            if (holding.total_position_value) {
+              dataContext += `   Value: $${holding.total_position_value.toLocaleString()}\n`;
+            }
+            dataContext += `\n`;
+          });
+          
+          intelligenceMetadata.hasInstitutionalData = true;
+          intelligenceMetadata.totalSources++;
+        }
+        
+        if (result.collection === 'hype' && result.data.length > 0) {
+          dataContext += `\n\n═══ SENTIMENT DATA (${result.data.length} entries) ═══\n`;
+          dataContext += `Reasoning: ${result.reasoning}\n\n`;
+          
+          result.data.forEach((hype, index) => {
+            dataContext += `${index + 1}. ${hype.ticker} - ${hype.timestamp}\n`;
+            if (hype.sentiment) {
+              dataContext += `   Bullish: ${hype.sentiment.bullishPercent}% | Bearish: ${hype.sentiment.bearishPercent}%\n`;
+            }
+            if (hype.buzz) {
+              dataContext += `   Weekly Articles: ${hype.buzz.articlesInLastWeek} | Buzz: ${hype.buzz.buzz}\n`;
+            }
+            if (hype.social_sentiment) {
+              dataContext += `   Social Score: ${hype.social_sentiment.score} | Mentions: ${hype.social_sentiment.mention}\n`;
+            }
+            dataContext += `\n`;
+          });
+          
+          intelligenceMetadata.totalSources++;
         }
         
         if (result.collection === 'event_data' && result.data.length > 0) {
