@@ -81,7 +81,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // ===== AI-NATIVE QUERY ENGINE =====
     console.log('🤖 Using AI-Native Query Engine...');
-    sendThinking('analyzing', 'Understanding your question...');
+    sendThinking('analyzing', 'Reading your question...');
     
     let queryIntent;
     let queryResults = [];
@@ -229,7 +229,7 @@ router.post('/', optionalAuth, async (req, res) => {
           // Extract companies if requested
           if (queryIntent.extractCompaniesFromTranscripts) {
             console.log('🔍 Extracting companies from transcripts...');
-            sendThinking('analyzing', 'Identifying companies mentioned in transcripts...');
+            sendThinking('analyzing', 'Scanning transcripts for company mentions...');
             
             const transcripts = result.data
               .filter(doc => doc.turns && doc.turns.length > 0)
@@ -319,7 +319,7 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
           
           if (needsDeepAnalysis && result.data.length <= 5) {
-            sendThinking('retrieving', `Fetching full content from ${result.data.length} news article(s)...`);
+            sendThinking('retrieving', `Reading ${result.data.length} news article${result.data.length > 1 ? 's' : ''}...`);
             console.log('📰 Deep analysis requested - fetching full news article content...');
           }
           
@@ -392,7 +392,7 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
           
           if (needsDeepAnalysis && result.data.length <= 5) {
-            sendThinking('retrieving', `Fetching full content from ${result.data.length} economic report(s)...`);
+            sendThinking('retrieving', `Reviewing ${result.data.length} economic report${result.data.length > 1 ? 's' : ''}...`);
             console.log('📊 Deep analysis requested - fetching full economic data content...');
           }
           
@@ -445,7 +445,7 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           const analysisKeywords = queryIntent.analysisKeywords || [];
           
           if (needsDeepAnalysis) {
-            sendThinking('retrieving', `Fetching detailed content from ${result.data.length} SEC filing(s)...`);
+            sendThinking('retrieving', `Pulling ${result.data.length} SEC filing${result.data.length > 1 ? 's' : ''} from SEC.gov...`);
             console.log('📄 Deep analysis requested - fetching SEC filing content...');
           }
           
@@ -577,7 +577,7 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
           
           if (needsDeepAnalysis && result.data.length <= 5) {
-            sendThinking('retrieving', `Fetching full content from ${result.data.length} press release(s)...`);
+            sendThinking('retrieving', `Reading ${result.data.length} press release${result.data.length > 1 ? 's' : ''}...`);
             console.log('📢 Deep analysis requested - fetching full press release content...');
           }
           
@@ -1039,7 +1039,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
       : '';
 
     // STEP 5.5: INTELLIGENT ANALYSIS
-    sendThinking('synthesizing', 'Running intelligent analysis...');
+    sendThinking('synthesizing', 'Connecting the dots across sources...');
     
     // Multi-step query decomposition
     const subQueries = IntelligenceEngine.decomposeComplexQuery(message, queryIntent);
@@ -1236,7 +1236,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     })}\n\n`);
 
     // Send final thinking phase before OpenAI
-    sendThinking('synthesizing', 'Analyzing the data and preparing a response..');
+    sendThinking('synthesizing', 'Preparing your analysis...');
 
     // Call OpenAI with text-only streaming (SEC.gov blocks image downloads)
     const stream = await openai.chat.completions.create({

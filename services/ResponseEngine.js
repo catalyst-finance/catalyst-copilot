@@ -58,22 +58,31 @@ class ResponseEngine {
   generateThinkingMessage(phase, context) {
     const messages = {
       'plan_start': () => {
-        const collections = context.collections.join(', ');
-        return `Analyzing ${context.collections.length} data source(s): ${collections}`;
+        const count = context.collections.length;
+        if (count === 1) {
+          const friendly = this.getCollectionFriendlyName(context.collections[0]);
+          return `Searching ${friendly}...`;
+        }
+        return `Searching ${count} databases...`;
       },
       'plan_generated': () => {
         const priority = context.plan.formattingPlan.filter(p => p.priority >= 4);
         if (priority.length > 0) {
-          const sources = priority.map(p => this.getCollectionTitle(p.collection)).join(' and ');
-          return `Prioritizing ${sources} for detailed analysis`;
+          const source = this.getCollectionFriendlyName(priority[0].collection);
+          return `Found relevant ${source}`;
         }
-        return `Determining optimal presentation for ${context.plan.formattingPlan.length} sources`;
+        return `Found ${context.plan.formattingPlan.length} relevant sources`;
       },
       'fetching_content': () => {
-        return `Fetching ${context.contentType} from ${context.count} ${context.collection}`;
+        const friendly = this.getCollectionFriendlyName(context.collection);
+        if (context.count === 1) {
+          return `Reading the ${friendly}...`;
+        }
+        return `Reading ${context.count} ${friendly}...`;
       },
       'formatting': () => {
-        return `Formatting ${context.collection} with ${context.detailLevel} detail`;
+        const friendly = this.getCollectionFriendlyName(context.collection);
+        return `Extracting key details from ${friendly}...`;
       }
     };
     
@@ -634,6 +643,24 @@ Return ONLY valid JSON.`;
       output += `\n`;
     });
     return output;
+  }
+
+  /**
+   * Get user-friendly collection name for thinking messages (lowercase, natural)
+   */
+  getCollectionFriendlyName(collection) {
+    const names = {
+      'government_policy': 'government statements',
+      'sec_filings': 'SEC filing',
+      'news': 'news articles',
+      'press_releases': 'press releases',
+      'earnings_transcripts': 'earnings transcripts',
+      'price_targets': 'analyst ratings',
+      'macro_economics': 'economic data',
+      'ownership': 'institutional holdings',
+      'hype': 'sentiment data'
+    };
+    return names[collection] || collection;
   }
 
   /**

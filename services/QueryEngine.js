@@ -249,18 +249,18 @@ class QueryEngine {
    */
   generateThinkingMessage(intent, context = {}) {
     const intentMessages = {
-      'government_policy': `Searching for ${context.politicians || 'government'} statements about ${context.topics || 'policy matters'}`,
-      'sec_filings': `Looking up SEC filings for ${context.tickers ? context.tickers.join(', ') : 'companies'}`,
-      'company_research': `Researching ${context.tickers ? context.tickers.join(' and ') : 'company'} data`,
-      'market_data': `Fetching market data for ${context.tickers ? context.tickers.length + ' stock(s)' : 'portfolio'}`,
-      'news': `Searching news articles about ${context.topics || context.tickers || 'market'}`,
-      'analyst_ratings': `Looking up analyst ratings for ${context.tickers || 'stocks'}`,
-      'institutional': `Checking institutional ownership for ${context.tickers || 'companies'}`,
-      'earnings': `Finding earnings data for ${context.tickers || 'companies'}`,
-      'events': `Looking up upcoming events for ${context.tickers || 'companies'}`
+      'government_policy': `Looking up ${context.politicians || 'government'} statements${context.topics ? ` about ${context.topics}` : ''}...`,
+      'sec_filings': `Searching SEC filings for ${context.tickers ? context.tickers.join(', ') : 'the company'}...`,
+      'company_research': `Researching ${context.tickers ? context.tickers.join(' and ') : 'company'} information...`,
+      'market_data': `Getting market data${context.tickers ? ` for ${context.tickers.length} stock${context.tickers.length > 1 ? 's' : ''}` : ''}...`,
+      'news': `Checking recent news${context.tickers ? ` about ${context.tickers}` : ''}...`,
+      'analyst_ratings': `Looking up analyst ratings${context.tickers ? ` for ${context.tickers}` : ''}...`,
+      'institutional': `Checking institutional ownership${context.tickers ? ` for ${context.tickers}` : ''}...`,
+      'earnings': `Finding earnings information${context.tickers ? ` for ${context.tickers}` : ''}...`,
+      'events': `Looking up upcoming events${context.tickers ? ` for ${context.tickers}` : ''}...`
     };
     
-    return intentMessages[intent] || `Analyzing your question about ${context.topics || 'financial data'}`;
+    return intentMessages[intent] || `Looking into that for you...`;
   }
 
   /**
