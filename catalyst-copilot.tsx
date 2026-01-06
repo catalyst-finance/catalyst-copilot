@@ -88,9 +88,14 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
     const currentYear = now.getFullYear();
     const lowerHeader = headerText.toLowerCase();
     
-    // Handle "Recent Developments", "Current Status", "Overview" - treat as present (0)
-    if (/recent|current|overview|summary|background|introduction/i.test(lowerHeader)) {
-      return 0; // Present/intro sections first
+    // Handle intro/context sections - treat as present (-1000 to 0 range to keep them first)
+    if (/recent|current|overview|summary|background|introduction|operational|financial|assessment|analysis|developments/i.test(lowerHeader)) {
+      return -1000; // Context sections always first
+    }
+    
+    // Handle "Upcoming Catalysts", "Future Timeline", "Roadmap" - treat as present (1) to appear right before timeline
+    if (/upcoming.*catalyst|future.*timeline|catalyst.*timeline|^\s*catalysts?\s*$|roadmap/i.test(lowerHeader)) {
+      return 1; // Just after context sections, before dated timeline
     }
     
     // Handle quarter formats: "Q1 2026", "Q2 2025", etc.
@@ -211,23 +216,24 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       return content;
     }
     
-    // Separate intro section (no header) from dated sections
-    const introSections = sections.filter(s => s.header === '' || s.dateValue === -Infinity);
-    const datedSections = sections.filter(s => s.header !== '' && s.dateValue !== -Infinity && s.dateValue !== Number.MAX_SAFE_INTEGER);
-    const undatedSections = sections.filter(s => s.header !== '' && s.dateValue === Number.MAX_SAFE_INTEGER);
+    // Categorize sections by their date values
+    const contextSections = sections.filter(s => s.header === '' || s.dateValue < 0); // Intro and context (including -1000 for operational/financial)
+    const upcomingCatalystsSection = sections.filter(s => s.dateValue === 1); // "Upcoming Catalysts" header
+    const datedSections = sections.filter(s => s.dateValue > 1 && s.dateValue !== Number.MAX_SAFE_INTEGER); // Q1 2026, Q2 2026, etc.
+    const undatedSections = sections.filter(s => s.dateValue === Number.MAX_SAFE_INTEGER); // Other undated sections
     
     // Sort dated sections chronologically (past → present → future)
     datedSections.sort((a, b) => a.dateValue - b.dateValue);
     
-    // Reconstruct content: intro first, then sorted dated sections, then undated sections
-    const sortedSections = [...introSections, ...datedSections, ...undatedSections];
+    // Reconstruct content: context → upcoming catalysts header → dated timeline → other undated
+    const sortedSections = [...contextSections, ...upcomingCatalystsSection, ...datedSections, ...undatedSections];
     
     // Rebuild the content string
     const sortedLines: string[] = [];
     sortedSections.forEach((section, idx) => {
       if (section.header) {
-        // Add blank line before headers (except first)
-        if (idx > 0 || introSections.length > 0) {
+        // Add blank line before headers (except first context section)
+        if (idx > 0 || contextSections.length > 0) {
           sortedLines.push('');
         }
         sortedLines.push(section.header);
