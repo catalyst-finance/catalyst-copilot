@@ -103,7 +103,7 @@ interface CatalystCopilotProps {
 }
 
 // Markdown Renderer Component
-function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerClick }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void; onTickerClick?: (ticker: string) => void }) {
+function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerClick, isStreaming = false }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void; onTickerClick?: (ticker: string) => void; isStreaming?: boolean }) {
   // Don't extract sources into a separate section - keep everything inline
   const mainText = text;
   
@@ -269,8 +269,9 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
     return sortedLines.join('\n');
   };
   
-  // Sort content chronologically before rendering
-  const sortedText = sortContentChronologically(mainText);
+  // Sort content chronologically before rendering - but SKIP during streaming to prevent jumbled content
+  // During streaming, content arrives incrementally and sorting incomplete sections causes mangled output
+  const sortedText = isStreaming ? mainText : sortContentChronologically(mainText);
   
   const formatRollCallLink = (linkText: string, url: string) => {
     // Check if this is a Roll Call URL
@@ -2128,7 +2129,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                       contentVisibility: 'auto'
                     }}
                   >
-                    <MarkdownText text={streamedContent} dataCards={streamingDataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
+                    <MarkdownText text={streamedContent} dataCards={streamingDataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} isStreaming={true} />
                     <span
                       className="inline-block w-[2px] h-4 bg-foreground/60 ml-0.5 animate-pulse"
                     />

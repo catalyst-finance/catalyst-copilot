@@ -417,11 +417,22 @@ Return ONLY valid JSON.`;
         const intradayResult = await DataConnector.getStockData(symbol, 'intraday');
         if (intradayResult.success && intradayResult.data.length > 0) {
           // Transform intraday_prices data to match frontend format
-          chartData = intradayResult.data.map(point => ({
-            timestamp: new Date(point.timestamp_et).getTime(),
-            value: point.price,
-            volume: point.volume
-          }));
+          // IMPORTANT: timestamp_et is stored as ET timezone (e.g., "2026-01-06T09:30:00")
+          // but without timezone suffix, so JavaScript parses it as UTC
+          // We need to treat it as ET and convert to proper UTC timestamp
+          chartData = intradayResult.data.map(point => {
+            // Parse timestamp_et as ET (add 5 hours to get UTC, since ET = UTC-5)
+            // e.g., "2026-01-06T09:30:00" in ET = "2026-01-06T14:30:00" in UTC
+            const etTimestamp = new Date(point.timestamp_et).getTime();
+            // Add 5 hours (ET offset) to convert to proper UTC timestamp
+            const utcTimestamp = etTimestamp + (5 * 60 * 60 * 1000);
+            
+            return {
+              timestamp: utcTimestamp,
+              value: point.price,
+              volume: point.volume
+            };
+          });
         }
 
         // Fetch current quote for previous close
