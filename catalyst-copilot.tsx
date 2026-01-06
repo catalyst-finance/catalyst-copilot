@@ -309,6 +309,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
     
     let currentList: string[] = [];
     let currentParagraph: string[] = [];
+    let pendingImageCards: string[] = []; // Track IMAGE_CARD markers to render after paragraph
     
     const flushParagraph = () => {
       if (currentParagraph.length > 0) {
@@ -319,6 +320,14 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
           </p>
         );
         currentParagraph = [];
+        
+        // After flushing paragraph, add any pending image cards
+        if (pendingImageCards.length > 0) {
+          pendingImageCards.forEach(imageId => {
+            insertImageCard(imageId);
+          });
+          pendingImageCards = [];
+        }
       }
     };
     
@@ -381,11 +390,16 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       // This handles cases where IMAGE_CARD is inside backticks with citation:
       // `[MNMD 10-Q](url) [IMAGE_CARD:...]` → need to extract IMAGE_CARD first
       const imageCardRegex = /\[IMAGE_CARD:([^\]]+)\]/g;
-      const imageCardIds: string[] = [];
+      const extractedImageCardIds: string[] = [];
       let imageMatch;
       
       while ((imageMatch = imageCardRegex.exec(currentText)) !== null) {
-        imageCardIds.push(imageMatch[1]);
+        extractedImageCardIds.push(imageMatch[1]);
+      }
+      
+      // Store extracted image cards in pendingImageCards to render after paragraph
+      if (extractedImageCardIds.length > 0) {
+        pendingImageCards.push(...extractedImageCardIds);
       }
       
       // Remove IMAGE_CARD markers from text
@@ -531,22 +545,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         }
       });
       
-      // Add image cards at the end if any were found inline
-      if (imageCardIds.length > 0) {
-        imageCardIds.forEach(imageId => {
-          const matchingCard = dataCards?.find(card => 
-            card.type === 'image' && card.data && card.data.id === imageId
-          );
-          
-          if (matchingCard) {
-            finalParts.push(
-              <div key={`inline-image-card-${imageId}-${key++}`} className="my-3">
-                <DataCardComponent card={matchingCard} onEventClick={onEventClick} />
-              </div>
-            );
-          }
-        });
-      }
+      // Image cards are now handled separately via pendingImageCards - don't add them inline
       
       return finalParts.length > 0 ? finalParts : currentText;
     };
