@@ -872,6 +872,16 @@ class DataConnector {
       const html = response.data;
       const $ = cheerio.load(html);
       
+      // Extract og:image BEFORE removing elements
+      let imageUrl = null;
+      const ogImage = $('meta[property="og:image"]').attr('content') || 
+                     $('meta[name="og:image"]').attr('content') ||
+                     $('meta[property="twitter:image"]').attr('content');
+      if (ogImage) {
+        imageUrl = ogImage;
+        console.log(`   📸 Found og:image: ${imageUrl.substring(0, 100)}${imageUrl.length > 100 ? '...' : ''}`);
+      }
+      
       // Remove unwanted elements
       $('script, style, noscript, nav, header, footer, aside, .ad, .advertisement, .sidebar').remove();
       
@@ -920,7 +930,8 @@ class DataConnector {
       return {
         success: true,
         content: content,
-        contentLength: content.length
+        contentLength: content.length,
+        imageUrl: imageUrl // og:image URL if found
       };
     } catch (error) {
       console.error(`❌ Error fetching web content from ${url}`);

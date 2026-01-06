@@ -665,16 +665,12 @@ Return ONLY valid JSON.`;
         
         // ALWAYS try to fetch og:image for visual article preview (not gated by fetchExternal)
         // This ensures we get article images even when not fetching full content
-        let imageUrl = null;
-        if (article.url && items.length <= 10) {
+        let imageUrl = article.image || null; // Start with stored image from MongoDB
+        if (article.url && items.length <= 10 && !imageUrl) {
           try {
             const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
-            if (contentResult.success && contentResult.content) {
-              // Extract og:image meta tag
-              const imageMatch = contentResult.content.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
-              if (imageMatch && imageMatch[1]) {
-                imageUrl = imageMatch[1];
-              }
+            if (contentResult.success && contentResult.imageUrl) {
+              imageUrl = contentResult.imageUrl;
             }
           } catch (error) {
             // Silently fail - will use logo fallback
