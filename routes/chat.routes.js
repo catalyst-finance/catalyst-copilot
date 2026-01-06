@@ -152,14 +152,19 @@ Analyze the query and return a JSON object:
 **DETECTING SEARCH TERMS FOR GOVERNMENT POLICY QUERIES** (CRITICAL):
 - When user asks "Did [politician] mention [company/topic]?" or "What did [politician] say about [X]?"
 - Extract the specific search terms they want to find in transcripts
+- **FOR SEMANTIC/CONCEPTUAL QUERIES**: Extract key action words and synonyms
 - Examples:
   * "Did Trump mention NVIDIA?" → searchTerms: ["NVIDIA"]
   * "Has Biden talked about Tesla and SpaceX?" → searchTerms: ["Tesla", "SpaceX"]
   * "What did Trump say about Venezuelan oil?" → searchTerms: ["Venezuelan", "oil", "Venezuela"]
   * "Did Powell discuss inflation?" → searchTerms: ["inflation"]
+  * "What companies did Trump take a stake in?" → searchTerms: ["stake", "investment", "invest", "acquire", "acquired", "purchase", "ownership", "equity", "shares"]
+  * "Which companies did Biden support?" → searchTerms: ["support", "backing", "endorse", "partnership", "collaboration"]
+  * "What companies announced deals?" → searchTerms: ["deal", "agreement", "partnership", "contract", "signed"]
 - Use searchTerms for exact text matching in government policy transcripts
 - topicKeywords is for broader thematic context, searchTerms is for exact phrase/word matching
-- Always include both singular and plural forms, common variations (e.g., "Venezuela", "Venezuelan")
+- Always include both singular and plural forms, common variations, and SYNONYMS for action verbs
+- For complex queries, include 5-10 related search terms to capture semantic meaning
 
 **DETECTING REQUESTED FILING COUNT (CRITICAL - DO NOT CONFUSE WITH DATE RANGES)**:
 - If user says "last 10 filings", "10 most recent filings", "analyze 10 SEC filings" → set requestedFilingCount: 10 AND dateRange: null
