@@ -1214,13 +1214,6 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       console.log('🧩 Complex Query Decomposed:', subQueries);
     }
     
-    // Calculate confidence score
-    intelligenceMetadata.dataCompleteness.hasExpectedData = intelligenceMetadata.totalSources >= 3;
-    intelligenceMetadata.dataCompleteness.hasPartialData = intelligenceMetadata.totalSources > 0;
-    
-    const confidence = IntelligenceEngine.calculateConfidence(intelligenceMetadata);
-    console.log('📊 Confidence Analysis:', confidence);
-    
     // Detect anomalies in temporal patterns
     Object.keys(intelligenceMetadata.temporalData).forEach(ticker => {
       const filings = intelligenceMetadata.temporalData[ticker].filings;
@@ -1299,15 +1292,6 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     
     // Add intelligence insights to context
     let intelligenceContext = '';
-    
-    if (confidence.level !== 'High') {
-      intelligenceContext += `\n\n═══ DATA QUALITY ASSESSMENT ═══\n`;
-      intelligenceContext += `Confidence Level: ${confidence.level} (${confidence.score}/100)\n`;
-      intelligenceContext += `Factors: ${confidence.factors.join(', ')}\n`;
-      if (confidence.warnings.length > 0) {
-        intelligenceContext += `Warnings:\n${confidence.warnings.map(w => `- ${w}`).join('\n')}\n`;
-      }
-    }
     
     if (missingData.length > 0) {
       intelligenceContext += `\n\n═══ DATA GAPS IDENTIFIED ═══\n`;
@@ -1410,7 +1394,6 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
       newConversation: newConversation,
       timestamp: new Date().toISOString(),
       intelligence: {
-        confidence,
         missingData,
         anomalies: intelligenceMetadata.anomalies,
         followUps,
@@ -1725,7 +1708,6 @@ CRITICAL CONSTRAINTS:
     - **CRITICAL**: Never create an empty "Upcoming Catalysts" section. If you've integrated all events inline elsewhere, you're done - don't add a header with nothing under it.
 
 INTELLIGENCE INSIGHTS:
-• If confidence level is provided, acknowledge data quality in your response
 • When anomalies are detected, highlight them as notable patterns
 • If missing data is identified, mention what information gaps exist
 • When sentiment shifts are detected, interpret what they might indicate
