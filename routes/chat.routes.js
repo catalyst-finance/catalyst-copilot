@@ -265,7 +265,16 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           dataContext += `\n\n═══ NEWS ARTICLES (${result.data.length} articles) ═══\n`;
           dataContext += `Reasoning: ${result.reasoning}\n\n`;
           
-          result.data.forEach((article, index) => {
+          // Check if we need deep analysis (fetch full article content)
+          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
+          
+          if (needsDeepAnalysis && result.data.length <= 5) {
+            sendThinking('retrieving', `Fetching full content from ${result.data.length} news article(s)...`);
+            console.log('📰 Deep analysis requested - fetching full news article content...');
+          }
+          
+          for (let index = 0; index < result.data.length; index++) {
+            const article = result.data[index];
             const date = article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown date';
             dataContext += `${index + 1}. ${article.title || 'Untitled'} - ${date}\n`;
             if (article.ticker) {
@@ -274,14 +283,33 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
             if (article.origin) {
               dataContext += `   Source: ${article.origin}\n`;
             }
-            if (article.content) {
+            
+            // If deep analysis requested and we have a URL, fetch full content
+            if (needsDeepAnalysis && article.url && result.data.length <= 5) {
+              try {
+                const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
+                if (contentResult.success && contentResult.content) {
+                  dataContext += `\n   === FULL ARTICLE ===\n${contentResult.content}\n   === END ARTICLE ===\n`;
+                  console.log(`   ✅ Fetched ${contentResult.contentLength} chars from ${article.origin || 'news source'}`);
+                } else if (article.content) {
+                  // Fallback to stored content
+                  dataContext += `   Content: ${article.content.substring(0, 1000)}...\n`;
+                }
+              } catch (error) {
+                console.error(`   ❌ Error fetching article: ${error.message}`);
+                if (article.content) {
+                  dataContext += `   Content: ${article.content.substring(0, 1000)}...\n`;
+                }
+              }
+            } else if (article.content) {
               dataContext += `   Content: ${article.content.substring(0, 300)}...\n`;
             }
+            
             if (article.url) {
               dataContext += `   URL: ${article.url}\n`;
             }
             dataContext += `\n`;
-          });
+          }
           
           intelligenceMetadata.totalSources++;
         }
@@ -290,11 +318,15 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           dataContext += `\n\n═══ EARNINGS TRANSCRIPTS (${result.data.length} transcripts) ═══\n`;
           dataContext += `Reasoning: ${result.reasoning}\n\n`;
           
+          // Earnings transcripts already have full content stored, but show more for deep analysis
+          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
+          const contentLength = needsDeepAnalysis ? 10000 : 2000;
+          
           result.data.forEach((transcript, index) => {
             const date = transcript.report_date ? new Date(transcript.report_date).toLocaleDateString() : 'Unknown date';
             dataContext += `${index + 1}. ${transcript.ticker} Q${transcript.quarter} ${transcript.year} - ${date}\n`;
             if (transcript.content) {
-              dataContext += `   Content: ${transcript.content.substring(0, 2000)}...\n`;
+              dataContext += `   Content: ${transcript.content.substring(0, contentLength)}${transcript.content.length > contentLength ? '...' : ''}\n`;
             }
             dataContext += `\n`;
           });
@@ -306,7 +338,16 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           dataContext += `\n\n═══ ECONOMIC DATA (${result.data.length} items) ═══\n`;
           dataContext += `Reasoning: ${result.reasoning}\n\n`;
           
-          result.data.forEach((item, index) => {
+          // Check if we need deep analysis (fetch full content from URL)
+          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
+          
+          if (needsDeepAnalysis && result.data.length <= 5) {
+            sendThinking('retrieving', `Fetching full content from ${result.data.length} economic report(s)...`);
+            console.log('📊 Deep analysis requested - fetching full economic data content...');
+          }
+          
+          for (let index = 0; index < result.data.length; index++) {
+            const item = result.data[index];
             const date = item.date ? new Date(item.date).toLocaleDateString() : 'Unknown date';
             dataContext += `${index + 1}. ${item.title || 'Untitled'} - ${date}\n`;
             if (item.country) {
@@ -315,14 +356,32 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
             if (item.category) {
               dataContext += `   Category: ${item.category}\n`;
             }
-            if (item.description) {
+            
+            // If deep analysis requested and we have a URL, fetch full content
+            if (needsDeepAnalysis && item.url && result.data.length <= 5) {
+              try {
+                const contentResult = await DataConnector.fetchWebContent(item.url, 8000);
+                if (contentResult.success && contentResult.content) {
+                  dataContext += `\n   === FULL REPORT ===\n${contentResult.content}\n   === END REPORT ===\n`;
+                  console.log(`   ✅ Fetched ${contentResult.contentLength} chars from economic source`);
+                } else if (item.description) {
+                  dataContext += `   Description: ${item.description}\n`;
+                }
+              } catch (error) {
+                console.error(`   ❌ Error fetching economic content: ${error.message}`);
+                if (item.description) {
+                  dataContext += `   Description: ${item.description}\n`;
+                }
+              }
+            } else if (item.description) {
               dataContext += `   Description: ${item.description.substring(0, 200)}...\n`;
             }
+            
             if (item.url) {
               dataContext += `   URL: ${item.url}\n`;
             }
             dataContext += `\n`;
-          });
+          }
           
           intelligenceMetadata.totalSources++;
         }
@@ -456,20 +515,53 @@ Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
           dataContext += `\n\n═══ PRESS RELEASES (${result.data.length} releases) ═══\n`;
           dataContext += `Reasoning: ${result.reasoning}\n\n`;
           
-          result.data.forEach((press, index) => {
-            const date = press.published_date ? new Date(press.published_date).toLocaleDateString() : 'Unknown date';
+          // Check if we need deep analysis (fetch full press release content)
+          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
+          
+          if (needsDeepAnalysis && result.data.length <= 5) {
+            sendThinking('retrieving', `Fetching full content from ${result.data.length} press release(s)...`);
+            console.log('📢 Deep analysis requested - fetching full press release content...');
+          }
+          
+          for (let index = 0; index < result.data.length; index++) {
+            const press = result.data[index];
+            const date = press.published_date ? new Date(press.published_date).toLocaleDateString() : (press.date ? new Date(press.date).toLocaleDateString() : 'Unknown date');
             dataContext += `${index + 1}. ${press.title || 'Untitled'} - ${date}\n`;
             if (press.ticker) {
               dataContext += `   Ticker: ${press.ticker}\n`;
             }
-            if (press.summary) {
+            
+            // If deep analysis requested and we have a URL, fetch full content
+            if (needsDeepAnalysis && press.url && result.data.length <= 5) {
+              try {
+                const contentResult = await DataConnector.fetchWebContent(press.url, 10000);
+                if (contentResult.success && contentResult.content) {
+                  dataContext += `\n   === FULL PRESS RELEASE ===\n${contentResult.content}\n   === END PRESS RELEASE ===\n`;
+                  console.log(`   ✅ Fetched ${contentResult.contentLength} chars from press release`);
+                } else if (press.content) {
+                  dataContext += `   Content: ${press.content.substring(0, 2000)}...\n`;
+                } else if (press.summary) {
+                  dataContext += `   Summary: ${press.summary}\n`;
+                }
+              } catch (error) {
+                console.error(`   ❌ Error fetching press release: ${error.message}`);
+                if (press.content) {
+                  dataContext += `   Content: ${press.content.substring(0, 2000)}...\n`;
+                } else if (press.summary) {
+                  dataContext += `   Summary: ${press.summary}\n`;
+                }
+              }
+            } else if (press.content) {
+              dataContext += `   Content: ${press.content.substring(0, 500)}...\n`;
+            } else if (press.summary) {
               dataContext += `   Summary: ${press.summary.substring(0, 200)}...\n`;
             }
+            
             if (press.url) {
               dataContext += `   URL: ${press.url}\n`;
             }
             dataContext += `\n`;
-          });
+          }
           
           intelligenceMetadata.totalSources++;
         }

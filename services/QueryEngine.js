@@ -289,17 +289,29 @@ Return JSON with this structure:
 }
 
 **CRITICAL: needsDeepAnalysis flag**
+This flag tells the system to fetch full content from source URLs, not just use stored metadata/summaries.
+
 Set needsDeepAnalysis=true when:
-- User says "analyze", "examine", "review", "look at", "what does it say"
+- User says "analyze", "examine", "review", "look at", "what does it say", "tell me about", "explain"
 - User wants detailed information from SEC filings (financials, R&D, products, risks)
-- User mentions specific filing types (10-Q, 10-K, 8-K) and wants content
+- User wants to read/understand news articles in depth
+- User wants full press release content (not just titles)
+- User wants detailed economic data/reports
+- User asks about specific details that require reading the full source
 - User asks about financial figures, revenue, cash position, expenses
 - User asks about product development, trials, pipeline, research
 
 Set needsDeepAnalysis=false when:
-- User just wants a list of recent filings
-- User asks "when was the last 10-Q filed?"
-- Simple metadata queries
+- User just wants a list/overview (recent filings, recent news headlines)
+- User asks "when was the last 10-Q filed?" (just needs date)
+- Simple metadata queries (counts, dates, names)
+- User wants a quick summary, not detailed analysis
+
+**Collections that support deep analysis (URL content fetching):**
+- sec_filings: Fetches full filing content from SEC.gov
+- news: Fetches full article content from news source
+- press_releases: Fetches full press release from source
+- macro_economics: Fetches full economic report/article
 
 **EXAMPLE 1:**
 User: "What companies did Trump take a stake in last year?"

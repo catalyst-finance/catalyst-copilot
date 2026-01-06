@@ -711,6 +711,97 @@ class DataConnector {
   }
   
   /**
+   * Fetch and parse web content from any URL (news articles, press releases, etc.)
+   * @param {string} url - Web page URL
+   * @param {number} maxLength - Maximum content length
+   */
+  static async fetchWebContent(url, maxLength = 10000) {
+    try {
+      console.log(`Fetching web content from: ${url}`);
+      
+      // Skip certain domains that block scraping or have paywalls
+      const blockedDomains = ['wsj.com', 'ft.com', 'bloomberg.com', 'barrons.com', 'reuters.com'];
+      const urlLower = url.toLowerCase();
+      if (blockedDomains.some(domain => urlLower.includes(domain))) {
+        console.log(`   Skipping blocked domain: ${url}`);
+        return {
+          success: false,
+          error: 'Domain blocks automated access',
+          content: null
+        };
+      }
+      
+      const response = await axios.get(url, {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      
+      const html = response.data;
+      const $ = cheerio.load(html);
+      
+      // Remove unwanted elements
+      $('script, style, noscript, nav, header, footer, aside, .ad, .advertisement, .sidebar').remove();
+      
+      // Try to find the main article content
+      let content = '';
+      
+      // Common article content selectors
+      const articleSelectors = [
+        'article',
+        '[role="main"]',
+        '.article-content',
+        '.article-body',
+        '.post-content',
+        '.entry-content',
+        '.story-body',
+        'main',
+        '.content'
+      ];
+      
+      for (const selector of articleSelectors) {
+        const element = $(selector);
+        if (element.length && element.text().trim().length > 200) {
+          content = element.text();
+          break;
+        }
+      }
+      
+      // Fallback to body text
+      if (!content || content.length < 200) {
+        content = $('body').text();
+      }
+      
+      // Clean up whitespace
+      content = content
+        .replace(/\s+/g, ' ')
+        .replace(/\n\s*\n/g, '\n')
+        .trim();
+      
+      // Truncate to maxLength
+      if (content.length > maxLength) {
+        content = content.substring(0, maxLength) + '... [truncated]';
+      }
+      
+      console.log(`   Fetched ${content.length} characters of content`);
+      
+      return {
+        success: true,
+        content: content,
+        contentLength: content.length
+      };
+    } catch (error) {
+      console.error(`Error fetching web content from ${url}:`, error.message);
+      return {
+        success: false,
+        error: error.message,
+        content: null
+      };
+    }
+  }
+  
+  /**
    * Get SEC filings from MongoDB
    * @param {string} symbol - Stock ticker symbol
    * @param {string|string[]} formType - Form type(s) to filter
