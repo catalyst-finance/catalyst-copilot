@@ -127,7 +127,8 @@ Analyze the query and return a JSON object:
   "isBiggestMoversQuery": true | false,
   "requestedFilingCount": 10 or null,
   "requestedItemCount": 10 or null,
-  "topicKeywords": ["batteries", "tariffs", "South Korea"]
+  "topicKeywords": ["batteries", "tariffs", "South Korea"],
+  "searchTerms": ["NVIDIA", "Tesla", "specific phrase"] or null
 }
 
 **DETECTING REQUESTED COUNTS (APPLIES TO ALL DATA TYPES)**:
@@ -136,6 +137,18 @@ Analyze the query and return a JSON object:
 - "5 most recent events" → requestedItemCount: 5
 - "recent news" (no number) → requestedItemCount: null (defaults to reasonable limit)
 - Extract numbers from: "last N", "N most recent", "recent N", "past N"
+
+**DETECTING SEARCH TERMS FOR GOVERNMENT POLICY QUERIES** (CRITICAL):
+- When user asks "Did [politician] mention [company/topic]?" or "What did [politician] say about [X]?"
+- Extract the specific search terms they want to find in transcripts
+- Examples:
+  * "Did Trump mention NVIDIA?" → searchTerms: ["NVIDIA"]
+  * "Has Biden talked about Tesla and SpaceX?" → searchTerms: ["Tesla", "SpaceX"]
+  * "What did Trump say about Venezuelan oil?" → searchTerms: ["Venezuelan", "oil", "Venezuela"]
+  * "Did Powell discuss inflation?" → searchTerms: ["inflation"]
+- Use searchTerms for exact text matching in government policy transcripts
+- topicKeywords is for broader thematic context, searchTerms is for exact phrase/word matching
+- Always include both singular and plural forms, common variations (e.g., "Venezuela", "Venezuelan")
 
 **DETECTING REQUESTED FILING COUNT (CRITICAL - DO NOT CONFUSE WITH DATE RANGES)**:
 - If user says "last 10 filings", "10 most recent filings", "analyze 10 SEC filings" → set requestedFilingCount: 10 AND dateRange: null
@@ -530,6 +543,13 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
           }
           if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
             macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
+          }
+          // CRITICAL: Add searchTerms for exact text matching in transcripts
+          if (queryIntent.searchTerms && queryIntent.searchTerms.length > 0) {
+            const searchText = queryIntent.searchTerms.join(' ');
+            macroFilters.textSearch = macroFilters.textSearch 
+              ? `${macroFilters.textSearch} ${searchText}` 
+              : searchText;
           }
           // Apply intelligent limiting based on user request or timeframe
           if (requestedItemCount) {
