@@ -338,6 +338,7 @@ Return ONLY the JSON object, no explanation.`;
     let dataContext = "";
     const dataCards = [];
     const eventData = {};
+    let upcomingDatesContext = "";  // Initialize for both AI and legacy paths
     
     // Intelligence metadata tracking
     const intelligenceMetadata = {
@@ -942,7 +943,6 @@ Return ONLY the JSON object.`;
         console.error(`Error processing data source ${collection}:`, error);
       }
     }
-    } // End of legacy data fetching block
     
     // STEP 2.5: EXTRACT UPCOMING DATES FOR FUTURE OUTLOOK QUERIES
     let upcomingDatesContext = "";
@@ -1046,6 +1046,7 @@ Return ONLY the JSON object.`;
         console.log('No upcoming dates found for future outlook query');
       }
     }
+    } // End of legacy data fetching block
 
     // STEP 3: PRE-GENERATE EVENT CARDS
     const hasEventContext = conversationHistory && conversationHistory.some(msg => 
