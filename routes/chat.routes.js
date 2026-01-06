@@ -126,8 +126,16 @@ Analyze the query and return a JSON object:
   "needsDeepAnalysis": true | false,
   "isBiggestMoversQuery": true | false,
   "requestedFilingCount": 10 or null,
+  "requestedItemCount": 10 or null,
   "topicKeywords": ["batteries", "tariffs", "South Korea"]
 }
+
+**DETECTING REQUESTED COUNTS (APPLIES TO ALL DATA TYPES)**:
+- "last 10 filings" → requestedFilingCount: 10
+- "last 20 Trump statements" → requestedItemCount: 20
+- "5 most recent events" → requestedItemCount: 5
+- "recent news" (no number) → requestedItemCount: null (defaults to reasonable limit)
+- Extract numbers from: "last N", "N most recent", "recent N", "past N"
 
 **DETECTING REQUESTED FILING COUNT (CRITICAL - DO NOT CONFUSE WITH DATE RANGES)**:
 - If user says "last 10 filings", "10 most recent filings", "analyze 10 SEC filings" → set requestedFilingCount: 10 AND dateRange: null
@@ -141,6 +149,7 @@ Analyze the query and return a JSON object:
 ❌ WRONG: "last 10 filings" → dateRange: {"start": "2025-12-27", "end": "2026-01-06"} (this is last 10 DAYS, not 10 FILINGS)
 ✅ CORRECT: "last 10 filings" → requestedFilingCount: 10, dateRange: null (count-based query)
 ✅ CORRECT: "filings from last week" → dateRange: {"start": "2025-12-30", "end": "2026-01-06"}, requestedFilingCount: null (date-based query)
+✅ CORRECT: "last 20 Trump statements" → requestedItemCount: 20, timeframe: "current"
 
 **IMPORTANT NOTE ON formTypes**: 
 - When requesting SEC filings for roadmap/product/business questions, ALWAYS include ["10-K", "10-Q", "8-K"] as a minimum
@@ -238,9 +247,10 @@ Return ONLY the JSON object, no explanation.`;
     const dataCards = [];
     const eventData = {};
     
-    // Detect if query is asking for most recent/last items (applies to ALL data sources)
-    const isRecentQuery = /\b(last|latest|most recent|newest|recent)\b/i.test(message);
-    console.log(`Query requests recent data: ${isRecentQuery}`);
+    // Use AI-classified timeframe and requested counts (more reliable than regex)
+    const requestedItemCount = queryIntent.requestedItemCount || null;
+    const isCurrentTimeframe = queryIntent.timeframe === 'current';
+    console.log(`Timeframe: ${queryIntent.timeframe}, Requested item count: ${requestedItemCount}`);
     
     // Intelligence metadata tracking
     const intelligenceMetadata = {
@@ -522,9 +532,11 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
           if (queryIntent.topicKeywords && queryIntent.topicKeywords.length > 0) {
             macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
           }
-          
-          // Limit results for "last/recent" queries
-          if (isRecentQuery) {
+          Apply intelligent limiting based on user request or timeframe
+          if (requestedItemCount) {
+            macroFilters.limit = requestedItemCount;
+          } else if (isCurrentTimeframe) {
+            macroFilters.limit = 10;  // Reasonable default for current data
             macroFilters.limit = 5;
           }
           
@@ -549,11 +561,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
         // MACRO/ECONOMIC DATA
         if (collection === 'macro_economics') {
           sendThinking('retrieving', `Fetching economic data...`);
-          const macroFilters = {};
-          if (queryIntent.dateRange) {
-            macroFilters.date = {
-              $gte: queryIntent.dateRange.start,
-              $lte: queryIntent.
+          const macroFilters = {
             sort: { date: -1 }  // Always sort by date descending
           };
           
@@ -567,9 +575,15 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
             macroFilters.textSearch = queryIntent.topicKeywords.join(' ');
           }
           
-          // Limit results for "last/recent" queries
-          if (isRecentQuery) {
-            macroFilters.limit = 5c', macroFilters);
+          // Apply intelligent limiting based on user request or timeframe
+          if (requestedItemCount) {
+            macroFilters.limit = requestedItemCount;
+          } else if (isCurrentTimeframe) {
+            macroFilters.limit = 10;  // Reasonable default for current data
+          }
+          
+          try {
+            const macroResult = await DataConnector.getMacroData('economic', macroFilters);
             if (macroResult.success && macroResult.data.length > 0) {
               dataContext += `\n\nEconomic Data:\n`;
               macroResult.data.slice(0, 5).forEach((item, i) => {
