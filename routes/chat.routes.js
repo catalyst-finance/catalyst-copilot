@@ -191,6 +191,12 @@ router.post('/', optionalAuth, async (req, res) => {
           dataCards.push(...formatted.dataCards);
           intelligenceMetadata = { ...intelligenceMetadata, ...formatted.intelligenceMetadata };
           
+          // Add VIEW_CHART markers if chartConfig is present
+          if (queryIntent.chartConfig) {
+            dataContext = ResponseEngine.addChartMarkers(dataContext, queryIntent);
+            console.log(`📈 Added chart marker for ${queryIntent.chartConfig.symbol}`);
+          }
+          
           // Store AI-recommended response style
           if (formattingPlan.responseStyle) {
             responseStyleGuidelines = formattingPlan.responseStyle;

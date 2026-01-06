@@ -389,6 +389,24 @@ Return ONLY valid JSON.`;
   }
 
   /**
+   * Add chart markers to data context based on query intent
+   */
+  addChartMarkers(dataContext, queryIntent) {
+    if (!queryIntent || !queryIntent.chartConfig) {
+      return dataContext;
+    }
+
+    const { symbol, timeRange } = queryIntent.chartConfig;
+    if (!symbol || !timeRange) {
+      return dataContext;
+    }
+
+    // Insert VIEW_CHART marker at the end of the context
+    const chartMarker = `\n\n**PRICE CHART FOR ${symbol}:**\n[VIEW_CHART:${symbol}:${timeRange}]\n`;
+    return dataContext + chartMarker;
+  }
+
+  /**
    * Format a specific collection based on formatting spec
    */
   async formatCollection(result, formatSpec, DataConnector, sendThinking, dataCards, intelligenceMetadata, queryIntent = null) {

@@ -956,6 +956,73 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
               count: result.data?.length || 0,
               reasoning: query.reasoning
             });
+          } else if (query.collection === 'finnhub_quote_snapshots') {
+            // Fetch current stock quote
+            const symbol = query.query.symbol;
+            const result = await DataConnector.getStockData(symbol, 'current');
+            results.push({
+              collection: query.collection,
+              data: result.data || [],
+              count: result.data?.length || 0,
+              reasoning: query.reasoning
+            });
+            console.log(`   ✅ Found ${result.data?.length || 0} quote snapshots`);
+          } else if (query.collection === 'one_minute_prices' || query.collection === 'daily_prices' || query.collection === 'hourly_prices') {
+            // Fetch price history from Supabase
+            const { supabase } = require('../config/database');
+            
+            let supabaseQuery = supabase
+              .from(query.collection)
+              .select('*');
+            
+            // Apply query filters
+            Object.keys(query.query).forEach(key => {
+              const value = query.query[key];
+              if (typeof value === 'object' && value !== null) {
+                // Handle operators like { gte: "2026-01-05T00:00:00Z" }
+                Object.keys(value).forEach(op => {
+                  if (op === 'gte') {
+                    supabaseQuery = supabaseQuery.gte(key, value[op]);
+                  } else if (op === 'lte') {
+                    supabaseQuery = supabaseQuery.lte(key, value[op]);
+                  } else if (op === 'gt') {
+                    supabaseQuery = supabaseQuery.gt(key, value[op]);
+                  } else if (op === 'lt') {
+                    supabaseQuery = supabaseQuery.lt(key, value[op]);
+                  }
+                });
+              } else {
+                // Simple equality
+                supabaseQuery = supabaseQuery.eq(key, value);
+              }
+            });
+            
+            // Apply sorting
+            if (query.sort) {
+              Object.keys(query.sort).forEach(key => {
+                const direction = query.sort[key] === 'desc' || query.sort[key] === -1 ? 'desc' : 'asc';
+                supabaseQuery = supabaseQuery.order(key, { ascending: direction === 'asc' });
+              });
+            }
+            
+            // Apply limit
+            if (query.limit) {
+              supabaseQuery = supabaseQuery.limit(query.limit);
+            }
+            
+            const { data, error } = await supabaseQuery;
+            
+            if (error) {
+              throw error;
+            }
+            
+            results.push({
+              collection: query.collection,
+              data: data || [],
+              count: data?.length || 0,
+              reasoning: query.reasoning
+            });
+            console.log(`   ✅ Found ${data?.length || 0} price records`);
           }
           // Add other Supabase collections as needed
         }
