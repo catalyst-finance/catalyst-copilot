@@ -53,9 +53,44 @@ class ResponseEngine {
   }
 
   /**
+   * Generate contextual thinking message for current phase
+   */
+  generateThinkingMessage(phase, context) {
+    const messages = {
+      'plan_start': () => {
+        const collections = context.collections.join(', ');
+        return `Analyzing ${context.collections.length} data source(s): ${collections}`;
+      },
+      'plan_generated': () => {
+        const priority = context.plan.formattingPlan.filter(p => p.priority >= 4);
+        if (priority.length > 0) {
+          const sources = priority.map(p => this.getCollectionTitle(p.collection)).join(' and ');
+          return `Prioritizing ${sources} for detailed analysis`;
+        }
+        return `Determining optimal presentation for ${context.plan.formattingPlan.length} sources`;
+      },
+      'fetching_content': () => {
+        return `Fetching ${context.contentType} from ${context.count} ${context.collection}`;
+      },
+      'formatting': () => {
+        return `Formatting ${context.collection} with ${context.detailLevel} detail`;
+      }
+    };
+    
+    return messages[phase] ? messages[phase]() : null;
+  }
+
+  /**
    * Generate intelligent formatting plan for query results
    */
-  async generateFormattingPlan(queryResults, userMessage, queryIntent) {
+  async generateFormattingPlan(queryResults, userMessage, queryIntent, sendThinking) {
+    // Send contextual thinking message
+    if (sendThinking) {
+      const collections = queryResults.map(r => r.collection);
+      const thinkingMsg = this.generateThinkingMessage('plan_start', { collections });
+      if (thinkingMsg) sendThinking('analyzing', thinkingMsg);
+    }
+    
     const prompt = `You are a data presentation optimizer. Based on the user's question and available data, decide how to format and present the information most effectively.
 
 **User's Question:** "${userMessage}"
@@ -135,6 +170,13 @@ Return ONLY valid JSON.`;
 
       const plan = JSON.parse(response.choices[0].message.content.trim());
       console.log('🎨 AI-Generated Formatting Plan:', JSON.stringify(plan, null, 2));
+      
+      // Send contextual thinking message about the plan
+      if (sendThinking) {
+        const thinkingMsg = this.generateThinkingMessage('plan_generated', { plan });
+        if (thinkingMsg) sendThinking('formatting', thinkingMsg);
+      }
+      
       return plan;
     } catch (error) {
       console.error('❌ Formatting plan generation failed:', error);
@@ -186,6 +228,15 @@ Return ONLY valid JSON.`;
 
       console.log(`📋 Formatting ${formatSpec.collection} with ${formatSpec.detailLevel} detail (priority: ${formatSpec.priority})`);
 
+      // Send contextual thinking message
+      if (sendThinking) {
+        const thinkingMsg = this.generateThinkingMessage('formatting', {
+          collection: this.getCollectionTitle(formatSpec.collection),
+          detailLevel: formatSpec.detailLevel
+        });
+        if (thinkingMsg) sendThinking('formatting', thinkingMsg);
+      }
+
       // Apply formatting based on plan
       const formatted = await this.formatCollection(
         result,
@@ -223,10 +274,22 @@ Return ONLY valid JSON.`;
 
     const itemsToShow = result.data.slice(0, maxItems);
 
-    // Fetch external content if needed
+    // Fetch external content if needed - with contextual thinking message
     if (fetchExternalContent && itemsToShow.length <= 5) {
       if (sendThinking) {
-        sendThinking('retrieving', `Fetching full content from ${itemsToShow.length} source(s)...`);
+        const contentType = {
+          'sec_filings': 'SEC filing content',
+          'news': 'news articles',
+          'press_releases': 'press releases',
+          'macro_economics': 'economic reports'
+        }[collection] || 'content';
+        
+        const thinkingMsg = this.generateThinkingMessage('fetching_content', {
+          count: itemsToShow.length,
+          contentType,
+          collection: this.getCollectionTitle(collection)
+        });
+        if (thinkingMsg) sendThinking('retrieving', thinkingMsg);
       }
     }
 

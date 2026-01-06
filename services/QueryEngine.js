@@ -245,9 +245,28 @@ class QueryEngine {
   }
 
   /**
+   * Generate contextual thinking message based on query intent
+   */
+  generateThinkingMessage(intent, context = {}) {
+    const intentMessages = {
+      'government_policy': `Searching for ${context.politicians || 'government'} statements about ${context.topics || 'policy matters'}`,
+      'sec_filings': `Looking up SEC filings for ${context.tickers ? context.tickers.join(', ') : 'companies'}`,
+      'company_research': `Researching ${context.tickers ? context.tickers.join(' and ') : 'company'} data`,
+      'market_data': `Fetching market data for ${context.tickers ? context.tickers.length + ' stock(s)' : 'portfolio'}`,
+      'news': `Searching news articles about ${context.topics || context.tickers || 'market'}`,
+      'analyst_ratings': `Looking up analyst ratings for ${context.tickers || 'stocks'}`,
+      'institutional': `Checking institutional ownership for ${context.tickers || 'companies'}`,
+      'earnings': `Finding earnings data for ${context.tickers || 'companies'}`,
+      'events': `Looking up upcoming events for ${context.tickers || 'companies'}`
+    };
+    
+    return intentMessages[intent] || `Analyzing your question about ${context.topics || 'financial data'}`;
+  }
+
+  /**
    * Generate queries using AI instead of hardcoded logic
    */
-  async generateQueries(userMessage, userPortfolio = []) {
+  async generateQueries(userMessage, userPortfolio = [], sendThinking = null) {
     const prompt = `You are a database query generator. Based on the user's question, generate the appropriate database queries to answer it.
 
 ${this.schemaContext}
@@ -459,6 +478,18 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
 
       const result = JSON.parse(response.choices[0].message.content.trim());
       console.log('🤖 AI-Generated Queries:', JSON.stringify(result, null, 2));
+      
+      // Send contextual thinking message based on intent
+      if (sendThinking && result.intent) {
+        const thinkingMsg = this.generateThinkingMessage(result.intent, {
+          tickers: result.tickers || userPortfolio,
+          topics: result.intent,
+          politicians: result.queries.some(q => q.collection === 'government_policy') ? 
+            'government officials' : null
+        });
+        sendThinking('retrieving', thinkingMsg);
+      }
+      
       return result;
     } catch (error) {
       console.error('Query generation failed:', error);

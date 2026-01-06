@@ -87,11 +87,13 @@ router.post('/', optionalAuth, async (req, res) => {
     let queryResults = [];
     
     try {
-      // AI generates the queries directly - no hardcoded classification
-      const queryPlan = await QueryEngine.generateQueries(message, selectedTickers);
+      // AI generates the queries directly (with contextual thinking messages)
+      const queryPlan = await QueryEngine.generateQueries(
+        message, 
+        selectedTickers,
+        sendThinking  // Pass thinking function for context-aware messages
+      );
       console.log('📋 Query Plan:', JSON.stringify(queryPlan, null, 2));
-      
-      sendThinking('retrieving', 'Fetching data from databases...');
       
       // Execute the AI-generated queries
       queryResults = await QueryEngine.executeQueries(queryPlan, DataConnector);
@@ -152,14 +154,14 @@ router.post('/', optionalAuth, async (req, res) => {
       // === AI-DRIVEN FORMATTING (NEW) ===
       if (USE_AI_FORMATTING) {
         console.log('🎨 Using AI-Native Response Engine...');
-        sendThinking('formatting', 'Analyzing data presentation strategy...');
         
         try {
-          // AI generates intelligent formatting plan
+          // AI generates intelligent formatting plan (with contextual thinking messages)
           const formattingPlan = await ResponseEngine.generateFormattingPlan(
             queryResults,
             message,
-            queryIntent
+            queryIntent,
+            sendThinking  // Pass thinking function for context-aware messages
           );
           
           // Execute the AI-generated formatting plan
