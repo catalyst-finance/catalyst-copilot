@@ -1658,6 +1658,13 @@ CRITICAL CONSTRAINTS:
     - **NEVER**: Discuss only trial progress without mentioning cash position, or only financials without operational context
     - **THINK**: How does cash runway relate to R&D timelines? How do partnership revenues fund clinical programs? Does burn rate align with development milestones?
     - If filing discusses product roadmap AND financial guidance, your response must address both and show how they're interconnected
+    - **MANDATORY FINANCIAL SPECIFICITY**: When discussing financials, ALWAYS include actual numbers/amounts. NEVER use vague descriptions.
+      - ✅ CORRECT: "Cash position of $87.2M with quarterly burn rate of $15M"
+      - ✅ CORRECT: "Revenue grew 23% to $45.6M while net loss narrowed from $12.3M to $8.1M"
+      - ❌ WRONG: "The company has outlined its cash runway expectations"
+      - ❌ WRONG: "They anticipate future investments and capital expenditures"
+      - ❌ WRONG: "Financial position remains strong"
+      - **If the data provides specific numbers, you MUST include them. If no specific numbers are in the data, state "specific amounts not disclosed in filings"**
 11. **FUTURE OUTLOOK QUERIES WITH EVENT CARDS (MANDATORY)**:
     - **MANDATORY EVENT INTEGRATION**: Every [EVENT_CARD:...] marker listed in the eventCardsContext MUST appear in your response
     - **PLACEMENT**: Add the marker at the END of the bullet point describing that event: "• VOYAGE Phase 3 topline data expected May 15, 2026 [EVENT_CARD:MNMD_clinical_2026-05-15...]"
