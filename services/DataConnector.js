@@ -409,6 +409,7 @@ class DataConnector {
           );
           
           if (searchTerms.length > 0) {
+            // Use OR logic - match ANY of the search terms, not ALL
             const termConditions = searchTerms.map(term => ({
               $or: [
                 { title: { $regex: term, $options: 'i' } },
@@ -416,7 +417,8 @@ class DataConnector {
               ]
             }));
             
-            andConditions.push(...termConditions);
+            // Combine all term conditions with OR, not AND
+            andConditions.push({ $or: termConditions });
           }
         }
       } else {
