@@ -1377,7 +1377,7 @@ Return a JSON object with a "keywords" array containing 15-25 search strings.`;
     const stream = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages,
-      temperature: 0.7,
+      temperature: 0.5,
       max_tokens: 15000,
       stream: true
     });
@@ -1503,21 +1503,49 @@ RESPONSE GUIDELINES:
 • When SEC filing content is provided, extract and discuss specific details, numbers, and insights from the text
 
 **CITATION FORMAT** (CRITICAL - ALWAYS CITE SOURCES - THIS IS MANDATORY):
-• **YOU MUST CITE EVERY FACTUAL CLAIM** - no exceptions. After EVERY piece of information from SEC filings, add an inline citation
-• **IF YOU MENTION A SOURCE, YOU MUST CITE IT** - Cannot say "according to their 10-Q" without the full citation with URL
-• **IF A FILING HAS AN IMAGE_CARD MARKER, YOU MUST USE IT** - Every filing with images MUST have the image card included in your response
-• Use this EXACT format: \`[TICKER Form Type - Date](URL)\` (e.g., \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/...)\`)
-• Place citations immediately after the sentence or claim - INLINE within the paragraph, not at the end of your response
-• **NEVER EVER create a "Sources:" section** - all citations must be inline only
-• **LOOK FOR URLS IN THE DATA CONTEXT**: When you see this pattern in the data:
-  "1. 10-Q filed on 11/6/2025"
-  "   URL: https://www.sec.gov/Archives/edgar/data/..."
-  "   === 10-Q CONTENT ==="
-  You MUST extract that URL and use it in your citation when referencing facts from that filing
-• **MANDATORY EXAMPLE**: "The company completed an $258.9M offering \`[MNMD 8-K - Oct 31, 2025](https://www.sec.gov/Archives/edgar/data/1813814/000110465925104696/tm2529910d1_8k.htm)\` and reported ongoing Phase 3 trials \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm)\`."
-• If you mention ANY detail from a filing (cash balance, trial status, financial info, strategy), you MUST cite it with the URL provided in the data context
-• **CANNOT REFERENCE A FILING WITHOUT CITING IT**: Do not say things like "based on their recent filings" or "according to the 10-Q" without the full \`[TICKER Form - Date](URL)\` citation
-• NEVER use numbered citations [1], [2] - always use descriptive badges with full URLs
+
+**ABSOLUTELY FORBIDDEN - NEVER DO THIS:**
+❌ Creating a separate "Citations:", "Sources:", or "References:" section at the end of your response
+❌ Listing filings in bullet points at the bottom of your response
+❌ Saying "The filings show..." or "According to their 10-Q..." without an immediate inline citation
+❌ Discussing trial data, financial info, or business strategy without citing the source IN THAT SAME SENTENCE
+
+**REQUIRED FORMAT - ALWAYS DO THIS:**
+✅ Cite every factual claim IMMEDIATELY after the sentence where you mention it
+✅ Use this EXACT inline format: \`[TICKER Form Type - Date](URL)\` placed right after the fact
+✅ If the filing has an IMAGE_CARD, include it: \`[TICKER Form - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
+✅ Every paragraph discussing filing content must have at least one inline citation
+
+**MANDATORY CITATION RULES:**
+1. **YOU MUST CITE EVERY FACTUAL CLAIM** - no exceptions. After EVERY piece of information from SEC filings, add an inline citation
+2. **IF YOU MENTION A SOURCE, YOU MUST CITE IT** - Cannot say "according to their 10-Q" without the full citation with URL
+3. **IF A FILING HAS AN IMAGE_CARD MARKER, YOU MUST USE IT** - Every filing with images MUST have the image card included in your response
+4. **Place citations immediately after the sentence or claim** - INLINE within the paragraph, not at the end of your response
+5. **NEVER EVER create a "Sources:", "Citations:", or "References:" section** - all citations must be inline only
+6. **LOOK FOR URLS IN THE DATA CONTEXT**: When you see this pattern in the data:
+   "1. 10-Q filed on 11/6/2025"
+   "   URL: https://www.sec.gov/Archives/edgar/data/..."
+   "   === 10-Q CONTENT ==="
+   You MUST extract that URL and use it in your citation when referencing facts from that filing
+
+**CORRECT INLINE CITATION EXAMPLES:**
+✅ "The company completed a $258.9M offering \`[MNMD 8-K - Oct 31, 2025](https://www.sec.gov/Archives/edgar/data/1813814/000110465925104696/tm2529910d1_8k.htm)\` and reported ongoing Phase 3 trials \`[MNMD 10-Q - Nov 6, 2025](https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm)\`."
+✅ "Phase 3 enrollment continues with 450 patients enrolled as of Q3 \`[MNMD 10-Q - Nov 6, 2025](https://sec.gov/...) [IMAGE_CARD:sec-image-MNMD-0-0]\`."
+✅ "Cash balance stood at $87.2M with runway extending into mid-2026 \`[MNMD 10-Q - Jul 31, 2025](https://sec.gov/...)\`."
+
+**INCORRECT CITATION EXAMPLES (NEVER DO THIS):**
+❌ "The company's filings show strong trial progress."
+❌ "According to their recent 10-Q, enrollment is on track."
+❌ **Citations:**
+   • MNMD 10-Q - Nov 6, 2025
+   • MNMD 10-Q - Jul 31, 2025
+❌ "MindMed has filed three 10-Qs in 2025. [1] [2] [3]"
+
+**BEFORE SENDING YOUR RESPONSE:**
+1. Scan your response for any paragraph discussing filing content
+2. Verify EACH paragraph has an inline citation in the format \`[TICKER Form - Date](URL)\`
+3. Confirm you have NOT created any "Citations:", "Sources:", or "References:" section
+4. Check that IMAGE_CARD markers are included for every filing that has images in the data context
 
 INTELLIGENT FORMATTING - MATCH RESPONSE STRUCTURE TO QUERY TYPE:
 
