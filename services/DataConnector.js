@@ -844,7 +844,9 @@ class DataConnector {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         },
         httpAgent: httpAgent,
-        httpsAgent: httpsAgent
+        httpsAgent: httpsAgent,
+        maxHeaderSize: 32768, // 32KB - handles Yahoo Finance's large headers
+        maxRedirects: 5
       });
       
       const html = response.data;
