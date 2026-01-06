@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Sparkles, Send, ChevronDown, ChevronUp, X, Minimize2, Edit2, Check, XCircle, TrendingUp, TrendingDown, Calendar, BarChart3, AlertCircle, Target, DollarSign, Package, ShoppingCart, Presentation, Users, Landmark, Handshake, Building, Tag, Shield, Scale, Loader2, Download, ExternalLink, FileText } from 'lucide-react';
+import { Sparkles, Send, ChevronDown, ChevronUp, X, Minimize2, Edit2, Check, XCircle, TrendingUp, TrendingDown, Calendar, BarChart3, AlertCircle, Target, DollarSign, Package, ShoppingCart, Presentation, Users, Landmark, Handshake, Building, Tag, Shield, Scale, Loader2, ExternalLink, FileText } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -19,6 +19,7 @@ interface Message {
   eventData?: Record<string, any>;
   timestamp: Date;
   thinkingSteps?: ThinkingStep[];
+  thinkingDuration?: number; // Duration in seconds
 }
 
 interface ThinkingStep {
@@ -91,7 +92,7 @@ interface CatalystCopilotProps {
 }
 
 // Markdown Renderer Component
-function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void }) {
+function MarkdownText({ text, dataCards, onEventClick, onImageClick }: { text: string; dataCards?: DataCard[]; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void }) {
   // Don't extract sources into a separate section - keep everything inline
   const mainText = text;
   
@@ -325,6 +326,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
   const renderContent = (content: string) => {
     const lines = content.split('\n');
     const elements: JSX.Element[] = [];
+    let uniqueKeyCounter = 0; // Add unique key counter
     
     let currentList: string[] = [];
     let currentParagraph: string[] = [];
@@ -334,7 +336,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       if (currentParagraph.length > 0) {
         const paragraphText = currentParagraph.join(' ');
         elements.push(
-          <p key={`p-${elements.length}`} className="leading-relaxed m-[0px]">
+          <p key={`p-${uniqueKeyCounter++}`} className="leading-relaxed m-[0px]">
             {parseInlineFormatting(paragraphText)}
           </p>
         );
@@ -353,7 +355,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
     const flushList = () => {
       if (currentList.length > 0) {
         elements.push(
-          <ul key={`list-${elements.length}`} className="space-y-1 my-3 ml-4">
+          <ul key={`list-${uniqueKeyCounter++}`} className="space-y-1 my-3 ml-4">
             {currentList.map((item, idx) => (
               <li key={idx} className="flex items-start gap-2">
                 <span className="text-muted-foreground mt-0.5">•</span>
@@ -375,8 +377,8 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         
         if (eventCard) {
           elements.push(
-            <div key={`event-card-${eventId}-${elements.length}`} className="my-3">
-              <DataCardComponent card={eventCard} onEventClick={onEventClick} />
+            <div key={`event-card-${eventId}-${uniqueKeyCounter++}`} className="my-3">
+              <DataCardComponent card={eventCard} onEventClick={onEventClick} onImageClick={onImageClick} />
             </div>
           );
         }
@@ -392,8 +394,8 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         
         if (imageCard) {
           elements.push(
-            <div key={`image-card-${imageId}-${elements.length}`} className="my-3">
-              <DataCardComponent card={imageCard} onEventClick={onEventClick} />
+            <div key={`image-card-${imageId}-${uniqueKeyCounter++}`} className="my-3">
+              <DataCardComponent card={imageCard} onEventClick={onEventClick} onImageClick={onImageClick} />
             </div>
           );
         }
@@ -409,8 +411,8 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
         
         if (articleCard) {
           elements.push(
-            <div key={`article-card-${articleId}-${elements.length}`} className="my-3">
-              <DataCardComponent card={articleCard} onEventClick={onEventClick} />
+            <div key={`article-card-${articleId}-${uniqueKeyCounter++}`} className="my-3">
+              <DataCardComponent card={articleCard} onEventClick={onEventClick} onImageClick={onImageClick} />
             </div>
           );
         }
@@ -422,7 +424,7 @@ function MarkdownText({ text, dataCards, onEventClick }: { text: string; dataCar
       let currentText = line;
       let key = 0;
       
-      // STEP 1: Extract IMAGE_CARD and VIEW_ARTICLE markers FIRST (before backtick stripping)
+      // STEP 1: Extract IMAGE_CARD markers FIRST (before backtick stripping)
       // This handles cases where IMAGE_CARD is inside backticks with citation:
       // `[MNMD 10-Q](url) [IMAGE_CARD:...]` → need to extract IMAGE_CARD first
       const imageCardRegex = /\[IMAGE_CARD:([^\]]+)\]/g;
@@ -737,19 +739,23 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
   const [isTyping, setIsTyping] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const sendingRef = useRef(false); // Add ref to prevent duplicate sends
   
   // Streaming states
   const [isStreaming, setIsStreaming] = useState(false);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [streamedContent, setStreamedContent] = useState('');
   const [streamingDataCards, setStreamingDataCards] = useState<DataCard[]>([]);
-  const [thinkingCollapsed, setThinkingCollapsed] = useState(false);
+  const [thinkingCollapsed, setThinkingCollapsed] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const latestMessageRef = useRef<HTMLDivElement>(null); // Add ref for latest message start
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isRestoringScroll = useRef(false);
+  const prevIsStreamingRef = useRef(false); // Track previous streaming state
 
   useEffect(() => {
     try {
@@ -829,11 +835,38 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     }
   };
 
+  const scrollToLatestMessage = () => {
+    if (!isRestoringScroll.current && latestMessageRef.current) {
+      latestMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   useEffect(() => {
     if (!isRestoringScroll.current) {
-      scrollToBottom();
+      // Check if streaming just finished (was true, now false)
+      if (prevIsStreamingRef.current && !isStreaming) {
+        // Streaming just completed - stay at bottom
+        scrollToBottom();
+      } else if (isStreaming) {
+        // Still streaming - scroll to bottom
+        scrollToBottom();
+      }
+      // Update previous streaming state
+      prevIsStreamingRef.current = isStreaming;
     }
-  }, [messages, streamedContent, thinkingSteps]);
+  }, [messages, streamedContent, thinkingSteps, isStreaming]);
+
+  // Handle ESC key to close fullscreen image
+  useEffect(() => {
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && fullscreenImage) {
+        setFullscreenImage(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscKey);
+    return () => window.removeEventListener('keydown', handleEscKey);
+  }, [fullscreenImage]);
 
   const quickStartChips = [
     "What moved TSLA today?",
@@ -902,8 +935,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
 
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
-
-    console.log('🚀 [CODE VERSION: 2026-01-05-19:30] Starting message send...');
+    
+    // Prevent duplicate sends - check both ref and state
+    if (sendingRef.current || isStreaming || isTyping) {
+      return;
+    }
+    
+    sendingRef.current = true;
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -919,7 +957,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     setThinkingSteps([]);
     setStreamedContent('');
     setStreamingDataCards([]);
-    setThinkingCollapsed(false);
+    setThinkingCollapsed(true);
 
     if (chatState === 'inline-expanded') {
       setChatState('full-window');
@@ -955,6 +993,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
       let collectedContent = '';
       let collectedDataCards: DataCard[] = [];
       let eventData: Record<string, any> = {};
+      let thinkingStartTime: number | null = null; // Track thinking start time
       
       // Helper to process a batch of messages
       const processMessages = (msgs: string[]) => {
@@ -985,6 +1024,10 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                 break;
 
               case 'thinking':
+                // Track start time on first thinking step
+                if (thinkingStartTime === null) {
+                  thinkingStartTime = Date.now();
+                }
                 const newStep = { phase: data.phase || 'thinking', content: data.content };
                 collectedThinking.push(newStep);
                 setThinkingSteps(prev => [...prev, newStep]);
@@ -996,6 +1039,11 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                 break;
 
               case 'done':
+                // Calculate thinking duration
+                const thinkingDuration = thinkingStartTime 
+                  ? Math.round((Date.now() - thinkingStartTime) / 1000) 
+                  : undefined;
+                  
                 const aiMessage: Message = {
                   id: `ai-${Date.now()}`,
                   role: 'assistant',
@@ -1003,6 +1051,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   dataCards: collectedDataCards,
                   eventData: eventData,
                   thinkingSteps: collectedThinking,
+                  thinkingDuration: thinkingDuration,
                   timestamp: new Date()
                 };
                 setMessages(prev => [...prev, aiMessage]);
@@ -1058,11 +1107,15 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
       setIsStreaming(false);
     } finally {
       setIsTyping(false);
+      sendingRef.current = false; // Reset the flag
     }
   };
 
   const handleQuickStart = (question: string) => {
-    handleSendMessage(question);
+    // Don't send if already sending
+    if (!sendingRef.current && !isStreaming && !isTyping) {
+      handleSendMessage(question);
+    }
   };
 
   const handleCollapse = () => {
@@ -1092,131 +1145,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     }
   };
 
-  const handleDownloadPDF = async () => {
-    try {
-      // Dynamically import jsPDF
-      const { default: jsPDF } = await import('jspdf');
-      
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 20;
-      const maxWidth = pageWidth - (margin * 2);
-      let yPosition = margin;
-
-      // Helper function to add text with word wrap
-      const addText = (text: string, x: number, fontSize: number, fontStyle: string = 'normal', color: number[] = [0, 0, 0]) => {
-        doc.setFontSize(fontSize);
-        doc.setFont('helvetica', fontStyle);
-        doc.setTextColor(color[0], color[1], color[2]);
-        const lines = doc.splitTextToSize(text, maxWidth - (x - margin));
-        
-        lines.forEach((line: string) => {
-          if (yPosition > pageHeight - margin) {
-            doc.addPage();
-            yPosition = margin;
-          }
-          doc.text(line, x, yPosition);
-          yPosition += fontSize * 0.5;
-        });
-        yPosition += 3;
-      };
-
-      // Header
-      doc.setFillColor(0, 0, 0);
-      doc.rect(0, 0, pageWidth, 30, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Catalyst Copilot Chat', margin, 20);
-      
-      yPosition = 45;
-
-      // Add timestamp
-      doc.setTextColor(100, 100, 100);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Generated: ${new Date().toLocaleString()}`, margin, yPosition);
-      yPosition += 15;
-
-      // Add messages
-      messages.forEach((msg, index) => {
-        // Check if we need a new page
-        if (yPosition > pageHeight - 40) {
-          doc.addPage();
-          yPosition = margin;
-        }
-
-        // Message header with timestamp
-        const timestamp = new Date(msg.timestamp).toLocaleString();
-        const role = msg.role === 'user' ? 'You' : 'Catalyst AI';
-        
-        doc.setFillColor(msg.role === 'user' ? 240 : 250, msg.role === 'user' ? 240 : 250, msg.role === 'user' ? 240 : 255);
-        const boxHeight = 8;
-        doc.roundedRect(margin, yPosition - 5, maxWidth, boxHeight, 2, 2, 'F');
-        
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(msg.role === 'user' ? 0 : 80, msg.role === 'user' ? 0 : 0, msg.role === 'user' ? 0 : 160);
-        doc.text(role, margin + 3, yPosition);
-        
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(120, 120, 120);
-        doc.setFontSize(8);
-        doc.text(timestamp, pageWidth - margin - doc.getTextWidth(timestamp), yPosition);
-        
-        yPosition += 12;
-
-        // Add thinking steps if present (for AI messages)
-        if (msg.role === 'assistant' && msg.thinkingSteps && msg.thinkingSteps.length > 0) {
-          yPosition += 3;
-          addText('💭 Thinking Process:', margin + 5, 9, 'bold', [100, 100, 100]);
-          msg.thinkingSteps.forEach((step) => {
-            addText(`  • ${step.content}`, margin + 8, 8, 'normal', [120, 120, 120]);
-          });
-          yPosition += 3;
-        }
-
-        // Message content
-        addText(msg.content, margin + 5, 10, 'normal', [0, 0, 0]);
-
-        // Add data cards info if present
-        if (msg.dataCards && msg.dataCards.length > 0) {
-          yPosition += 3;
-          msg.dataCards.forEach((card) => {
-            if (card.type === 'stock' && card.data) {
-              const stockData = card.data as StockCardData;
-              addText(`📊 ${stockData.ticker}: ${formatCurrency(stockData.price)} (${stockData.changePercent >= 0 ? '+' : ''}${stockData.changePercent?.toFixed(2)}%)`, margin + 10, 9, 'normal', [60, 60, 60]);
-            } else if (card.type === 'event' && card.data) {
-              const eventConfig = getEventTypeConfig(card.data.type);
-              addText(`📅 ${card.data.ticker} - ${card.data.title} (${eventConfig?.label || card.data.type})`, margin + 10, 9, 'normal', [60, 60, 60]);
-            } else if (card.type === 'image' && card.data) {
-              const imageData = card.data as ImageCardData;
-              addText(`🖼️ ${imageData.ticker} - ${imageData.title}${imageData.filingType ? ` (${imageData.filingType})` : ''}`, margin + 10, 9, 'normal', [60, 60, 60]);
-              if (imageData.filingUrl) {
-                addText(`   View: ${imageData.filingUrl}`, margin + 10, 9, 'normal', [100, 100, 255]);
-              }
-            }
-          });
-        }
-
-        yPosition += 5;
-      });
-
-      // Footer on last page
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text('Powered by Catalyst Copilot', pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-      // Save the PDF
-      const filename = `catalyst-chat-${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(filename);
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF. Please try again.');
-    }
-  };
-
   const handleEditMessage = (messageId: string, content: string) => {
     setEditingMessageId(messageId);
     setEditingValue(content);
@@ -1232,9 +1160,19 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
 
   const handleSubmitEdit = async (messageId: string) => {
     if (!editingValue.trim()) return;
+    
+    // Prevent duplicate submits - check both ref and state
+    if (sendingRef.current || isStreaming || isTyping) {
+      return;
+    }
+    
+    sendingRef.current = true;
 
     const messageIndex = messages.findIndex(m => m.id === messageId);
-    if (messageIndex === -1) return;
+    if (messageIndex === -1) {
+      sendingRef.current = false;
+      return;
+    }
 
     const messagesBeforeEdit = messages.slice(0, messageIndex);
 
@@ -1252,7 +1190,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
     setThinkingSteps([]);
     setStreamedContent('');
     setStreamingDataCards([]);
-    setThinkingCollapsed(false);
+    setThinkingCollapsed(true);
 
     try {
       const response = await fetch('https://catalyst-copilot-2nndy.ondigitalocean.app/chat', {
@@ -1284,6 +1222,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
       let collectedContent = '';
       let collectedDataCards: DataCard[] = [];
       let eventData: Record<string, any> = {};
+      let thinkingStartTime: number | null = null; // Track thinking start time
       
       // Helper to process a batch of messages
       const processMessages = (msgs: string[]) => {
@@ -1312,6 +1251,10 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                 break;
 
               case 'thinking':
+                // Track start time on first thinking step
+                if (thinkingStartTime === null) {
+                  thinkingStartTime = Date.now();
+                }
                 const newStep = { phase: data.phase || 'thinking', content: data.content };
                 collectedThinking.push(newStep);
                 setThinkingSteps(prev => [...prev, newStep]);
@@ -1323,6 +1266,11 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                 break;
 
               case 'done':
+                // Calculate thinking duration
+                const thinkingDuration = thinkingStartTime 
+                  ? Math.round((Date.now() - thinkingStartTime) / 1000) 
+                  : undefined;
+                  
                 const aiMessage: Message = {
                   id: `ai-${Date.now()}`,
                   role: 'assistant',
@@ -1330,6 +1278,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   dataCards: collectedDataCards,
                   eventData: eventData,
                   thinkingSteps: collectedThinking,
+                  thinkingDuration: thinkingDuration,
                   timestamp: new Date()
                 };
                 setMessages(prev => [...prev, aiMessage]);
@@ -1372,6 +1321,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
       setIsStreaming(false);
     } finally {
       setIsTyping(false);
+      sendingRef.current = false; // Reset the flag
     }
   };
 
@@ -1417,17 +1367,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                 <h3 className="font-semibold">Catalyst Copilot</h3>
               </div>
               <div className="flex items-center gap-2">
-                {messages.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={handleDownloadPDF}
-                    title="Download chat as PDF"
-                  >
-                    <Download className="w-3 h-3" />
-                  </Button>
-                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1466,7 +1405,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                 <div className="flex flex-wrap gap-2">
                   {quickStartChips.map((chip, index) => (
                     <Badge
-                      key={index}
+                      key={chip}
                       variant="outline"
                       className="cursor-pointer hover:bg-ai-accent hover:text-white transition-all hover:scale-105 rounded-full border-2"
                       onClick={() => handleQuickStart(chip)}
@@ -1492,7 +1431,10 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      handleSendMessage(inputValue);
+                      // Don't send if already sending or if input is empty
+                      if (!sendingRef.current && !isStreaming && !isTyping && inputValue.trim()) {
+                        handleSendMessage(inputValue);
+                      }
                       // Reset height after sending
                       if (inputRef.current) {
                         (inputRef.current as any).style.height = 'auto';
@@ -1515,7 +1457,12 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                         ? 'bg-gradient-to-r from-ai-accent to-ai-accent/80 shadow-md' 
                         : ''
                     }`}
-                    onClick={() => handleSendMessage(inputValue)}
+                    onClick={() => {
+                      // Don't send if already sending or if input is empty
+                      if (!sendingRef.current && !isStreaming && !isTyping && inputValue.trim()) {
+                        handleSendMessage(inputValue);
+                      }
+                    }}
                     disabled={!inputValue.trim() || isStreaming || isTyping}
                   >
                     <Send className="w-4 h-4" />
@@ -1576,8 +1523,9 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
   }
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       <motion.div
+        key="full-window"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -1592,18 +1540,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
             <h2 className="font-semibold">Catalyst Copilot</h2>
           </div>
           <div className="flex items-center gap-2">
-            {messages.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-3"
-                onClick={handleDownloadPDF}
-                title="Download chat as PDF"
-              >
-                <Download className="w-4 h-4 mr-1" />
-                <span className="text-xs">Export PDF</span>
-              </Button>
-            )}
             <Button
               variant="ghost"
               size="sm"
@@ -1658,7 +1594,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
               <div className="flex flex-wrap gap-2 justify-center max-w-md">
                 {quickStartChips.map((chip, index) => (
                   <motion.div
-                    key={index}
+                    key={chip}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 + (index * 0.05) }}
@@ -1676,7 +1612,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
             </motion.div>
           )}
 
-          {messages.map((msg) => (
+          {messages.map((msg, index) => (
             <div
               key={msg.id}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -1685,14 +1621,12 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                 {/* AI Avatar for assistant messages */}
                 {msg.role === 'assistant' && (
                   <motion.div 
+                    ref={index === messages.length - 1 && msg.role === 'assistant' ? latestMessageRef : null}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                     className="flex items-center gap-2 mb-2"
                   >
-                    <div className="w-7 h-7 bg-gradient-to-br from-ai-accent via-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-md">
-                      <Sparkles className="w-4 h-4 text-white" />
-                    </div>
                     <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
                   </motion.div>
                 )}
@@ -1745,28 +1679,48 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                     className="space-y-2"
                   >
                     {/* Show thinking steps for assistant messages if available */}
-                    {msg.role === 'assistant' && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
-                      <details className="rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-br from-muted/40 to-muted/20 backdrop-blur-sm mb-2 max-w-[85%]">
-                        <summary className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 transition-colors list-none">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-ai-accent" />
-                            <span className="text-xs font-medium text-muted-foreground">View thinking process</span>
-                          </div>
-                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                        </summary>
-                        <div className="px-4 pb-3 space-y-2">
-                          {msg.thinkingSteps.map((step, index) => (
-                            <div
-                              key={index}
-                              className="text-xs text-muted-foreground flex items-start gap-2"
-                            >
-                              <div className="w-1 h-1 rounded-full bg-ai-accent mt-1.5 flex-shrink-0" />
-                              <span>{step.content}</span>
+                    {msg.role === 'assistant' && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (() => {
+                      // Check if this is the currently streaming message
+                      const isCurrentlyStreaming = index === messages.length - 1 && isStreaming && thinkingSteps.length > 0;
+                      // Get the current thinking step (last one in the array during streaming)
+                      const currentThinkingText = isCurrentlyStreaming && thinkingSteps.length > 0
+                        ? thinkingSteps[thinkingSteps.length - 1].content
+                        : null;
+                      
+                      return (
+                        <details className="rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-br from-muted/40 to-muted/20 backdrop-blur-sm mb-2 max-w-[85%]">
+                          <summary className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 transition-colors list-none">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <Sparkles className="w-4 h-4 text-ai-accent flex-shrink-0" />
+                              <span className={`text-xs font-medium ${
+                                isCurrentlyStreaming && currentThinkingText
+                                  ? 'thinking-text-animated'
+                                  : 'text-muted-foreground'
+                              } truncate`}>
+                                {isCurrentlyStreaming && currentThinkingText
+                                  ? currentThinkingText
+                                  : msg.thinkingDuration
+                                    ? `Thought for ${msg.thinkingDuration}s`
+                                    : 'View thinking process'
+                                }
+                              </span>
                             </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
+                            <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          </summary>
+                          <div className="px-4 pb-3 space-y-2">
+                            {msg.thinkingSteps.map((step, index) => (
+                              <div
+                                key={`${msg.id}-thinking-${index}`}
+                                className="text-xs text-muted-foreground flex items-start gap-2"
+                              >
+                                <div className="w-1 h-1 rounded-full bg-ai-accent mt-1.5 flex-shrink-0" />
+                                <span>{step.content}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      );
+                    })()}
 
                     <div
                       className={`${
@@ -1775,7 +1729,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                           : 'text-foreground'
                       }`}
                     >
-                      <MarkdownText text={msg.content} dataCards={msg.dataCards} onEventClick={onEventClick} />
+                      <MarkdownText text={msg.content} dataCards={msg.dataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} />
                     </div>
 
                     {msg.role === 'user' && !isTyping && (
@@ -1810,16 +1764,27 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                           if (card.type === 'event') return false;
                           if (card.type === 'image') return false;
                           return true;
-                        }).map((card, index) => (
-                          <motion.div
-                            key={index}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.3, delay: 0.1 + (index * 0.05) }}
-                          >
-                            <DataCardComponent card={card} onEventClick={onEventClick} />
-                          </motion.div>
-                        ))}
+                        }).map((card, index) => {
+                          // Generate a unique key based on card type, data, and index
+                          const cardKey = card.type === 'stock' 
+                            ? `${msg.id}-stock-${card.data?.ticker || 'unknown'}-${index}` 
+                            : card.type === 'chart'
+                            ? `${msg.id}-chart-${card.data?.ticker || 'unknown'}-${index}`
+                            : card.type === 'event-list'
+                            ? `${msg.id}-event-list-${index}`
+                            : `${msg.id}-card-${index}`;
+                          
+                          return (
+                            <motion.div
+                              key={cardKey}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ duration: 0.3, delay: 0.1 + (index * 0.05) }}
+                            >
+                              <DataCardComponent card={card} onEventClick={onEventClick} onImageClick={setFullscreenImage} />
+                            </motion.div>
+                          );
+                        })}
                       </motion.div>
                     )}
                   </motion.div>
@@ -1834,14 +1799,12 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
               <div className="w-full space-y-3">
                 {/* AI Avatar */}
                 <motion.div 
+                  ref={latestMessageRef}
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                   className="flex items-center gap-2 mb-2"
                 >
-                  <div className="w-7 h-7 bg-gradient-to-br from-ai-accent via-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-md">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
                   <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
                 </motion.div>
 
@@ -1863,16 +1826,27 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                       if (card.type === 'event') return false;
                       if (card.type === 'image') return false;
                       return true;
-                    }).map((card, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: 0.1 + (index * 0.05) }}
-                      >
-                        <DataCardComponent card={card} onEventClick={onEventClick} />
-                      </motion.div>
-                    ))}
+                    }).map((card, index) => {
+                      // Generate a unique key based on card type, data, and index
+                      const cardKey = card.type === 'stock' 
+                        ? `streaming-stock-${card.data?.ticker || 'unknown'}-${index}` 
+                        : card.type === 'chart'
+                        ? `streaming-chart-${card.data?.ticker || 'unknown'}-${index}`
+                        : card.type === 'event-list'
+                        ? `streaming-event-list-${index}`
+                        : `streaming-card-${index}`;
+                      
+                      return (
+                        <motion.div
+                          key={cardKey}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.3, delay: 0.1 + (index * 0.05) }}
+                        >
+                          <DataCardComponent card={card} onEventClick={onEventClick} onImageClick={setFullscreenImage} />
+                        </motion.div>
+                      );
+                    })}
                   </motion.div>
                 )}
 
@@ -1912,18 +1886,22 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                       className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 transition-colors"
                       onClick={() => setThinkingCollapsed(!thinkingCollapsed)}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <motion.div
                           animate={{ rotate: 360 }}
                           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                          className="flex-shrink-0"
                         >
                           <Sparkles className="w-4 h-4 text-ai-accent" />
                         </motion.div>
-                        <span className="text-xs font-medium text-muted-foreground">Thinking...</span>
+                        <span className="text-xs font-medium thinking-text-animated truncate">
+                          {thinkingSteps.length > 0 ? thinkingSteps[thinkingSteps.length - 1].content : 'Thinking...'}
+                        </span>
                       </div>
                       <motion.div
                         animate={{ rotate: thinkingCollapsed ? -90 : 0 }}
                         transition={{ duration: 0.2 }}
+                        className="flex-shrink-0"
                       >
                         <ChevronDown className="w-4 h-4 text-muted-foreground" />
                       </motion.div>
@@ -1933,7 +1911,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                       <div className="px-4 pb-3 space-y-2">
                         {thinkingSteps.map((step, index) => (
                           <motion.div
-                            key={index}
+                            key={`streaming-thinking-${index}`}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.3 }}
@@ -1955,7 +1933,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                     animate={{ opacity: 1, y: 0 }}
                     className="text-foreground"
                   >
-                    <MarkdownText text={streamedContent} dataCards={streamingDataCards} onEventClick={onEventClick} />
+                    <MarkdownText text={streamedContent} dataCards={streamingDataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} />
                     <motion.span
                       className="inline-block w-[2px] h-4 bg-foreground/60 ml-0.5"
                       animate={{ opacity: [1, 0, 1] }}
@@ -2009,20 +1987,32 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
         </div>
 
         <div className="p-4 pb-24 border-t border-border bg-background">
-          <div className="flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type="text"
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef as any}
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                // Auto-grow height
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  handleSendMessage(inputValue);
+                  // Don't send if already sending or if input is empty
+                  if (!sendingRef.current && !isStreaming && !isTyping && inputValue.trim()) {
+                    handleSendMessage(inputValue);
+                  }
+                  // Reset height after sending
+                  if (inputRef.current) {
+                    (inputRef.current as any).style.height = 'auto';
+                  }
                 }
               }}
-              placeholder={isStreaming ? "AI is thinking..." : "Ask anything about your stocks, watchlist, or events…"}
-              className="flex-1 bg-input-background rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder={isStreaming ? "AI is thinking..." : "Ask anything"}
+              className="flex-1 bg-input-background rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none overflow-y-auto min-h-[44px] max-h-[120px]"
+              rows={1}
               disabled={isStreaming || isTyping}
             />
             <motion.div
@@ -2036,7 +2026,12 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
                     ? 'bg-gradient-to-r from-ai-accent to-ai-accent/80 shadow-lg' 
                     : ''
                 }`}
-                onClick={() => handleSendMessage(inputValue)}
+                onClick={() => {
+                  // Don't send if already sending or if input is empty
+                  if (!sendingRef.current && !isStreaming && !isTyping && inputValue.trim()) {
+                    handleSendMessage(inputValue);
+                  }
+                }}
                 disabled={!inputValue.trim() || isTyping || isStreaming}
               >
                 <motion.div
@@ -2059,11 +2054,47 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick }: Catalyst
           </p>
         </div>
       </motion.div>
+
+      {/* Fullscreen Image Modal */}
+      <AnimatePresence>
+        {fullscreenImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center p-4"
+            onClick={() => setFullscreenImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setFullscreenImage(null)}
+                className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors"
+                aria-label="Close fullscreen image"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <img
+                src={fullscreenImage}
+                alt="SEC Filing Image - Fullscreen"
+                className="max-w-full max-h-full object-contain rounded-lg"
+                onClick={() => setFullscreenImage(null)}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 }
 
-function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClick?: (event: MarketEvent) => void }) {
+function DataCardComponent({ card, onEventClick, onImageClick }: { card: DataCard; onEventClick?: (event: MarketEvent) => void; onImageClick?: (imageUrl: string) => void }) {
   const eventTypeIcons: Record<string, any> = {
     earnings: BarChart3,
     fda: AlertCircle,
@@ -2175,7 +2206,7 @@ function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClic
           <div className="space-y-2">
             {events.slice(0, 3).map((event: any, index: number) => (
               <motion.div 
-                key={index} 
+                key={event.id || `event-${index}`} 
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
@@ -2203,8 +2234,13 @@ function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClic
         transition={{ duration: 0.2 }}
       >
         <Card className="p-4 bg-gradient-to-br from-background to-muted/20 border-2 hover:border-ai-accent/30 transition-all hover:shadow-lg overflow-hidden">
+          {/* SEC Filing Image Label */}
+          <h4 className="font-semibold mb-2" style={{ fontSize: '12pt' }}>
+            SEC Filing Image
+          </h4>
+
           {/* Header with ticker and filing info */}
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Badge className="!bg-gradient-to-r !from-ai-accent !to-ai-accent/80 !text-white !border-none text-xs shadow-sm">
               {imageData.ticker}
             </Badge>
@@ -2221,19 +2257,14 @@ function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClic
             )}
           </div>
 
-          {/* Image Title */}
-          {imageData.title && (
-            <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-ai-accent" />
-              {imageData.title}
-            </h4>
-          )}
-
           {/* SEC Filing Image */}
-          <div className="rounded-lg overflow-hidden border border-border/50 mb-3 bg-white dark:bg-muted/20">
+          <div 
+            className="rounded-lg overflow-hidden border border-border/50 mb-2 bg-white dark:bg-muted/20 cursor-pointer hover:opacity-90 transition-opacity"
+            onClick={() => onImageClick?.(imageData.imageUrl)}
+          >
             <img 
               src={imageData.imageUrl} 
-              alt={imageData.title || 'SEC Filing Image'} 
+              alt="SEC Filing Image" 
               className="w-full h-auto"
               loading="lazy"
             />
@@ -2241,7 +2272,7 @@ function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClic
 
           {/* Context/Caption */}
           {imageData.context && (
-            <p className="text-xs text-muted-foreground mb-3 line-clamp-3">
+            <p className="text-xs text-muted-foreground mb-2 line-clamp-3">
               {imageData.context}
             </p>
           )}
@@ -2258,8 +2289,6 @@ function DataCardComponent({ card, onEventClick }: { card: DataCard; onEventClic
               <ExternalLink className="w-3 h-3" />
             </a>
           )}
-
-          <p className="text-[10px] text-muted-foreground/60 mt-2">SEC Filing Image</p>
         </Card>
       </motion.div>
     );
