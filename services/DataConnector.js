@@ -824,19 +824,22 @@ class DataConnector {
    */
   static async fetchWebContent(url, maxLength = 10000) {
     try {
-      console.log(`Fetching web content from: ${url}`);
+      console.log(`🌐 Fetching web content from: ${url}`);
       
       // Skip certain domains that block scraping or have paywalls
       const blockedDomains = ['wsj.com', 'ft.com', 'bloomberg.com', 'barrons.com', 'reuters.com'];
       const urlLower = url.toLowerCase();
       if (blockedDomains.some(domain => urlLower.includes(domain))) {
-        console.log(`   Skipping blocked domain: ${url}`);
+        console.log(`   ❌ Skipping blocked domain: ${url}`);
         return {
           success: false,
           error: 'Domain blocks automated access',
           content: null
         };
       }
+      
+      console.log(`📡 Making axios request with maxHeaderSize: 32768, timeout: 10000ms`);
+      console.log(`   Node.js maxHttpHeaderSize: ${require('http').maxHeaderSize || 'default (8KB)'}`);
       
       const response = await axios.get(url, {
         timeout: 10000,
@@ -848,6 +851,23 @@ class DataConnector {
         maxHeaderSize: 32768, // 32KB - handles Yahoo Finance's large headers
         maxRedirects: 5
       });
+      
+      console.log(`✅ Response received: ${response.status} ${response.statusText}`);
+      console.log(`   Response headers count: ${Object.keys(response.headers).length}`);
+      console.log(`   Content-Type: ${response.headers['content-type']}`);
+      console.log(`   Content-Length: ${response.headers['content-length'] || 'chunked'}`);
+      
+      // Calculate approximate header size
+      const headerSize = Object.entries(response.headers)
+        .reduce((size, [key, value]) => size + key.length + String(value).length + 4, 0);
+      console.log(`   Approximate header size: ${headerSize} bytes (${(headerSize/1024).toFixed(2)} KB)`);
+      
+      // Show largest headers
+      const sortedHeaders = Object.entries(response.headers)
+        .map(([key, value]) => ({ key, size: key.length + String(value).length }))
+        .sort((a, b) => b.size - a.size)
+        .slice(0, 5);
+      console.log(`   Top 5 largest headers:`, sortedHeaders.map(h => `${h.key} (${h.size}b)`).join(', '));
       
       const html = response.data;
       const $ = cheerio.load(html);
@@ -903,7 +923,30 @@ class DataConnector {
         contentLength: content.length
       };
     } catch (error) {
-      console.error(`Error fetching web content from ${url}:`, error.message);
+      console.error(`❌ Error fetching web content from ${url}`);
+      console.error(`   Error type: ${error.constructor.name}`);
+      console.error(`   Error message: ${error.message}`);
+      console.error(`   Error code: ${error.code || 'N/A'}`);
+      
+      // For axios errors, show response details
+      if (error.response) {
+        console.error(`   HTTP Status: ${error.response.status} ${error.response.statusText}`);
+        console.error(`   Response headers count: ${Object.keys(error.response.headers || {}).length}`);
+      }
+      
+      // For network/parsing errors, show more details
+      if (error.code) {
+        console.error(`   Network code: ${error.code}`);
+      }
+      
+      // Check if it's specifically a header overflow
+      if (error.message && error.message.includes('Header overflow')) {
+        console.error(`   🚨 HEADER OVERFLOW DETECTED`);
+        console.error(`   Current Node.js maxHttpHeaderSize: ${require('http').maxHeaderSize || 'default (8KB)'}`);
+        console.error(`   Axios maxHeaderSize config: 32768 bytes (32KB)`);
+        console.error(`   💡 This means the server is likely not running with --max-http-header-size flag`);
+      }
+      
       return {
         success: false,
         error: error.message,
