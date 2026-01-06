@@ -513,10 +513,16 @@ function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerCli
     };
     
     const insertChartCard = (chartData: ChartCardData) => {
-      // Render an inline mini chart for the symbol
+      // Render an inline mini chart for the symbol with pre-loaded data
       elements.push(
         <div key={`chart-card-${chartData.id}-${uniqueKeyCounter++}`} className="my-3">
-          <InlineChartCard symbol={chartData.symbol} timeRange={chartData.timeRange} onTickerClick={onTickerClick} />
+          <InlineChartCard 
+            symbol={chartData.symbol} 
+            timeRange={chartData.timeRange} 
+            preloadedChartData={chartData.chartData}
+            preloadedPreviousClose={chartData.previousClose}
+            onTickerClick={onTickerClick} 
+          />
         </div>
       );
     };
@@ -2668,26 +2674,22 @@ function InlineChartCard({
       setChartData(preloadedChartData);
       setIsLoading(false);
       
-      // Still fetch quote data for current price
-      const fetchQuote = async () => {
-        try {
-          const { data: quoteResult, error: quoteError } = await supabase
-            .from('finnhub_quote_snapshots')
-            .select('symbol, close, change, change_percent, previous_close, open, high, low, volume, timestamp')
-            .eq('symbol', symbol)
-            .order('timestamp', { ascending: false })
-            .limit(1)
-            .single();
-
-          if (!quoteError && quoteResult) {
-            setQuoteData(quoteResult);
-          }
-        } catch (err) {
-          console.error('Error fetching quote:', err);
-        }
-      };
-      
-      fetchQuote();
+      // Set quote data from pre-loaded data (no need to fetch separately)
+      // The chart will use preloadedPreviousClose and currentPrice from last data point
+      if (preloadedPreviousClose) {
+        const lastPoint = preloadedChartData[preloadedChartData.length - 1];
+        const currentPrice = lastPoint?.value || lastPoint?.close || 0;
+        const change = currentPrice - preloadedPreviousClose;
+        const changePercent = preloadedPreviousClose ? (change / preloadedPreviousClose) * 100 : 0;
+        
+        setQuoteData({
+          symbol,
+          close: currentPrice,
+          change,
+          change_percent: changePercent,
+          previous_close: preloadedPreviousClose
+        });
+      }
       return;
     }
 
