@@ -2629,19 +2629,15 @@ function DataCardComponent({ card, onEventClick, onImageClick, onTickerClick }: 
 function InlineChartCard({ 
   symbol, 
   timeRange, 
-  preloadedChartData = null,
-  preloadedPreviousClose = null,
   onTickerClick 
 }: { 
   symbol: string; 
   timeRange: string; 
-  preloadedChartData?: any[] | null;
-  preloadedPreviousClose?: number | null;
   onTickerClick?: (ticker: string) => void 
 }) {
-  const [chartData, setChartData] = useState<any[] | null>(preloadedChartData);
+  const [chartData, setChartData] = useState<any[] | null>(null);
   const [quoteData, setQuoteData] = useState<any | null>(null);
-  const [isLoading, setIsLoading] = useState(!preloadedChartData);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
 
   // Subscribe to real-time price updates
@@ -2677,82 +2673,6 @@ function InlineChartCard({
   }, [symbol]);
 
   useEffect(() => {
-    // Skip chart data fetch if pre-loaded data is already available
-    if (preloadedChartData && preloadedChartData.length > 0) {
-      console.log(`📊 Using pre-loaded chart data for ${symbol} (${preloadedChartData.length} points)`);
-      setChartData(preloadedChartData);
-      setIsLoading(false);
-      
-      // CRITICAL FIX: Always fetch current real-time quote from stock_quote_now
-      // Pre-loaded chart data may be slightly stale (last point could be from a minute ago)
-      // We need the absolute latest price for accurate display
-      const fetchCurrentQuote = async () => {
-        try {
-          // Fetch real-time current quote from stock_quote_now (live price)
-          const currentQuoteParams = new URLSearchParams();
-          currentQuoteParams.append('select', '*');
-          currentQuoteParams.append('symbol', `eq.${symbol}`);
-          currentQuoteParams.append('limit', '1');
-          
-          const currentQuoteUrl = `https://${projectId}.supabase.co/rest/v1/stock_quote_now?${currentQuoteParams}`;
-          
-          const response = await fetch(currentQuoteUrl, {
-            headers: {
-              'apikey': publicAnonKey,
-              'Authorization': `Bearer ${publicAnonKey}`
-            }
-          });
-          
-          if (!response.ok) throw new Error('Failed to fetch current quote');
-          
-          const quotes = await response.json();
-          
-          if (quotes && quotes.length > 0) {
-            const quote = quotes[0];
-            setQuoteData({
-              symbol,
-              close: quote.close,
-              change: quote.change,
-              change_percent: quote.change_percent,
-              previous_close: preloadedPreviousClose || quote.previous_close
-            });
-          } else {
-            // Fallback to last chart point if quote fetch fails
-            const lastPoint = preloadedChartData[preloadedChartData.length - 1];
-            const currentPrice = lastPoint?.value || lastPoint?.close || 0;
-            const change = currentPrice - (preloadedPreviousClose || 0);
-            const changePercent = preloadedPreviousClose ? (change / preloadedPreviousClose) * 100 : 0;
-            
-            setQuoteData({
-              symbol,
-              close: currentPrice,
-              change,
-              change_percent: changePercent,
-              previous_close: preloadedPreviousClose
-            });
-          }
-        } catch (err) {
-          // Silently fallback to last chart point if quote fetch fails
-          // This is expected if stock_quote_now table doesn't exist
-          const lastPoint = preloadedChartData[preloadedChartData.length - 1];
-          const currentPrice = lastPoint?.value || lastPoint?.close || 0;
-          const change = currentPrice - (preloadedPreviousClose || 0);
-          const changePercent = preloadedPreviousClose ? (change / preloadedPreviousClose) * 100 : 0;
-          
-          setQuoteData({
-            symbol,
-            close: currentPrice,
-            change,
-            change_percent: changePercent,
-            previous_close: preloadedPreviousClose
-          });
-        }
-      };
-      
-      fetchCurrentQuote();
-      return;
-    }
-
     const fetchData = async () => {
       setIsLoading(true);
       setError(false);
@@ -2918,19 +2838,10 @@ function InlineChartCard({
           </div>
         ) : chartData && chartData.length > 0 ? (
           <>
-            {/* Debug: Log first and last timestamps to diagnose epoch issue */}
-            {console.log(`[${symbol}] Chart data sample:`, {
-              firstPoint: chartData[0],
-              lastPoint: chartData[chartData.length - 1],
-              firstTimestamp: new Date(chartData[0]?.timestamp),
-              lastTimestamp: new Date(chartData[chartData.length - 1]?.timestamp),
-              totalPoints: chartData.length
-            })}
-            {/* Always use IntradayMiniChart in copilot - it doesn't show future timeline/upcoming events */}
             <IntradayMiniChart 
               data={chartData}
               ticker={symbol}
-              previousClose={(quoteData?.previous_close || preloadedPreviousClose) ?? null}
+              previousClose={quoteData?.previous_close ?? null}
               currentPrice={quoteData?.close ?? (chartData[chartData.length - 1]?.value || 0)}
               width={350}
               height={120}
