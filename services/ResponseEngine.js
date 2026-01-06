@@ -680,21 +680,53 @@ Return ONLY valid JSON.`;
         const articleId = `article-${article.ticker || 'news'}-${index}`;
         
         // Use Google's favicon service for site logo (fallback)
-        const logoUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null;
+        let logoUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null;
         
         // ALWAYS try to fetch og:image for visual article preview (not gated by fetchExternal)
         // This ensures we get article images even when not fetching full content
         let imageUrl = article.image || null; // Start with stored image from MongoDB
+        let extractedProvider = null; // Provider extracted from Yahoo Finance HTML
+        
         if (article.url && items.length <= 10 && !imageUrl) {
           try {
             const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
-            if (contentResult.success && contentResult.imageUrl) {
-              imageUrl = contentResult.imageUrl;
+            if (contentResult.success) {
+              if (contentResult.imageUrl) {
+                imageUrl = contentResult.imageUrl;
+              }
+              // Use extracted provider name for Yahoo articles
+              if (contentResult.providerName) {
+                extractedProvider = contentResult.providerName;
+                // Update logo to use provider's domain favicon
+                const providerDomains = {
+                  "Barron's": 'barrons.com',
+                  'Zacks': 'zacks.com',
+                  'Simply Wall St': 'simplywall.st',
+                  'Benzinga': 'benzinga.com',
+                  'Motley Fool': 'fool.com',
+                  'The Motley Fool': 'fool.com',
+                  'InvestorPlace': 'investorplace.com',
+                  'Seeking Alpha': 'seekingalpha.com',
+                  'MarketWatch': 'marketwatch.com',
+                  'TheStreet': 'thestreet.com',
+                  'TipRanks': 'tipranks.com',
+                  '24/7 Wall St.': '247wallst.com',
+                  'Investor\'s Business Daily': 'investors.com',
+                  'IBD': 'investors.com'
+                };
+                const providerDomain = providerDomains[extractedProvider];
+                if (providerDomain) {
+                  logoUrl = `https://www.google.com/s2/favicons?domain=${providerDomain}&sz=128`;
+                }
+              }
             }
           } catch (error) {
             // Silently fail - will use logo fallback
           }
         }
+        
+        // Use extracted provider if available, otherwise fall back to title parsing or domain
+        const displaySource = extractedProvider || actualSource;
         
         dataCards.push({
           type: 'article',
@@ -702,7 +734,7 @@ Return ONLY valid JSON.`;
             id: articleId,
             title: article.title || 'Untitled Article',
             url: article.url,
-            source: actualSource,
+            source: displaySource,
             domain: domain,
             ticker: article.ticker,
             publishedAt: article.published_at,

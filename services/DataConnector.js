@@ -882,6 +882,37 @@ class DataConnector {
         console.log(`   📸 Found og:image: ${imageUrl.substring(0, 100)}${imageUrl.length > 100 ? '...' : ''}`);
       }
       
+      // Extract provider/source from Yahoo Finance articles BEFORE removing elements
+      // Yahoo uses a provider-logo element with aria-label, title, or alt containing the source name
+      let providerName = null;
+      if (url.includes('yahoo.com')) {
+        // Try multiple selectors for Yahoo Finance provider info
+        const providerLogo = $('.provider-logo');
+        if (providerLogo.length) {
+          providerName = providerLogo.attr('alt') || providerLogo.attr('title');
+        }
+        // Also try the parent link with aria-label
+        if (!providerName) {
+          const providerLink = $('a[data-ylk*="logo-provider"]');
+          if (providerLink.length) {
+            providerName = providerLink.attr('aria-label') || providerLink.attr('title');
+          }
+        }
+        // Try extracting from data-ylk attribute (slk:SourceName)
+        if (!providerName) {
+          const dataYlk = $('a[data-ylk*="slk:"]').attr('data-ylk');
+          if (dataYlk) {
+            const slkMatch = dataYlk.match(/slk:([^;]+)/);
+            if (slkMatch) {
+              providerName = slkMatch[1];
+            }
+          }
+        }
+        if (providerName) {
+          console.log(`   📰 Found Yahoo provider: ${providerName}`);
+        }
+      }
+      
       // Remove unwanted elements
       $('script, style, noscript, nav, header, footer, aside, .ad, .advertisement, .sidebar').remove();
       
@@ -931,7 +962,8 @@ class DataConnector {
         success: true,
         content: content,
         contentLength: content.length,
-        imageUrl: imageUrl // og:image URL if found
+        imageUrl: imageUrl, // og:image URL if found
+        providerName: providerName // Original content provider for Yahoo articles
       };
     } catch (error) {
       console.error(`❌ Error fetching web content from ${url}`);
