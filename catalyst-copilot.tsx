@@ -2993,73 +2993,25 @@ function InlineChartCard({
 
         const priceUrl = `https://${projectId}.supabase.co/rest/v1/${table}?${priceParams}`;
         
-        // Fetch real-time current quote from stock_quote_now (live price)
-        const currentQuoteParams = new URLSearchParams();
-        currentQuoteParams.append('select', '*');
-        currentQuoteParams.append('symbol', `eq.${symbol}`);
-        currentQuoteParams.append('limit', '1');
-        
-        const currentQuoteUrl = `https://${projectId}.supabase.co/rest/v1/stock_quote_now?${currentQuoteParams}`;
-        
-        // Determine baseline for comparison based on current session
-        // For pre-market: use previous day's post-market close, not regular session close
-        let baselineCloseQuery;
-        
-        // First check if we're in pre-market by looking at current quote
-        const tempQuoteRes = await fetch(currentQuoteUrl, {
-          headers: {
-            'apikey': publicAnonKey,
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        });
-        const tempQuote = await tempQuoteRes.json();
-        const currentSession = tempQuote && tempQuote.length > 0 ? tempQuote[0].session : null;
-        
-        if (currentSession === 'pre-market') {
-          // For pre-market, fetch the most recent post-market close as baseline
-          const postMarketParams = new URLSearchParams();
-          postMarketParams.append('select', 'close,session');
-          postMarketParams.append('symbol', `eq.${symbol}`);
-          postMarketParams.append('session', `eq.post-market`);
-          postMarketParams.append('order', 'timestamp.desc');
-          postMarketParams.append('limit', '1');
-          baselineCloseQuery = `https://${projectId}.supabase.co/rest/v1/finnhub_quote_snapshots?${postMarketParams}`;
-        } else {
-          // For regular/after-hours, use standard previous_close from snapshots
-          const snapshotParams = new URLSearchParams();
-          snapshotParams.append('select', 'previous_close');
-          snapshotParams.append('symbol', `eq.${symbol}`);
-          snapshotParams.append('order', 'timestamp.desc');
-          snapshotParams.append('limit', '1');
-          baselineCloseQuery = `https://${projectId}.supabase.co/rest/v1/finnhub_quote_snapshots?${snapshotParams}`;
-        }
+        // Fetch current quote with session-aware baseline from backend API
+        // Backend handles pre-market/post-market session logic automatically
+        const quoteUrl = `https://catalyst-copilot-2nndy.ondigitalocean.app/api/quote/${symbol}`;
 
-        const [priceRes, currentQuoteRes, baselineRes] = await Promise.all([
+        const [priceRes, quoteRes] = await Promise.all([
           fetch(priceUrl, {
             headers: {
               'apikey': publicAnonKey,
               'Authorization': `Bearer ${publicAnonKey}`
             }
           }),
-          fetch(currentQuoteUrl, {
-            headers: {
-              'apikey': publicAnonKey,
-              'Authorization': `Bearer ${publicAnonKey}`
-            }
-          }),
-          fetch(baselineCloseQuery, {
-            headers: {
-              'apikey': publicAnonKey,
-              'Authorization': `Bearer ${publicAnonKey}`
-            }
-          })
+          fetch(quoteUrl)
         ]);
 
         if (!priceRes.ok) throw new Error('Failed to fetch price data');
+        if (!quoteRes.ok) throw new Error('Failed to fetch quote data');
         
         const prices = await priceRes.json();
-        const currentQuotes = await currentQuoteRes.json();
-        const baselineData = await baselineRes.json();
+        const quoteResult = await quoteRes.json();
 
         // Map to chart format - convert ISO timestamp strings to Unix milliseconds
         const mappedData = prices.map((row: any) => ({
@@ -3073,18 +3025,9 @@ function InlineChartCard({
 
         setChartData(mappedData);
         
-        // Combine real-time current price with session-appropriate baseline
-        if (currentQuotes && currentQuotes.length > 0 && baselineData && baselineData.length > 0) {
-          const baseline = currentSession === 'pre-market' 
-            ? baselineData[0].close  // post-market close for pre-market session
-            : baselineData[0].previous_close;  // regular previous_close for other sessions
-          
-          setQuoteData({
-            ...currentQuotes[0],
-            previous_close: baseline
-          });
-        } else if (currentQuotes && currentQuotes.length > 0) {
-          setQuoteData(currentQuotes[0]);
+        // Use backend-calculated quote data (session-aware baseline already handled)
+        if (quoteResult.success && quoteResult.data) {
+          setQuoteData(quoteResult.data);
         }
         setIsLoading(false);
       } catch (err) {
