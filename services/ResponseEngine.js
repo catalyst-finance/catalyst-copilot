@@ -281,23 +281,24 @@ ALL responses must follow these professional formatting rules:
    - Each paragraph should be concise (2-4 sentences max)
 
 5. **Professional Structure Example**:
-   ```
+   
+   [Example Format]
    **Main Section Header**
-
+   
    Brief introductory paragraph providing context.
-
+   
    **Subsection Header**
-
+   
    - First key point with complete information
    - Second key point with complete information
    - Third key point with complete information
-
+   
    Explanatory paragraph connecting the points above to the broader context.
-
+   
    **Next Section Header**
-
+   
    Content continues with consistent spacing...
-   ```
+   [End Example]
 
 6. **Content Organization**:
    - Lead with most important information
