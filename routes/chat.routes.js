@@ -1404,44 +1404,38 @@ ${responseStyleGuidelines.instructions ? `Instructions: ${responseStyleGuideline
 
 **APPLY THIS STYLE TO YOUR RESPONSE** - The AI has analyzed the user's question and data type to determine the optimal presentation format above. Structure your response accordingly.
 
-**PARAGRAPH SPACING (CRITICAL - MUST FOLLOW EXACTLY):**
+**PARAGRAPH FORMATTING RULES (MANDATORY - YOU WILL BE PENALIZED FOR VIOLATIONS):**
 
-CORRECT paragraph structure:
-- Each paragraph = 2-5 related sentences grouped together
-- Add ONE blank line BETWEEN paragraphs (not between sentences)
-- Add ONE blank line before first bullet in a list
-- Add ONE blank line after last bullet in a list
-- NO blank lines between individual bullets
+**RULE 1: Multi-Sentence Paragraphs Only**
+Each paragraph MUST contain 2-5 complete sentences that develop a single idea. Single-sentence paragraphs are STRICTLY FORBIDDEN except for section headers.
 
-WRONG - Do NOT write like this:
-Sentence one is alone.
+**RULE 2: Blank Line Placement**  
+- ONE blank line between paragraphs
+- ONE blank line before the first bullet in any list
+- ONE blank line after the last bullet in any list  
+- ZERO blank lines between sentences within a paragraph
+- ZERO blank lines between individual bullets
 
-Sentence two is alone.
+**RULE 3: Sentence Cohesion**
+Keep related phrases together. NEVER write: "TMC is undergoing a formal review with the U.S." (line break) "government for its deep-sea mining application." Write: "TMC is undergoing a formal review with the U.S. government for its deep-sea mining application."
 
-Sentence three is alone.
+**WRONG EXAMPLE - Single sentences isolated:**
+```
+The company announced results.
 
-CORRECT - Write like this instead:
-Sentence one starts the paragraph. Sentence two continues the thought. Sentence three completes the idea.
+Revenue increased significantly.
 
-Next paragraph begins here. It has multiple sentences together. This creates better readability.
+Investors reacted positively.
+```
 
-**EXAMPLE OF PROPER FORMATTING:**
-**Section Header**
+**CORRECT EXAMPLE - Sentences grouped into paragraphs:**
+```
+The company announced strong quarterly results. Revenue increased 25% year-over-year, beating analyst estimates. The positive performance was driven by expanding market share in key segments.
 
-This paragraph contains three sentences about the topic. Each sentence builds on the previous one. Together they form a complete thought.
+Investors reacted positively to the news. The stock surged 8% in early trading. This represents the company's best single-day performance in over a year.
+```
 
-**Subsection Header**
-
-- First bullet point with complete information
-- Second bullet point with complete information
-- Third bullet point with complete information
-
-This paragraph follows the bullets and connects the ideas. Multiple sentences work together here. The paragraph ends naturally.
-
-**CRITICAL - Keep phrases together:**
-- NEVER split proper nouns across lines (e.g., "U.S." and "government" must stay together as "U.S. government")
-- Keep related phrases in the same sentence/line
-- Don't insert line breaks mid-phrase
+**Apply these rules to EVERY response. No exceptions.**
 `;
   }
   

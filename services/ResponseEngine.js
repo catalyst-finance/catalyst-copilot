@@ -221,11 +221,18 @@ Determine the optimal way to present this data to answer the user's question. Fo
 6. **FormattingNotes** (string): Special formatting instructions
 
 **Decision Rules:**
+
+**CRITICAL - Questions about stock movements (e.g., "Why is [stock] up/down today?"):**
+- If query mentions stock price movement AND there are SEC filings in results → MUST set fetchExternalContent: true, detailLevel: full, priority: 5 for SEC filings
+- Stock movement questions require analyzing WHY, which means reading filing/news content, not just listing titles
+- Same applies to significant news - fetch and analyze content to explain the price movement
+
+**General rules:**
 - If user asks to "analyze" or wants "details" → detailLevel: full, fetchExternalContent: true
-- If user wants "highlights" or "summary" → detailLevel: moderate
+- If user wants "highlights" or "summary" → detailLevel: moderate  
 - If user wants "list" or "recent" → detailLevel: summary
 - SEC filings: default to full when analyzing, moderate for lists
-- News: full only if specifically asked about article content
+- News: full only if specifically asked about article content (UNLESS explaining stock movements)
 - Government policy: IMPORTANT - transcripts are very long! 
   * detailLevel: full is OK, but ALWAYS limit maxItems to 5-10 maximum to avoid token overflow
   * The system will intelligently filter to show only relevant turns from transcripts
