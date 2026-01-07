@@ -51,60 +51,98 @@ class DataConnector {
       // Fetch current price from stock_quote_now
       const currentResult = await this.getCurrentQuote(symbol);
       
-      // Fetch previous close and OHLC from finnhub_quote_snapshots
-      // Note: This table uses snake_case columns: previous_close, not pc
-      const { data: snapshotData, error: snapshotError } = await supabase
-        .from('finnhub_quote_snapshots')
-        .select('symbol, timestamp, close, open, high, low, previous_close, change, change_percent, volume')
-        .eq('symbol', symbol)
-        .order('timestamp', { ascending: false })
-        .limit(1)
-        .single();
+      // Determine the correct baseline for comparison based on current session
+      // For pre-market: use previous day's post-market close (if available) or regular close
+      // For regular/after-hours: use previous day's regular close
+      const currentSession = currentResult.data?.session;
       
-      if (snapshotError) {
-        console.error(`Error fetching finnhub_quote_snapshots for ${symbol}:`, snapshotError.message);
+      let baselineClose = null;
+      let open = null;
+      let high = null;
+      let low = null;
+      
+      if (currentSession === 'pre-market') {
+        // For pre-market, get the most recent post-market close from yesterday
+        const { data: postMarketData } = await supabase
+          .from('finnhub_quote_snapshots')
+          .select('close, open, high, low, session')
+          .eq('symbol', symbol)
+          .eq('session', 'post-market')
+          .order('timestamp', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (postMarketData) {
+          // Use post-market close as baseline for pre-market comparison
+          baselineClose = postMarketData.close;
+          console.log(`📊 Using post-market close as baseline for pre-market: $${baselineClose?.toFixed(2)}`);
+        } else {
+          // Fall back to regular session close if no post-market data
+          const { data: regularData } = await supabase
+            .from('finnhub_quote_snapshots')
+            .select('close, open, high, low, previous_close')
+            .eq('symbol', symbol)
+            .eq('session', 'regular')
+            .order('timestamp', { ascending: false })
+            .limit(1)
+            .single();
+          
+          baselineClose = regularData?.close || regularData?.previous_close;
+          open = regularData?.open;
+          high = regularData?.high;
+          low = regularData?.low;
+        }
+      } else {
+        // For regular/after-hours, use the standard previous_close from finnhub
+        const { data: snapshotData, error: snapshotError } = await supabase
+          .from('finnhub_quote_snapshots')
+          .select('symbol, timestamp, close, open, high, low, previous_close, change, change_percent, volume, session')
+          .eq('symbol', symbol)
+          .order('timestamp', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (snapshotError) {
+          console.error(`Error fetching finnhub_quote_snapshots for ${symbol}:`, snapshotError.message);
+        }
+        
+        baselineClose = snapshotData?.previous_close;
+        open = snapshotData?.open;
+        high = snapshotData?.high;
+        low = snapshotData?.low;
       }
       
-      if (!currentResult.success && !snapshotData) {
+      if (!currentResult.success && !baselineClose) {
         return { success: false, error: 'Failed to fetch quote data', data: null };
       }
       
-      // Use current price from stock_quote_now if available, otherwise fall back to finnhub snapshot
-      const currentPrice = currentResult.data?.close || snapshotData?.close;
-      // finnhub_quote_snapshots uses snake_case: previous_close (not pc)
-      const previousClose = snapshotData?.previous_close;
-      const open = snapshotData?.open;
-      const high = snapshotData?.high;
-      const low = snapshotData?.low;
+      // Use current price from stock_quote_now if available
+      const currentPrice = currentResult.data?.close;
       
-      // Calculate change and percent change
+      // Calculate change and percent change from baseline
       let change = null;
       let changePercent = null;
-      if (currentPrice && previousClose) {
-        change = currentPrice - previousClose;
-        changePercent = ((change / previousClose) * 100);
-      } else {
-        // Fall back to stored values if calculation not possible
-        change = snapshotData?.change;
-        changePercent = snapshotData?.change_percent;
+      if (currentPrice && baselineClose) {
+        change = currentPrice - baselineClose;
+        changePercent = ((change / baselineClose) * 100);
       }
       
       const quote = {
         symbol: symbol,
         currentPrice: currentPrice,
-        previousClose: previousClose,
+        previousClose: baselineClose,
         open: open,
         high: high,
         low: low,
         change: change,
         changePercent: changePercent,
-        volume: currentResult.data?.volume || snapshotData?.volume,
-        session: currentResult.data?.session,
-        timestamp: currentResult.data?.timestamp || snapshotData?.timestamp,
-        source: currentResult.data ? 'stock_quote_now' : 'finnhub_quote_snapshots'
+        volume: currentResult.data?.volume,
+        session: currentSession,
+        timestamp: currentResult.data?.timestamp,
+        source: 'stock_quote_now'
       };
       
-      console.log(`📊 Quote for ${symbol}: $${currentPrice?.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent?.toFixed(2)}%) [pc: $${previousClose?.toFixed(2)}] from ${quote.source}`);
+      console.log(`📊 Quote for ${symbol}: $${currentPrice?.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent?.toFixed(2)}%) [baseline: $${baselineClose?.toFixed(2)}] session: ${currentSession}`);
       
       return { success: true, data: quote };
     } catch (error) {

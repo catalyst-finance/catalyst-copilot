@@ -937,11 +937,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     if (!isRestoringScroll.current) {
       // Check if streaming just finished (was true, now false)
       if (prevIsStreamingRef.current && !isStreaming) {
-        // Streaming just completed - scroll to bottom to show full response
+        // Streaming just completed - immediate instant scroll to bottom
+        scrollToBottom('auto');
+      } else if (isStreaming) {
+        // Still streaming - progressively follow with smooth scroll on every update
+        // Browser's smooth scroll animation naturally throttles excessive calls
         scrollToBottom('smooth');
       }
-      // Don't scroll during streaming - let user stay at current position
-      
       // Update previous streaming state
       prevIsStreamingRef.current = isStreaming;
     }
@@ -1183,13 +1185,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 processContentBuffer(false);
                 
                 // Set a fallback timeout to flush partial content if no more data arrives
-                // Increased delay to slow down rendering for smoother scrolling experience (2x slower)
+                // Increased delay to slow down rendering for smoother scrolling experience
                 contentFlushTimeoutRef.current = setTimeout(() => {
                   if (contentBufferRef.current.trim()) {
                     processContentBuffer(false);
                   }
                   contentFlushTimeoutRef.current = null;
-                }, 300);
+                }, 150);
                 break;
 
               // Handle structured block events from backend StreamProcessor
@@ -1534,13 +1536,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 
                 processEditContentBuffer(false);
                 
-                // Increased delay to slow down rendering for smoother scrolling experience (2x slower)
+                // Increased delay to slow down rendering for smoother scrolling experience
                 contentFlushTimeoutRef.current = setTimeout(() => {
                   if (contentBufferRef.current.trim()) {
                     processEditContentBuffer(false);
                   }
                   contentFlushTimeoutRef.current = null;
-                }, 300);
+                }, 150);
                 break;
 
               // Handle structured block events from backend StreamProcessor
@@ -2802,11 +2804,26 @@ function StreamBlockRenderer({
         switch (block.type) {
           case 'text':
             return (
-              <div 
-                key={block.id} 
-                className="animate-in fade-in" 
-                style={{ animationDuration: '900ms', animationFillMode: 'backwards' }}
-              >
+              <div key={block.id}>
+                <MarkdownText 
+                  text={block.content} 
+                  dataCards={dataCards} 
+                  onEventClick={onEventClick} 
+                  onImageClick={onImageClick} 
+                  onTickerClick={onTickerClick} 
+                />
+              </div>
+            );
+          
+          case 'chart':
+            return (
+              <div key={block.id} className="my-3">
+                <InlineChartCard 
+                  symbol={block.data.symbol} 
+                  timeRange={block.data.timeRange} 
+                  onTickerClick={onTickerClick} 
+                />
+              </div>
             );
           
           case 'article':
@@ -2984,16 +3001,40 @@ function InlineChartCard({
         
         const currentQuoteUrl = `https://${projectId}.supabase.co/rest/v1/stock_quote_now?${currentQuoteParams}`;
         
-        // Fetch historical snapshot for previous_close
-        const snapshotParams = new URLSearchParams();
-        snapshotParams.append('select', 'previous_close');
-        snapshotParams.append('symbol', `eq.${symbol}`);
-        snapshotParams.append('order', 'timestamp.desc');
-        snapshotParams.append('limit', '1');
+        // Determine baseline for comparison based on current session
+        // For pre-market: use previous day's post-market close, not regular session close
+        let baselineCloseQuery;
         
-        const snapshotUrl = `https://${projectId}.supabase.co/rest/v1/finnhub_quote_snapshots?${snapshotParams}`;
+        // First check if we're in pre-market by looking at current quote
+        const tempQuoteRes = await fetch(currentQuoteUrl, {
+          headers: {
+            'apikey': publicAnonKey,
+            'Authorization': `Bearer ${publicAnonKey}`
+          }
+        });
+        const tempQuote = await tempQuoteRes.json();
+        const currentSession = tempQuote && tempQuote.length > 0 ? tempQuote[0].session : null;
+        
+        if (currentSession === 'pre-market') {
+          // For pre-market, fetch the most recent post-market close as baseline
+          const postMarketParams = new URLSearchParams();
+          postMarketParams.append('select', 'close,session');
+          postMarketParams.append('symbol', `eq.${symbol}`);
+          postMarketParams.append('session', `eq.post-market`);
+          postMarketParams.append('order', 'timestamp.desc');
+          postMarketParams.append('limit', '1');
+          baselineCloseQuery = `https://${projectId}.supabase.co/rest/v1/finnhub_quote_snapshots?${postMarketParams}`;
+        } else {
+          // For regular/after-hours, use standard previous_close from snapshots
+          const snapshotParams = new URLSearchParams();
+          snapshotParams.append('select', 'previous_close');
+          snapshotParams.append('symbol', `eq.${symbol}`);
+          snapshotParams.append('order', 'timestamp.desc');
+          snapshotParams.append('limit', '1');
+          baselineCloseQuery = `https://${projectId}.supabase.co/rest/v1/finnhub_quote_snapshots?${snapshotParams}`;
+        }
 
-        const [priceRes, currentQuoteRes, snapshotRes] = await Promise.all([
+        const [priceRes, currentQuoteRes, baselineRes] = await Promise.all([
           fetch(priceUrl, {
             headers: {
               'apikey': publicAnonKey,
@@ -3006,7 +3047,7 @@ function InlineChartCard({
               'Authorization': `Bearer ${publicAnonKey}`
             }
           }),
-          fetch(snapshotUrl, {
+          fetch(baselineCloseQuery, {
             headers: {
               'apikey': publicAnonKey,
               'Authorization': `Bearer ${publicAnonKey}`
@@ -3018,7 +3059,7 @@ function InlineChartCard({
         
         const prices = await priceRes.json();
         const currentQuotes = await currentQuoteRes.json();
-        const snapshots = await snapshotRes.json();
+        const baselineData = await baselineRes.json();
 
         // Map to chart format - convert ISO timestamp strings to Unix milliseconds
         const mappedData = prices.map((row: any) => ({
@@ -3032,11 +3073,15 @@ function InlineChartCard({
 
         setChartData(mappedData);
         
-        // Combine real-time current price with historical previous_close
-        if (currentQuotes && currentQuotes.length > 0 && snapshots && snapshots.length > 0) {
+        // Combine real-time current price with session-appropriate baseline
+        if (currentQuotes && currentQuotes.length > 0 && baselineData && baselineData.length > 0) {
+          const baseline = currentSession === 'pre-market' 
+            ? baselineData[0].close  // post-market close for pre-market session
+            : baselineData[0].previous_close;  // regular previous_close for other sessions
+          
           setQuoteData({
             ...currentQuotes[0],
-            previous_close: snapshots[0].previous_close
+            previous_close: baseline
           });
         } else if (currentQuotes && currentQuotes.length > 0) {
           setQuoteData(currentQuotes[0]);
