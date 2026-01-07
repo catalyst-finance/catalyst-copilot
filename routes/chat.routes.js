@@ -12,6 +12,7 @@ const ConversationManager = require('../services/ConversationManager');
 const IntelligenceEngine = require('../services/IntelligenceEngine');
 const QueryEngine = require('../services/QueryEngine');
 const ResponseEngine = require('../services/ResponseEngine');
+const { processOpenAIStream } = require('../services/StreamProcessor');
 const { optionalAuth } = require('../middleware/auth');
 
 // Main AI chat endpoint
@@ -1295,33 +1296,19 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
       stream: true
     });
 
-    let fullResponse = '';
-    let finishReason = null;
-    let model = null;
+    // Use StreamProcessor to emit structured block events instead of raw content
+    // This parses markers backend-side so frontend receives clean events:
+    // - text_delta: Plain text content
+    // - chart_block: { symbol, timeRange }
+    // - article_block: { cardId }
+    // - image_block: { cardId }
+    // - event_block: { cardId }
+    const { fullResponse, finishReason, model } = await processOpenAIStream(stream, res, dataCards);
 
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || '';
-      if (content) {
-        fullResponse += content;
-        res.write(`data: ${JSON.stringify({ type: 'content', content })}\n\n`);
-      }
-      
-      if (chunk.choices[0]?.finish_reason) {
-        finishReason = chunk.choices[0].finish_reason;
-      }
-      
-      if (chunk.model) {
-        model = chunk.model;
-      }
-    }
-
-    // Log full response with visible formatting characters for debugging
-    console.log('\n📄 FULL RESPONSE WITH FORMATTING:');
+    // Log full response for debugging
+    console.log('\n📄 FULL RESPONSE (streamed as structured blocks):');
     console.log('='.repeat(80));
-    console.log(fullResponse);
-    console.log('='.repeat(80));
-    console.log('\n🔍 ESCAPED VERSION (shows \\n, \\t, etc):');
-    console.log(JSON.stringify(fullResponse, null, 2));
+    console.log(fullResponse.substring(0, 500) + (fullResponse.length > 500 ? '...' : ''));
     console.log('='.repeat(80));
     
     // Debug: Check if GPT-4 preserved VIEW_ARTICLE markers

@@ -853,10 +853,7 @@ Return ONLY valid JSON.`;
         const articleId = `macro_${item._id || `${item.country}_${index}`}`;
         const domain = 'tradingeconomics.com';
         
-        // Create VIEW_ARTICLE marker for inline rendering
-        output += `   VIEW_ARTICLE[id=${articleId}|title=${item.title || 'Economic Report'}|url=${fullUrl}|source=Trading Economics|domain=${domain}|country=${item.country || ''}|publishedAt=${date}]\n`;
-        
-        // Add to dataCards array for rendering at message end
+        // Add to dataCards array for rendering
         dataCards.push({
           type: 'article',
           data: {
@@ -872,6 +869,9 @@ Return ONLY valid JSON.`;
             content: item.description
           }
         });
+        
+        // Use standard VIEW_ARTICLE marker format (parsed by StreamProcessor)
+        output += `   [VIEW_ARTICLE:${articleId}]\n`;
       }
 
       if (fetchExternal && fullUrl && detailLevel === 'full' && items.length <= 5) {
