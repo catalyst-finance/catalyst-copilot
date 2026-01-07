@@ -220,19 +220,21 @@ Determine the optimal way to present this data to answer the user's question. Fo
 5. **MaxItems** (number): How many items to show (1-30)
 6. **FormattingNotes** (string): Special formatting instructions
 
-**Decision Rules:**
+**CRITICAL PRINCIPLE - IF YOU PLAN TO REFERENCE IT, YOU MUST ANALYZE IT:**
 
-**CRITICAL - Questions about stock movements (e.g., "Why is [stock] up/down today?"):**
-- If query mentions stock price movement AND there are SEC filings in results → MUST set fetchExternalContent: true, detailLevel: full, priority: 5 for SEC filings
-- Stock movement questions require analyzing WHY, which means reading filing/news content, not just listing titles
-- Same applies to significant news - fetch and analyze content to explain the price movement
+For EVERY data source in your formattingPlan:
+- If the final AI response will likely MENTION or REFERENCE this source → set fetchExternalContent: true, detailLevel: full
+- Don't list documents/filings/news without explaining their content
+- Questions like "Why is [stock] moving?" inherently require analyzing the content of relevant sources
+
+Ask yourself: "Will the AI need to explain WHAT'S IN this source to answer the question?"
+- YES → fetchExternalContent: true, detailLevel: full
+- NO (just need to know it exists) → fetchExternalContent: false
 
 **General rules:**
 - If user asks to "analyze" or wants "details" → detailLevel: full, fetchExternalContent: true
 - If user wants "highlights" or "summary" → detailLevel: moderate  
 - If user wants "list" or "recent" → detailLevel: summary
-- SEC filings: default to full when analyzing, moderate for lists
-- News: full only if specifically asked about article content (UNLESS explaining stock movements)
 - Government policy: IMPORTANT - transcripts are very long! 
   * detailLevel: full is OK, but ALWAYS limit maxItems to 5-10 maximum to avoid token overflow
   * The system will intelligently filter to show only relevant turns from transcripts
@@ -261,9 +263,6 @@ Also provide a "responseStyle" recommendation that tells the AI how to structure
 - **concise**: Brief, to-the-point, minimal elaboration
 - **comprehensive**: Detailed, thorough, includes context
 - **explanatory**: Educational, walks through concepts
-
-**CRITICAL PRINCIPLE - ANALYZE BEFORE MENTIONING:**
-NEVER reference a document, filing, or data source in your response without having analyzed its actual content first. If you mention "TMC filed an 8-K on January 2", you MUST explain what's IN that 8-K and why it matters. Don't just say something exists - explain its relevance.
 
 **FORMATTING STANDARDS (CRITICAL):**
 ALL responses must follow these professional formatting rules:
