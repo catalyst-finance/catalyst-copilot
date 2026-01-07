@@ -110,12 +110,14 @@ class StreamProcessor {
   }
 
   /**
-   * Send an article block event with "Source:" label
+   * Send an article block event with "Source:" label metadata
    */
   emitArticle(cardId) {
-    // Emit "Source:" label before the article card
-    this.emitText('\n\nSource: ');
-    this.emit({ type: 'article_block', cardId });
+    this.emit({ 
+      type: 'article_block', 
+      cardId,
+      showSourceLabel: true  // Frontend should render "Source:" before the card
+    });
   }
 
   /**
