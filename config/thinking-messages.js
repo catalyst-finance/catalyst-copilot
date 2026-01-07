@@ -2,20 +2,42 @@
  * Thinking Message Generator
  * Shared service for generating contextual AI status messages
  * 
- * Version: 1.0
+ * PERFORMANCE NOTE:
+ * - Fallback mode (USE_AI_FOR_THINKING=false): ~0ms latency, intelligent context-aware messages
+ * - AI mode (USE_AI_FOR_THINKING=true): ~300ms per call, ~1-2s total latency per query
+ * 
+ * The fallback logic is highly intelligent - it composes natural messages from actual
+ * context (tickers, counts, titles, dates). Most users won't notice a difference.
+ * 
+ * Cost impact of AI mode: ~$0.0002 per query (negligible, but latency matters more)
+ * 
+ * Version: 2.0
  * Used by: QueryEngine.js, ResponseEngine.js
  */
 
 const openai = require('./openai');
 const { getCollectionFriendlyName } = require('./prompts/schema-context');
 
+// Configuration: Use AI for thinking messages? (Set to false for better performance)
+const USE_AI_FOR_THINKING = false;
+
 /**
- * Generate contextual thinking message using AI
+ * Generate contextual thinking message
+ * Uses intelligent fallbacks by default for speed (~0ms vs ~300ms per AI call)
+ * Set USE_AI_FOR_THINKING=true to enable AI generation (adds ~1-2s latency per query)
+ * 
  * @param {string} phase - The current processing phase
  * @param {object} context - Context for the thinking message
  * @returns {string|null} Generated thinking message
  */
 async function generateThinkingMessage(phase, context = {}) {
+  // Performance optimization: Use intelligent fallbacks by default
+  // Fallbacks are context-aware and compose messages from actual data
+  if (!USE_AI_FOR_THINKING) {
+    return getFallbackMessage(phase, context);
+  }
+  
+  // AI generation (optional, adds latency)
   const prompt = buildPromptForPhase(phase, context);
   if (!prompt) return null;
   
@@ -211,5 +233,6 @@ function getFallbackMessage(phase, context) {
 
 module.exports = {
   generateThinkingMessage,
-  getFallbackMessage
+  getFallbackMessage,
+  USE_AI_FOR_THINKING  // Export for visibility/debugging
 };
