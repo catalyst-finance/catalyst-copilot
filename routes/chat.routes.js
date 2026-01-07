@@ -1437,6 +1437,11 @@ This paragraph contains three sentences about the topic. Each sentence builds on
 - Third bullet point with complete information
 
 This paragraph follows the bullets and connects the ideas. Multiple sentences work together here. The paragraph ends naturally.
+
+**CRITICAL - Keep phrases together:**
+- NEVER split proper nouns across lines (e.g., "U.S." and "government" must stay together as "U.S. government")
+- Keep related phrases in the same sentence/line
+- Don't insert line breaks mid-phrase
 `;
   }
   

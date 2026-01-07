@@ -225,6 +225,7 @@ Determine the optimal way to present this data to answer the user's question. Fo
 - If user wants "highlights" or "summary" → detailLevel: moderate
 - If user wants "list" or "recent" → detailLevel: summary
 - SEC filings: default to full when analyzing, moderate for lists
+- **CRITICAL - 8-K Filings**: If query is about stock movement ("why is [stock] up/down today?") AND there's a recent 8-K filing (within 7 days) → ALWAYS use detailLevel: full, fetchExternalContent: true, priority: 5. 8-K filings contain material corporate events that explain price changes.
 - News: full only if specifically asked about article content
 - Government policy: IMPORTANT - transcripts are very long! 
   * detailLevel: full is OK, but ALWAYS limit maxItems to 5-10 maximum to avoid token overflow

@@ -50,6 +50,11 @@ class QueryEngine {
    - Latest 10-Q/10-K for [ticker]
    - Form 4 insider trading filings
    - Recent SEC filings for a company
+   
+   IMPORTANT - Material Event Triggers:
+   - 8-K filings = Material corporate events (M&A, exec changes, financial results)
+   - Recent 8-K + "why is stock up/down?" query = ALWAYS set needsDeepAnalysis: true
+   - 8-K content explains stock movements and must be fetched and analyzed
 
 3. **ownership** - 13F filings showing institutional holdings
    Schema:
