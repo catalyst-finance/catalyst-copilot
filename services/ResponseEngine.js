@@ -37,7 +37,12 @@ class ResponseEngine {
     // Send contextual thinking message
     if (sendThinking) {
       const collections = queryResults.map(r => r.collection);
-      const thinkingMsg = await this.generateThinkingMessage('plan_start', { collections });
+      const totalResults = queryResults.reduce((sum, r) => sum + (r.data?.length || 0), 0);
+      const thinkingMsg = await this.generateThinkingMessage('plan_start', { 
+        collections,
+        totalResults,
+        count: totalResults
+      });
       if (thinkingMsg) sendThinking('analyzing', thinkingMsg);
     }
     
@@ -284,7 +289,9 @@ Return ONLY valid JSON.`;
       if (sendThinking) {
         const thinkingMsg = await this.generateThinkingMessage('formatting', {
           collection: formatSpec.collection,
-          detailLevel: formatSpec.detailLevel
+          detailLevel: formatSpec.detailLevel,
+          count: result.data?.length || 0,
+          ticker: result.data && result.data[0]?.ticker
         });
         if (thinkingMsg) sendThinking('formatting', thinkingMsg);
       }
@@ -374,7 +381,8 @@ Return ONLY valid JSON.`;
         const thinkingMsg = await this.generateThinkingMessage('fetching_content', {
           count: itemsToShow.length,
           contentType,
-          collection: collection
+          collection: collection,
+          title: itemsToShow[0]?.title || itemsToShow[0]?.form_type || null
         });
         if (thinkingMsg) sendThinking('retrieving', thinkingMsg);
       }

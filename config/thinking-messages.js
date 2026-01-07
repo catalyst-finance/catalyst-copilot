@@ -47,36 +47,48 @@ function buildPromptForPhase(phase, context) {
     
     case 'government_policy':
       const speaker = context.speaker || 'officials';
-      return `Generate a 2-4 word thinking status for searching government statements from "${speaker}". Examples: "Searching Trump remarks", "Finding policy statements". Return ONLY the status text.`;
+      const policyDate = context.date ? ` from ${context.date}` : '';
+      return `Generate a 3-5 word thinking status for searching government statements from "${speaker}"${policyDate}. Examples: "Searching Trump Jan 5 remarks", "Finding Biden policy statements". Return ONLY the status text.`;
     
     case 'sec_filings':
       const ticker = context.ticker || 'company';
-      return `Generate a 2-4 word thinking status for looking up SEC filings for ${ticker}. Examples: "Checking SEC filings", "Finding ${ticker} reports". Return ONLY the status text.`;
+      const filingType = context.formType ? ` ${context.formType}` : '';
+      return `Generate a 3-5 word thinking status for looking up${filingType} SEC filings for ${ticker}. Examples: "Checking AAPL 10-Q", "Finding TSLA 8-K filings". Return ONLY the status text.`;
     
     case 'news':
-      return `Generate a 2-4 word thinking status for searching news. Examples: "Scanning news", "Finding headlines". Return ONLY the status text.`;
+      const newsTicker = context.ticker ? ` for ${context.ticker}` : '';
+      return `Generate a 3-5 word thinking status for searching news${newsTicker}. Examples: "Scanning TSLA news", "Finding recent headlines". Return ONLY the status text.`;
     
     case 'price_data':
-      return `Generate a 2-4 word thinking status for getting stock prices. Examples: "Getting prices", "Fetching quotes". Return ONLY the status text.`;
+      const priceTicker = context.ticker || (context.tickers && context.tickers.length > 0 ? context.tickers[0] : null);
+      const priceContext = priceTicker ? ` for ${priceTicker}` : '';
+      return `Generate a 3-5 word thinking status for getting stock prices${priceContext}. Examples: "Getting AAPL price", "Fetching market quotes". Return ONLY the status text.`;
     
     // Response Engine phases
     case 'plan_start':
       const collections = (context.collections || []).map(c => getCollectionFriendlyName(c)).join(', ');
-      return `Generate a 2-4 word thinking status for planning how to format ${collections || 'results'}. Examples: "Planning response", "Organizing data". Return ONLY the status text.`;
+      const count = context.totalResults || context.count;
+      const countText = count ? ` (${count} items)` : '';
+      return `Generate a 3-5 word thinking status for planning how to format ${collections || 'results'}${countText}. Examples: "Organizing 5 filings", "Planning SEC analysis". Return ONLY the status text.`;
     
     case 'plan_generated':
       const strategy = context.plan?.overallStrategy;
-      if (strategy) {
-        return `Generate a 2-4 word thinking status based on this formatting strategy: "${strategy.substring(0, 50)}". Examples: "Structuring analysis", "Preparing insights". Return ONLY the status text.`;
+      const planItemCount = context.plan?.formattingPlan?.length;
+      if (strategy && planItemCount) {
+        return `Generate a 3-5 word thinking status for organizing ${planItemCount} data sources based on: "${strategy.substring(0, 50)}". Examples: "Structuring filing analysis", "Organizing price data". Return ONLY the status text.`;
       }
-      return `Generate a 2-4 word thinking status for organizing analysis. Return ONLY the status text.`;
+      return `Generate a 3-5 word thinking status for organizing analysis. Return ONLY the status text.`;
     
     case 'fetching_content':
       const collectionName = getCollectionFriendlyName(context.collection);
-      return `Generate a 2-4 word thinking status for fetching full content from ${collectionName}. Examples: "Reading filing", "Loading article". Return ONLY the status text.`;
+      const fetchItemCount = context.count || 1;
+      const specificItem = context.title ? ` "${context.title.substring(0, 30)}..."` : '';
+      return `Generate a 3-5 word thinking status for fetching ${fetchItemCount > 1 ? fetchItemCount : ''} ${collectionName}${specificItem}. Examples: "Reading AAPL 10-Q", "Loading Jan 5 transcript". Return ONLY the status text.`;
     
     case 'formatting':
-      return `Generate a 2-4 word thinking status for formatting the response. Examples: "Formatting response", "Building answer". Return ONLY the status text.`;
+      const formattingCollection = context.collection ? getCollectionFriendlyName(context.collection) : null;
+      const formattingContext = formattingCollection ? ` ${formattingCollection}` : '';
+      return `Generate a 3-5 word thinking status for formatting${formattingContext} response. Examples: "Formatting filing analysis", "Building price summary". Return ONLY the status text.`;
     
     default:
       return null;
@@ -87,19 +99,49 @@ function buildPromptForPhase(phase, context) {
  * Fallback messages if AI generation fails
  */
 function getFallbackMessage(phase, context) {
-  const fallbacks = {
-    'query_start': 'Analyzing question',
-    'government_policy': `Searching ${context.speaker || 'government'} statements`,
-    'sec_filings': `Checking ${context.ticker || 'SEC'} filings`,
-    'news': 'Scanning news',
-    'price_data': 'Getting prices',
-    'plan_start': 'Planning response',
-    'plan_generated': 'Organizing analysis',
-    'fetching_content': `Loading ${getCollectionFriendlyName(context.collection || 'content')}`,
-    'formatting': 'Formatting response'
-  };
-  
-  return fallbacks[phase] || 'Processing';
+  switch (phase) {
+    case 'query_start':
+      return 'Analyzing question';
+    
+    case 'government_policy':
+      const speaker = context.speaker || 'government';
+      const date = context.date ? ` ${context.date}` : '';
+      return `Searching ${speaker}${date} statements`;
+    
+    case 'sec_filings':
+      const ticker = context.ticker || 'company';
+      const formType = context.formType ? ` ${context.formType}` : '';
+      return `Checking ${ticker}${formType} filings`;
+    
+    case 'news':
+      const newsTicker = context.ticker ? ` ${context.ticker}` : '';
+      return `Scanning${newsTicker} news`;
+    
+    case 'price_data':
+      const priceTicker = context.ticker || (context.tickers && context.tickers.length > 0 ? context.tickers[0] : null);
+      return priceTicker ? `Getting ${priceTicker} price` : 'Getting prices';
+    
+    case 'plan_start':
+      const count = context.totalResults || context.count;
+      const countText = count ? ` ${count}` : '';
+      return `Planning${countText} results`;
+    
+    case 'plan_generated':
+      const planItemCount = context.plan?.formattingPlan?.length;
+      return planItemCount ? `Organizing ${planItemCount} sources` : 'Organizing analysis';
+    
+    case 'fetching_content':
+      const collectionName = getCollectionFriendlyName(context.collection || 'content');
+      const fetchCount = context.count || 1;
+      return fetchCount > 1 ? `Loading ${fetchCount} ${collectionName}` : `Loading ${collectionName}`;
+    
+    case 'formatting':
+      const formattingCollection = context.collection ? getCollectionFriendlyName(context.collection) : null;
+      return formattingCollection ? `Formatting ${formattingCollection}` : 'Formatting response';
+    
+    default:
+      return 'Processing';
+  }
 }
 
 module.exports = {

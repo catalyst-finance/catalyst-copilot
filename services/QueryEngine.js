@@ -520,9 +520,17 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
       
       // Send contextual thinking message based on intent (AI-generated)
       if (sendThinking && result.intent) {
+        // Extract more context from queries
+        const govQuery = result.queries.find(q => q.collection === 'government_policy');
+        const secQuery = result.queries.find(q => q.collection === 'sec_filings');
+        const newsQuery = result.queries.find(q => q.collection === 'news');
+        
         const thinkingMsg = await this.generateThinkingMessage(result.intent, {
           tickers: result.tickers || userPortfolio,
+          ticker: result.tickers && result.tickers[0],
           topics: result.intent,
+          speaker: govQuery?.query?.participants ? 'Trump' : null,
+          formType: secQuery?.query?.form_type,
           politicians: result.queries.some(q => q.collection === 'government_policy') ? 
             'government officials' : null
         });
