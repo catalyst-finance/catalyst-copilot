@@ -93,11 +93,12 @@ class StreamProcessor {
   }
 
   /**
-   * Send text content as a text_delta event
+   * Send text content as a content event (backward compatible with existing frontend)
+   * Note: Using 'content' instead of 'text_delta' for compatibility
    */
   emitText(text) {
     if (text) {
-      this.emit({ type: 'text_delta', content: text });
+      this.emit({ type: 'content', content: text });
     }
   }
 

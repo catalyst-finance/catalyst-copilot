@@ -1203,6 +1203,64 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 }, 100);
                 break;
 
+              // Handle structured block events from backend StreamProcessor
+              case 'chart_block':
+                // Chart block - render immediately as a chart
+                const chartBlock: StreamBlock = {
+                  id: `chart-${blockIdCounter++}`,
+                  type: 'chart',
+                  content: '',
+                  data: { symbol: data.symbol, timeRange: data.timeRange }
+                };
+                collectedBlocks.push(chartBlock);
+                setStreamedBlocks(prev => [...prev, chartBlock]);
+                break;
+
+              case 'article_block':
+                // Article block - find card data and render
+                const articleCard = collectedDataCards.find(c => c.type === 'article' && c.data?.id === data.cardId);
+                if (articleCard) {
+                  const articleBlock: StreamBlock = {
+                    id: `article-${blockIdCounter++}`,
+                    type: 'article',
+                    content: '',
+                    data: articleCard.data
+                  };
+                  collectedBlocks.push(articleBlock);
+                  setStreamedBlocks(prev => [...prev, articleBlock]);
+                }
+                break;
+
+              case 'image_block':
+                // Image block - find card data and render
+                const imageCard = collectedDataCards.find(c => c.type === 'image' && c.data?.id === data.cardId);
+                if (imageCard) {
+                  const imageBlock: StreamBlock = {
+                    id: `image-${blockIdCounter++}`,
+                    type: 'image',
+                    content: '',
+                    data: imageCard.data
+                  };
+                  collectedBlocks.push(imageBlock);
+                  setStreamedBlocks(prev => [...prev, imageBlock]);
+                }
+                break;
+
+              case 'event_block':
+                // Event block - find card data and render
+                const eventCard = collectedDataCards.find(c => c.type === 'event' && (c.data?.id === data.cardId || c.data?.id?.toString() === data.cardId));
+                if (eventCard) {
+                  const eventBlock: StreamBlock = {
+                    id: `event-${blockIdCounter++}`,
+                    type: 'event',
+                    content: '',
+                    data: eventCard.data
+                  };
+                  collectedBlocks.push(eventBlock);
+                  setStreamedBlocks(prev => [...prev, eventBlock]);
+                }
+                break;
+
               case 'done':
                 // Flush any remaining buffered content as final blocks
                 if (contentFlushTimeoutRef.current) {
@@ -1492,6 +1550,60 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   }
                   contentFlushTimeoutRef.current = null;
                 }, 100);
+                break;
+
+              // Handle structured block events from backend StreamProcessor
+              case 'chart_block':
+                const editChartBlock: StreamBlock = {
+                  id: `edit-chart-${editBlockIdCounter++}`,
+                  type: 'chart',
+                  content: '',
+                  data: { symbol: data.symbol, timeRange: data.timeRange }
+                };
+                collectedBlocks.push(editChartBlock);
+                setStreamedBlocks(prev => [...prev, editChartBlock]);
+                break;
+
+              case 'article_block':
+                const editArticleCard = collectedDataCards.find(c => c.type === 'article' && c.data?.id === data.cardId);
+                if (editArticleCard) {
+                  const editArticleBlock: StreamBlock = {
+                    id: `edit-article-${editBlockIdCounter++}`,
+                    type: 'article',
+                    content: '',
+                    data: editArticleCard.data
+                  };
+                  collectedBlocks.push(editArticleBlock);
+                  setStreamedBlocks(prev => [...prev, editArticleBlock]);
+                }
+                break;
+
+              case 'image_block':
+                const editImageCard = collectedDataCards.find(c => c.type === 'image' && c.data?.id === data.cardId);
+                if (editImageCard) {
+                  const editImageBlock: StreamBlock = {
+                    id: `edit-image-${editBlockIdCounter++}`,
+                    type: 'image',
+                    content: '',
+                    data: editImageCard.data
+                  };
+                  collectedBlocks.push(editImageBlock);
+                  setStreamedBlocks(prev => [...prev, editImageBlock]);
+                }
+                break;
+
+              case 'event_block':
+                const editEventCard = collectedDataCards.find(c => c.type === 'event' && (c.data?.id === data.cardId || c.data?.id?.toString() === data.cardId));
+                if (editEventCard) {
+                  const editEventBlock: StreamBlock = {
+                    id: `edit-event-${editBlockIdCounter++}`,
+                    type: 'event',
+                    content: '',
+                    data: editEventCard.data
+                  };
+                  collectedBlocks.push(editEventBlock);
+                  setStreamedBlocks(prev => [...prev, editEventBlock]);
+                }
                 break;
 
               case 'done':
