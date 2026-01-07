@@ -110,10 +110,19 @@ class StreamProcessor {
   }
 
   /**
-   * Send an article block event
+   * Send an article block event with "Source:" label
    */
   emitArticle(cardId) {
+    // Emit "Source:" label before the article card
+    this.emitText('\n\nSource: ');
     this.emit({ type: 'article_block', cardId });
+  }
+
+  /**
+   * Send a horizontal rule (visual divider)
+   */
+  emitHorizontalRule() {
+    this.emit({ type: 'horizontal_rule' });
   }
 
   /**
@@ -150,6 +159,10 @@ class StreamProcessor {
             break;
           case 'ARTICLE':
             this.emitArticle(marker.data.cardId);
+            // Check if there's content after this article - if so, add horizontal rule
+            if (marker.after.trim().length > 0) {
+              this.emitHorizontalRule();
+            }
             break;
           case 'IMAGE':
             this.emitImage(marker.data.cardId);
