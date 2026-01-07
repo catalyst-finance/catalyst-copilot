@@ -5,176 +5,29 @@
  */
 
 const openai = require('../config/openai');
+const { RESPONSE_SCHEMA_CONTEXT, getCollectionTitle, getCollectionFriendlyName } = require('../config/prompts/schema-context');
+const { buildFormattingPlanPrompt } = require('../config/prompts/formatting-rules');
+const { generateThinkingMessage } = require('../config/thinking-messages');
 
 class ResponseEngine {
   constructor() {
-    // Data schema context - what fields are available in each collection
-    this.dataSchemaContext = `
-**AVAILABLE DATA FIELDS BY COLLECTION:**
-
-**MongoDB Collections:**
-
-**government_policy:**
-- title, date, participants (array), url
-- turns: array of {speaker, text} - full transcript
-- Full content already in database
-
-**sec_filings:**
-- ticker, form_type, publication_date, url
-- Content must be fetched from URL for deep analysis
-- May contain images/charts
-
-**news:**
-- title, ticker, published_at, origin, url, content (may be truncated)
-- Content may need fetching from URL for full article
-
-**press_releases:**
-- title, ticker, date/published_date, url, content/summary
-- Content may need fetching from URL
-
-**earnings_transcripts:**
-- ticker, quarter, year, report_date, content (full transcript)
-- Full content already in database
-
-**price_targets:**
-- ticker, date, analyst, action, rating_change, price_target_change
-- No external content to fetch
-
-**macro_economics:**
-- title, date, country, category, description, url
-- Description may be short - might need URL content
-
-**ownership:**
-- ticker, holder_name, shares, shares_change, total_position_value, file_date
-- No external content
-
-**hype:**
-- ticker, sentiment, buzz, social_sentiment
-- No external content
-
-**Supabase Collections (Quantitative Data):**
-
-**finnhub_quote_snapshots (Real-time Prices):**
-- symbol, timestamp
-- c (current price), o (open), h (high), l (low), pc (previous close)
-- d (daily $ change), dp (daily % change)
-- Use for current stock prices and daily performance
-
-**one_minute_prices (Intraday Data):**
-- symbol, timestamp, open, high, low, close, volume
-- 1-minute OHLCV bars for intraday analysis
-- Use for price action around specific events
-
-**daily_prices (Historical Data):**
-- symbol, timestamp, open, high, low, close, volume
-- Daily OHLCV bars for multi-day/week/month analysis
-- Use for historical price trends and patterns
-
-**company_information (Company Profile):**
-- symbol, name, exchange, country, currency
-- sector, industry, market_cap, shares_outstanding
-- ipo_date, website_url, logo_url, phone, address
-- Use for company metadata and fundamentals
-`;
+    // Use centralized schema context
+    this.dataSchemaContext = RESPONSE_SCHEMA_CONTEXT;
   }
 
   /**
-   * Generate contextual thinking message for current phase using AI
+   * Generate contextual thinking message (delegates to shared service)
    */
   async generateThinkingMessage(phase, context) {
-    // Build a natural language prompt based on the phase
-    let prompt = '';
-    
-    switch(phase) {
-      case 'plan_start':
-        const collections = context.collections.map(c => this.getCollectionFriendlyName(c)).join(' and ');
-        prompt = `Write a 3-5 word status message saying you're looking up ${collections}. Use professional language. Words like "exploring", "investigating", "analyzing", "examining" are good. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Avoid overly enthusiastic phrases like "Just found", "Diving into", "Grabbing". Avoid database jargon like "querying", "extracting", "processing". Examples: "Analyzing ${collections}..." or "Investigating ${collections}..."`;
-        break;
-        
-      case 'plan_generated':
-        const priority = context.plan.formattingPlan.filter(p => p.priority >= 4);
-        if (priority.length > 0) {
-          const source = this.getCollectionFriendlyName(priority[0].collection);
-          prompt = `Write a 3-5 word status message saying you found relevant ${source}. Use professional but straightforward language. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Avoid overly enthusiastic phrases like "Just found", "Got some". Examples: "Found relevant filing..." or "Located ${source}..."`;
-        } else {
-          prompt = `Write a 3-5 word status message saying you found ${context.plan.formattingPlan.length} sources. Use professional but straightforward language. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Example: "Found ${context.plan.formattingPlan.length} sources..."`;
-        }
-        break;
-        
-      case 'fetching_content':
-        const friendly = this.getCollectionFriendlyName(context.collection);
-        const countText = context.count === 1 ? 'the' : `${context.count}`;
-        prompt = `Write a 3-5 word status message saying you're reading ${countText} ${friendly}. Use professional language. Words like "exploring", "investigating", "analyzing", "examining" are good. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Avoid overly enthusiastic phrases like "Diving into", "Checking out". Avoid database jargon like "querying", "extracting", "processing". Examples: "Analyzing ${countText} ${friendly}..." or "Examining ${countText} ${friendly}..."`;
-        break;
-        
-      case 'formatting':
-        const collectionName = this.getCollectionFriendlyName(context.collection);
-        prompt = `Write a 4-6 word status message saying you're pulling details from ${collectionName}. Use professional language. Words like "exploring", "investigating", "analyzing" are good. NEVER use exclamation marks. ALWAYS end with "..." (ellipsis). Avoid overly enthusiastic phrases like "Grabbing", "Just getting". Avoid database jargon like "extracting", "processing", "querying". Examples: "Analyzing details from ${collectionName}..." or "Investigating ${collectionName}..."`;
-        break;
-        
-      default:
-        return null;
-    }
-    
-    try {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
-        max_tokens: 15,  // Very short messages only
-      });
-      
-      // Sanitize: remove quotes and the word "now"
-      const raw = response.choices[0].message.content || '';
-      const sanitized = raw.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
-      return sanitized;
-    } catch (error) {
-      console.error('Thinking message generation failed, using fallback');
-      // Fallback to simple hardcoded messages
-      return this.getFallbackThinkingMessage(phase, context);
-    }
+    return generateThinkingMessage(phase, context);
   }
   
   /**
-   * Fallback thinking messages if AI generation fails
+   * Fallback thinking messages (uses shared service internally)
    */
   getFallbackThinkingMessage(phase, context) {
-    const messages = {
-      'plan_start': () => {
-        const count = context.collections?.length || 0;
-        if (count === 0) return 'Looking things up...';
-        if (count === 1) {
-          const friendly = this.getCollectionFriendlyName(context.collections[0]);
-          return `Checking ${friendly}...`;
-        }
-        return `Checking ${count} sources...`;
-      },
-      'plan_generated': () => {
-        const priority = context.plan?.formattingPlan?.filter(p => p.priority >= 4) || [];
-        if (priority.length > 0) {
-          const source = this.getCollectionFriendlyName(priority[0].collection);
-          return `Found relevant ${source}...`;
-        }
-        const count = context.plan?.formattingPlan?.length || 0;
-        if (count === 0) return 'Looking things up...';
-        return `Found ${count} sources...`;
-      },
-      'fetching_content': () => {
-        const friendly = this.getCollectionFriendlyName(context.collection);
-        const count = context.count || 0;
-        if (count === 0) return `Checking ${friendly}...`;
-        if (count === 1) {
-          return `Reading the ${friendly}...`;
-        }
-        return `Reading ${count} ${friendly}...`;
-      },
-      'formatting': () => {
-        const friendly = this.getCollectionFriendlyName(context.collection);
-        return `Getting details from ${friendly}...`;
-      }
-    };
-    
-    return messages[phase] ? messages[phase]() : null;
+    // Shared service handles fallbacks
+    return null;
   }
 
   /**
@@ -1019,47 +872,17 @@ Return ONLY valid JSON.`;
   }
 
   /**
-   * Get user-friendly collection name for thinking messages (lowercase, natural)
+   * Get user-friendly collection name (delegates to shared schema)
    */
   getCollectionFriendlyName(collection) {
-    const names = {
-      'government_policy': 'government statements',
-      'sec_filings': 'SEC filing',
-      'news': 'news articles',
-      'press_releases': 'press releases',
-      'earnings_transcripts': 'earnings transcripts',
-      'price_targets': 'analyst ratings',
-      'macro_economics': 'economic data',
-      'ownership': 'institutional holdings',
-      'hype': 'sentiment data',
-      'finnhub_quote_snapshots': 'current stock prices',
-      'one_minute_prices': 'intraday price data',
-      'daily_prices': 'daily price history',
-      'company_information': 'company details'
-    };
-    return names[collection] || collection;
+    return getCollectionFriendlyName(collection);
   }
 
   /**
-   * Get user-friendly collection title
+   * Get user-friendly collection title (delegates to shared schema)
    */
   getCollectionTitle(collection) {
-    const titles = {
-      'government_policy': 'GOVERNMENT POLICY STATEMENTS',
-      'sec_filings': 'SEC FILINGS',
-      'news': 'NEWS ARTICLES',
-      'press_releases': 'PRESS RELEASES',
-      'earnings_transcripts': 'EARNINGS TRANSCRIPTS',
-      'price_targets': 'ANALYST PRICE TARGETS',
-      'macro_economics': 'ECONOMIC DATA',
-      'ownership': 'INSTITUTIONAL OWNERSHIP',
-      'hype': 'SENTIMENT DATA',
-      'finnhub_quote_snapshots': 'CURRENT STOCK PRICES',
-      'one_minute_prices': 'INTRADAY PRICE DATA',
-      'daily_prices': 'DAILY PRICE HISTORY',
-      'company_information': 'COMPANY INFORMATION'
-    };
-    return titles[collection] || collection.toUpperCase();
+    return getCollectionTitle(collection);
   }
 
   /**
