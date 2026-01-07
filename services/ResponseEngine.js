@@ -275,17 +275,28 @@ ALL responses must follow these professional formatting rules:
    - Add blank line after the last bullet
    - NO blank lines between individual bullets in the same list
    
-4. **Paragraph Spacing**:
-   - Single blank line between paragraphs
+4. **Paragraph Spacing (CRITICAL)**:
+   - Each paragraph MUST contain 2-5 related sentences (NOT single sentences)
+   - Add ONE blank line between paragraphs (not between sentences within a paragraph)
    - NO blank lines within a single paragraph
-   - Each paragraph should be concise (2-4 sentences max)
+   - Do NOT treat every sentence as its own paragraph
+   
+   WRONG approach:
+   First sentence alone.
+   
+   Second sentence alone.
+   
+   CORRECT approach:
+   First sentence begins the paragraph. Second sentence continues the thought. Third sentence completes the idea.
+   
+   Next paragraph starts here with multiple sentences together.
 
 5. **Professional Structure Example**:
    
    [Example Format]
    **Main Section Header**
    
-   Brief introductory paragraph providing context.
+   This is the first paragraph with multiple sentences working together. Each sentence adds relevant information. The paragraph flows naturally from one thought to the next.
    
    **Subsection Header**
    
@@ -293,11 +304,11 @@ ALL responses must follow these professional formatting rules:
    - Second key point with complete information
    - Third key point with complete information
    
-   Explanatory paragraph connecting the points above to the broader context.
+   This paragraph follows the bullets and provides context. It contains several related sentences. Together they explain the significance of the bullet points above.
    
    **Next Section Header**
    
-   Content continues with consistent spacing...
+   Content continues with multiple sentences per paragraph. Each paragraph groups related thoughts together. This creates professional, readable responses.
    [End Example]
 
 6. **Content Organization**:

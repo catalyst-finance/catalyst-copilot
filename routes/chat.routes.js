@@ -1404,12 +1404,39 @@ ${responseStyleGuidelines.instructions ? `Instructions: ${responseStyleGuideline
 
 **APPLY THIS STYLE TO YOUR RESPONSE** - The AI has analyzed the user's question and data type to determine the optimal presentation format above. Structure your response accordingly.
 
-**PARAGRAPH SPACING (CRITICAL):**
-- ALWAYS add ONE blank line between paragraphs
-- ALWAYS add ONE blank line before bullet lists
-- ALWAYS add ONE blank line after bullet lists
-- NO blank lines between individual bullets in the same list
-- Single sentences on their own line should have blank lines before and after
+**PARAGRAPH SPACING (CRITICAL - MUST FOLLOW EXACTLY):**
+
+CORRECT paragraph structure:
+- Each paragraph = 2-5 related sentences grouped together
+- Add ONE blank line BETWEEN paragraphs (not between sentences)
+- Add ONE blank line before first bullet in a list
+- Add ONE blank line after last bullet in a list
+- NO blank lines between individual bullets
+
+WRONG - Do NOT write like this:
+Sentence one is alone.
+
+Sentence two is alone.
+
+Sentence three is alone.
+
+CORRECT - Write like this instead:
+Sentence one starts the paragraph. Sentence two continues the thought. Sentence three completes the idea.
+
+Next paragraph begins here. It has multiple sentences together. This creates better readability.
+
+**EXAMPLE OF PROPER FORMATTING:**
+**Section Header**
+
+This paragraph contains three sentences about the topic. Each sentence builds on the previous one. Together they form a complete thought.
+
+**Subsection Header**
+
+- First bullet point with complete information
+- Second bullet point with complete information
+- Third bullet point with complete information
+
+This paragraph follows the bullets and connects the ideas. Multiple sentences work together here. The paragraph ends naturally.
 `;
   }
   
