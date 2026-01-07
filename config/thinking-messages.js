@@ -46,12 +46,7 @@ async function generateThinkingMessage(phase, context = {}) {
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
-      max_tokens: 15
-    });
-    
-    // Sanitize: remove quotes and the word "now"
-    const raw = response.choices[0].message.content || '';
-    return raw.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
+        max_completion_tokens: 15  // Use max_completion_tokens (excludes prompt from limit)
   } catch (error) {
     console.error('Thinking message generation failed, using fallback');
     return getFallbackMessage(phase, context);

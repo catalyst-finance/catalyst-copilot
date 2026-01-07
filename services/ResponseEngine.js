@@ -8,6 +8,7 @@ const openai = require('../config/openai');
 const { RESPONSE_SCHEMA_CONTEXT, getCollectionTitle, getCollectionFriendlyName } = require('../config/prompts/schema-context');
 const { buildFormattingPlanPrompt } = require('../config/prompts/formatting-rules');
 const { generateThinkingMessage } = require('../config/thinking-messages');
+const { getTokenBudget, getTierInfo } = require('../config/token-allocation');
 
 class ResponseEngine {
   constructor() {
@@ -217,11 +218,18 @@ Return JSON:
 Return ONLY valid JSON.`;
 
     try {
+      // Use dynamic token budget based on complexity tier
+      const tier = queryIntent.complexityTier || 'standard';
+      const tokenBudget = getTokenBudget(tier, 'plan');
+      const tierInfo = getTierInfo(tier);
+      
+      console.log(`🎯 Using ${tier.toUpperCase()} tier: ${tierInfo.description} (${tokenBudget} tokens for plan)`);
+      
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.2,
-        max_tokens: 2000,
+        max_completion_tokens: tokenBudget,  // Use max_completion_tokens with dynamic budget
         response_format: { type: "json_object" }
       });
 

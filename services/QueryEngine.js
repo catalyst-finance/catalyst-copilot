@@ -6,6 +6,7 @@
 const openai = require('../config/openai');
 const { QUERY_SCHEMA_CONTEXT } = require('../config/prompts/schema-context');
 const { generateThinkingMessage } = require('../config/thinking-messages');
+const { calculateComplexityTier, getTokenBudget } = require('../config/token-allocation');
 
 class QueryEngine {
   constructor() {
@@ -507,16 +508,25 @@ Response:
 Return ONLY valid JSON, no explanation outside the JSON structure.`;
 
     try {
+      // Use dynamic token budget based on query complexity estimation
+      const estimatedTokens = getTokenBudget('standard', 'query');
+      
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",  // Faster and cheaper - query generation is a structured task
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,  // Lower for more deterministic query generation
-        max_tokens: 1500,  // JSON response rarely exceeds 500-800 tokens
+        max_completion_tokens: estimatedTokens,  // Use max_completion_tokens (excludes prompt from limit)
         response_format: { type: "json_object" }
       });
 
       const result = JSON.parse(response.choices[0].message.content.trim());
+      
+      // Calculate complexity tier based on the generated query plan
+      const complexityTier = calculateComplexityTier(result);
+      result.complexityTier = complexityTier;
+      
       console.log('🤖 AI-Generated Queries:', JSON.stringify(result, null, 2));
+      console.log(`🎯 Complexity Tier: ${complexityTier.toUpperCase()}`);
       
       // Send contextual thinking message based on intent (AI-generated)
       if (sendThinking && result.intent) {

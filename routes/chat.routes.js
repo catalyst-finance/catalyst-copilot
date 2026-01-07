@@ -15,6 +15,7 @@ const ResponseEngine = require('../services/ResponseEngine');
 const { processOpenAIStream } = require('../services/StreamProcessor');
 const { optionalAuth } = require('../middleware/auth');
 const { buildSystemPrompt } = require('../config/prompts/system-prompt');
+const { getTokenBudget, getTierInfo, estimateCost } = require('../config/token-allocation');
 
 // Main AI chat endpoint
 router.post('/', optionalAuth, async (req, res) => {
@@ -110,7 +111,8 @@ router.post('/', optionalAuth, async (req, res) => {
         analysisKeywords: queryPlan.analysisKeywords || [],
         tickers: queryPlan.tickers || [],
         queries: queryPlan.queries,
-        chartConfig: queryPlan.chartConfig || null  // Pass chartConfig for VIEW_CHART marker
+        chartConfig: queryPlan.chartConfig || null,  // Pass chartConfig for VIEW_CHART marker
+        complexityTier: queryPlan.complexityTier || 'standard'  // Store complexity tier for token allocation
       };
       
     } catch (error) {
@@ -1246,11 +1248,19 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     })}\n\n`);
 
     // Call OpenAI with text-only streaming (SEC.gov blocks image downloads)
+    // Use dynamic token budget based on complexity tier
+    const tier = queryIntent.complexityTier || 'standard';
+    const tokenBudget = getTokenBudget(tier, 'response');
+    const tierInfo = getTierInfo(tier);
+    const costEstimate = estimateCost(tier, messages.reduce((sum, m) => sum + (m.content?.length || 0) / 4, 0));
+    
+    console.log(`💰 Response Budget: ${tier.toUpperCase()} tier (${tokenBudget} tokens, ~$${costEstimate.totalCost})`);
+    
     const stream = await openai.chat.completions.create({
       model: "gpt-4o",
       messages,
       temperature: 0.7,
-      max_tokens: 16000,
+      max_completion_tokens: tokenBudget,  // Use max_completion_tokens with dynamic allocation
       stream: true
     });
 
