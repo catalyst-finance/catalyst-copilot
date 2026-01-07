@@ -826,6 +826,7 @@ Return ONLY valid JSON.`;
           }
         });
         
+        output += `   **Source:**\n`;
         output += `   [VIEW_ARTICLE:${articleId}]\n`;
       }
 
@@ -936,6 +937,7 @@ Return ONLY valid JSON.`;
         });
         
         // Use standard VIEW_ARTICLE marker format (parsed by StreamProcessor)
+        output += `   **Source:**\n`;
         output += `   [VIEW_ARTICLE:${articleId}]\n`;
       }
 
