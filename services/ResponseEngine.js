@@ -255,6 +255,56 @@ Also provide a "responseStyle" recommendation that tells the AI how to structure
 - **comprehensive**: Detailed, thorough, includes context
 - **explanatory**: Educational, walks through concepts
 
+**FORMATTING STANDARDS (CRITICAL):**
+ALL responses must follow these professional formatting rules:
+
+1. **Section Headers**: ALWAYS use markdown bold (** **) for all section headers and subheaders
+   - Main sections: **Section Name**
+   - Subsections: **Subsection Name**
+   
+2. **Spacing Consistency**:
+   - Always add ONE blank line before each section header
+   - Always add ONE blank line after each section header
+   - Add ONE blank line between distinct content blocks (paragraphs, bullet lists, cards)
+   - Never have multiple consecutive blank lines
+   
+3. **Bullet Point Format**:
+   - Use standard markdown bullets (- or •)
+   - Each bullet point should be a complete thought or sentence
+   - Add blank line before the first bullet
+   - Add blank line after the last bullet
+   - NO blank lines between individual bullets in the same list
+   
+4. **Paragraph Spacing**:
+   - Single blank line between paragraphs
+   - NO blank lines within a single paragraph
+   - Each paragraph should be concise (2-4 sentences max)
+
+5. **Professional Structure Example**:
+   ```
+   **Main Section Header**
+
+   Brief introductory paragraph providing context.
+
+   **Subsection Header**
+
+   - First key point with complete information
+   - Second key point with complete information
+   - Third key point with complete information
+
+   Explanatory paragraph connecting the points above to the broader context.
+
+   **Next Section Header**
+
+   Content continues with consistent spacing...
+   ```
+
+6. **Content Organization**:
+   - Lead with most important information
+   - Group related information under clear headers
+   - Use subsections to break up long sections
+   - Ensure logical flow from section to section
+
 Return JSON:
 {
   "formattingPlan": [
@@ -281,7 +331,7 @@ Return JSON:
   "responseStyle": {
     "format": "structured_analysis",
     "tone": "analytical",
-    "instructions": "Use bold section headers for Financial Position, Operational Progress, and Risk Factors. Extract specific dollar amounts and metrics. Lead with most important insights."
+    "instructions": "Use **bold headers** for each major section. Structure: **Financial Position**, **Operational Progress**, **Risk Factors**. Start each section with ONE blank line before the header, ONE blank line after. Use bullet points for key metrics with consistent spacing (blank line before/after list, NO blank lines between bullets). Lead with most critical insights. Extract specific dollar amounts and percentages. Maintain professional spacing throughout."
   }
 }
 

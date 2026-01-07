@@ -772,8 +772,21 @@ class DataConnector {
           const width = parseInt($(el).attr('width')) || 0;
           const height = parseInt($(el).attr('height')) || 0;
           
-          // Keep images that are likely charts/tables (larger images or with meaningful alt text)
-          if (width > 200 || height > 100 || alt.length > 5 || src.includes('img')) {
+          // STRICT FILTERING: Only keep images that are clearly financial content
+          // Exclude form elements (radio buttons, checkboxes), SEC logos, tiny icons
+          const isFormElement = alt.toLowerCase().includes('radio') || 
+                               alt.toLowerCase().includes('checkbox') || 
+                               src.toLowerCase().includes('radio') || 
+                               src.toLowerCase().includes('check');
+          const isSecLogo = src.toLowerCase().includes('logo') || 
+                           src.toLowerCase().includes('seal');
+          const isTooSmall = (width > 0 && width < 100) || (height > 0 && height < 50);
+          
+          // Must be either large enough OR have meaningful financial/business content in alt text
+          const hasFinancialContext = /financial|statement|chart|graph|table|revenue|cash|balance|income|data|visualization/i.test(alt);
+          const isLargeEnough = width >= 300 || height >= 200;
+          
+          if (!isFormElement && !isSecLogo && !isTooSmall && (isLargeEnough || hasFinancialContext)) {
             imageUrls.push({
               url: src,
               alt: alt,

@@ -1403,6 +1403,13 @@ Tone: ${responseStyleGuidelines.tone}
 ${responseStyleGuidelines.instructions ? `Instructions: ${responseStyleGuidelines.instructions}` : ''}
 
 **APPLY THIS STYLE TO YOUR RESPONSE** - The AI has analyzed the user's question and data type to determine the optimal presentation format above. Structure your response accordingly.
+
+**PARAGRAPH SPACING (CRITICAL):**
+- ALWAYS add ONE blank line between paragraphs
+- ALWAYS add ONE blank line before bullet lists
+- ALWAYS add ONE blank line after bullet lists
+- NO blank lines between individual bullets in the same list
+- Single sentences on their own line should have blank lines before and after
 `;
   }
   
