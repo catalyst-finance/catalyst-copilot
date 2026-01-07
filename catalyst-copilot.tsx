@@ -15,6 +15,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  contentBlocks?: StreamBlock[];  // Pre-processed blocks from streaming (charts, articles, etc.)
   dataCards?: DataCard[];
   eventData?: Record<string, any>;
   timestamp: Date;
@@ -1278,6 +1279,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   id: `ai-${Date.now()}`,
                   role: 'assistant',
                   content: collectedContent,
+                  contentBlocks: collectedBlocks,  // Store blocks for final rendering
                   dataCards: collectedDataCards,
                   eventData: eventData,
                   thinkingSteps: collectedThinking,
@@ -1615,21 +1617,22 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 processEditContentBuffer(true);
                 
                 // Calculate thinking duration
-                const thinkingDuration = thinkingStartTime 
+                const editThinkingDuration = thinkingStartTime 
                   ? Math.round((Date.now() - thinkingStartTime) / 1000) 
                   : undefined;
                   
-                const aiMessage: Message = {
+                const editAiMessage: Message = {
                   id: `ai-${Date.now()}`,
                   role: 'assistant',
                   content: collectedContent,
+                  contentBlocks: collectedBlocks,  // Store blocks for final rendering
                   dataCards: collectedDataCards,
                   eventData: eventData,
                   thinkingSteps: collectedThinking,
-                  thinkingDuration: thinkingDuration,
+                  thinkingDuration: editThinkingDuration,
                   timestamp: new Date()
                 };
-                setMessages(prev => [...prev, aiMessage]);
+                setMessages(prev => [...prev, editAiMessage]);
                 setIsStreaming(false);
                 setThinkingSteps([]);
                 setStreamedBlocks([]);  // Clear streamed blocks
@@ -2077,7 +2080,18 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                           : 'text-foreground'
                       }`}
                     >
-                      <MarkdownText text={msg.content} dataCards={msg.dataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
+                      {/* Use contentBlocks if available (from streaming), otherwise parse content with MarkdownText */}
+                      {msg.contentBlocks && msg.contentBlocks.length > 0 ? (
+                        <StreamBlockRenderer 
+                          blocks={msg.contentBlocks} 
+                          dataCards={msg.dataCards} 
+                          onEventClick={onEventClick} 
+                          onImageClick={setFullscreenImage} 
+                          onTickerClick={onTickerClick} 
+                        />
+                      ) : (
+                        <MarkdownText text={msg.content} dataCards={msg.dataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
+                      )}
                     </div>
 
                     {msg.role === 'user' && !isTyping && (
