@@ -907,13 +907,14 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
   }, [chatState]);
 
   // Use requestAnimationFrame for smooth, non-blocking scrolling
-  const scrollToBottom = () => {
+  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
     if (!isRestoringScroll.current && chatContainerRef.current) {
       requestAnimationFrame(() => {
         if (chatContainerRef.current) {
-          // Use direct scrollTop for smoother animation (avoids layout thrashing)
-          const target = chatContainerRef.current.scrollHeight;
-          chatContainerRef.current.scrollTop = target;
+          chatContainerRef.current.scrollTo({
+            top: chatContainerRef.current.scrollHeight,
+            behavior: behavior
+          });
         }
       });
     }
@@ -931,23 +932,36 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const contentBufferRef = useRef<string>('');  // Buffer for incoming content before block extraction
   const contentFlushTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScrollTime = useRef<number>(0);  // Track last scroll time for debouncing
   
   useEffect(() => {
     if (!isRestoringScroll.current) {
-      // Clear any pending scroll
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-      
       // Check if streaming just finished (was true, now false)
       if (prevIsStreamingRef.current && !isStreaming) {
-        // Streaming just completed - immediate scroll to bottom
-        scrollToBottom();
+        // Streaming just completed - immediate instant scroll to bottom
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+          scrollTimeoutRef.current = null;
+        }
+        scrollToBottom('auto');
       } else if (isStreaming) {
-        // Still streaming - throttle scroll updates to every 150ms for smoother feel
-        scrollTimeoutRef.current = setTimeout(() => {
-          scrollToBottom();
-        }, 150);
+        // Still streaming - use smooth scroll with debouncing to prevent excessive updates
+        const now = Date.now();
+        const timeSinceLastScroll = now - lastScrollTime.current;
+        
+        // Only schedule a new scroll if enough time has passed (300ms)
+        if (timeSinceLastScroll >= 300) {
+          lastScrollTime.current = now;
+          scrollToBottom('smooth');
+        } else if (!scrollTimeoutRef.current) {
+          // Schedule a scroll for later if we're being throttled
+          const delay = 300 - timeSinceLastScroll;
+          scrollTimeoutRef.current = setTimeout(() => {
+            lastScrollTime.current = Date.now();
+            scrollToBottom('smooth');
+            scrollTimeoutRef.current = null;
+          }, delay);
+        }
       }
       // Update previous streaming state
       prevIsStreamingRef.current = isStreaming;
