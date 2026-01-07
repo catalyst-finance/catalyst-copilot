@@ -928,50 +928,25 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     }
   };
 
-  // Throttle scroll updates during streaming to prevent jank
+  // Progressive scroll that follows streaming text smoothly
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const contentBufferRef = useRef<string>('');  // Buffer for incoming content before block extraction
   const contentFlushTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastScrollTime = useRef<number>(0);  // Track last scroll time for debouncing
   
   useEffect(() => {
     if (!isRestoringScroll.current) {
       // Check if streaming just finished (was true, now false)
       if (prevIsStreamingRef.current && !isStreaming) {
         // Streaming just completed - immediate instant scroll to bottom
-        if (scrollTimeoutRef.current) {
-          clearTimeout(scrollTimeoutRef.current);
-          scrollTimeoutRef.current = null;
-        }
         scrollToBottom('auto');
       } else if (isStreaming) {
-        // Still streaming - use smooth scroll with debouncing to prevent excessive updates
-        const now = Date.now();
-        const timeSinceLastScroll = now - lastScrollTime.current;
-        
-        // Only schedule a new scroll if enough time has passed (300ms)
-        if (timeSinceLastScroll >= 300) {
-          lastScrollTime.current = now;
-          scrollToBottom('smooth');
-        } else if (!scrollTimeoutRef.current) {
-          // Schedule a scroll for later if we're being throttled
-          const delay = 300 - timeSinceLastScroll;
-          scrollTimeoutRef.current = setTimeout(() => {
-            lastScrollTime.current = Date.now();
-            scrollToBottom('smooth');
-            scrollTimeoutRef.current = null;
-          }, delay);
-        }
+        // Still streaming - progressively follow with smooth scroll on every update
+        // Browser's smooth scroll animation naturally throttles excessive calls
+        scrollToBottom('smooth');
       }
       // Update previous streaming state
       prevIsStreamingRef.current = isStreaming;
     }
-    
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    };
   }, [messages, streamedBlocks, thinkingSteps, isStreaming]);
 
   // Handle ESC key to close fullscreen image
@@ -1210,12 +1185,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 processContentBuffer(false);
                 
                 // Set a fallback timeout to flush partial content if no more data arrives
+                // Increased delay to slow down rendering for smoother scrolling experience
                 contentFlushTimeoutRef.current = setTimeout(() => {
                   if (contentBufferRef.current.trim()) {
                     processContentBuffer(false);
                   }
                   contentFlushTimeoutRef.current = null;
-                }, 100);
+                }, 150);
                 break;
 
               // Handle structured block events from backend StreamProcessor
@@ -1560,12 +1536,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 
                 processEditContentBuffer(false);
                 
+                // Increased delay to slow down rendering for smoother scrolling experience
                 contentFlushTimeoutRef.current = setTimeout(() => {
                   if (contentBufferRef.current.trim()) {
                     processEditContentBuffer(false);
                   }
                   contentFlushTimeoutRef.current = null;
-                }, 100);
+                }, 150);
                 break;
 
               // Handle structured block events from backend StreamProcessor
