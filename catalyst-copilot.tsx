@@ -937,13 +937,11 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     if (!isRestoringScroll.current) {
       // Check if streaming just finished (was true, now false)
       if (prevIsStreamingRef.current && !isStreaming) {
-        // Streaming just completed - immediate instant scroll to bottom
-        scrollToBottom('auto');
-      } else if (isStreaming) {
-        // Still streaming - progressively follow with smooth scroll on every update
-        // Browser's smooth scroll animation naturally throttles excessive calls
+        // Streaming just completed - scroll to bottom to show full response
         scrollToBottom('smooth');
       }
+      // Don't scroll during streaming - let user stay at current position
+      
       // Update previous streaming state
       prevIsStreamingRef.current = isStreaming;
     }
@@ -1185,13 +1183,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 processContentBuffer(false);
                 
                 // Set a fallback timeout to flush partial content if no more data arrives
-                // Increased delay to slow down rendering for smoother scrolling experience
+                // Increased delay to slow down rendering for smoother scrolling experience (2x slower)
                 contentFlushTimeoutRef.current = setTimeout(() => {
                   if (contentBufferRef.current.trim()) {
                     processContentBuffer(false);
                   }
                   contentFlushTimeoutRef.current = null;
-                }, 150);
+                }, 300);
                 break;
 
               // Handle structured block events from backend StreamProcessor
@@ -1536,13 +1534,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 
                 processEditContentBuffer(false);
                 
-                // Increased delay to slow down rendering for smoother scrolling experience
+                // Increased delay to slow down rendering for smoother scrolling experience (2x slower)
                 contentFlushTimeoutRef.current = setTimeout(() => {
                   if (contentBufferRef.current.trim()) {
                     processEditContentBuffer(false);
                   }
                   contentFlushTimeoutRef.current = null;
-                }, 150);
+                }, 300);
                 break;
 
               // Handle structured block events from backend StreamProcessor
@@ -2804,26 +2802,11 @@ function StreamBlockRenderer({
         switch (block.type) {
           case 'text':
             return (
-              <div key={block.id}>
-                <MarkdownText 
-                  text={block.content} 
-                  dataCards={dataCards} 
-                  onEventClick={onEventClick} 
-                  onImageClick={onImageClick} 
-                  onTickerClick={onTickerClick} 
-                />
-              </div>
-            );
-          
-          case 'chart':
-            return (
-              <div key={block.id} className="my-3">
-                <InlineChartCard 
-                  symbol={block.data.symbol} 
-                  timeRange={block.data.timeRange} 
-                  onTickerClick={onTickerClick} 
-                />
-              </div>
+              <div 
+                key={block.id} 
+                className="animate-in fade-in" 
+                style={{ animationDuration: '900ms', animationFillMode: 'backwards' }}
+              >
             );
           
           case 'article':
