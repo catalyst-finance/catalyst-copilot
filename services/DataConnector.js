@@ -51,10 +51,17 @@ class DataConnector {
       // Fetch current price from stock_quote_now
       const currentResult = await this.getCurrentQuote(symbol);
       
+      // Fetch actual current market session from market_status table
+      const { data: marketStatusData } = await supabase
+        .from('market_status')
+        .select('session')
+        .eq('exchange', 'US')
+        .single();
+      
       // Determine the correct baseline for comparison based on current session
       // For pre-market: use previous day's post-market close (if available) or regular close
       // For regular/after-hours: use previous day's regular close
-      const currentSession = currentResult.data?.session;
+      const currentSession = marketStatusData?.session || currentResult.data?.session;
       
       let baselineClose = null;
       let open = null;

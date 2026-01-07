@@ -84,22 +84,6 @@ router.post('/', optionalAuth, async (req, res) => {
     // ===== AI-NATIVE QUERY ENGINE =====
     console.log('🤖 Using AI-Native Query Engine...');
     
-    // AI-generated thinking message for question analysis phase
-    try {
-      const initialThinking = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: "Write a 3-5 word status message saying you're analyzing the user's question. Start with a verb. Examples: 'Reading your question...' or 'Understanding your request...'" }],
-        temperature: 0.3,
-        max_tokens: 15
-      });
-      // sanitize: remove quotes and the word 'now'
-      const rawInit = initialThinking.choices[0].message.content || '';
-      const sanitizedInit = rawInit.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
-      sendThinking('analyzing', sanitizedInit || 'Analyzing your question...');
-    } catch (error) {
-      sendThinking('analyzing', 'Analyzing your question...');
-    }
-    
     let queryIntent;
     let queryResults = [];
     
@@ -1059,19 +1043,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     const contextMessage = '';
 
     // STEP 5.5: INTELLIGENT ANALYSIS
-    try {
-      const synthesisThinking = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: `Write a 3-5 word status message saying you're analyzing ${intelligenceMetadata.totalSources} data sources. Examples: Connecting the dots..., Synthesizing insights..., Analyzing data patterns...` }],
-        temperature: 0.3,
-        max_tokens: 15
-      });
-      const rawSynth = synthesisThinking.choices[0].message.content || '';
-      const sanitizedSynth = rawSynth.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
-      sendThinking('synthesizing', sanitizedSynth || 'Analyzing data patterns...');
-    } catch (error) {
-      sendThinking('synthesizing', 'Analyzing data patterns...');
-    }
+    // (No additional thinking message needed - formatting messages cover this)
     
     // Multi-step query decomposition
     const subQueries = IntelligenceEngine.decomposeComplexQuery(message, queryIntent);
@@ -1272,21 +1244,6 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
         entityRelationships: intelligenceMetadata.entityRelationships
       }
     })}\n\n`);
-
-    // Send final thinking phase before OpenAI
-    try {
-      const finalThinking = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: "Write a 3-5 word status message saying you're preparing the final response. Examples: Preparing your analysis..., Crafting your answer..., Finalizing insights..." }],
-        temperature: 0.3,
-        max_tokens: 15
-      });
-      const rawFinal = finalThinking.choices[0].message.content || '';
-      const sanitizedFinal = rawFinal.replace(/["']/g, '').replace(/\bnow\b/ig, '').trim();
-      sendThinking('synthesizing', sanitizedFinal || 'Finalizing your answer...');
-    } catch (error) {
-      sendThinking('synthesizing', 'Finalizing your answer...');
-    }
 
     // Call OpenAI with text-only streaming (SEC.gov blocks image downloads)
     const stream = await openai.chat.completions.create({

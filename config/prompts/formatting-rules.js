@@ -10,12 +10,12 @@
  */
 const RESPONSE_STYLE_OPTIONS = `
 **Response Style Options:**
-- **structured_analysis**: Bold section headers, bullet points, clear organization (SEC filings, earnings)
+- **structured_analysis**: Bold section headers with paragraphs for analysis; use bullets only for true lists (SEC filings, earnings)
 - **chronological_narrative**: Timeline format with dates (government policy, roadmap)
 - **comparison_format**: Side-by-side comparison (compare X vs Y)
 - **executive_summary**: Brief overview with key takeaways (highlights, tldr)
 - **detailed_breakdown**: In-depth sections with thorough explanation (analyze, explain)
-- **list_format**: Numbered/bulleted list (list recent, show top 5)
+- **list_format**: Numbered/bulleted list when presenting actual lists (list recent, show top 5)
 - **conversational**: Natural flowing paragraphs (general questions)
 
 **Tone Options:**
@@ -37,10 +37,28 @@ const FORMATTING_STANDARDS = `
    - ONE blank line between content blocks
    - Never multiple consecutive blank lines
    
-3. **Bullet Points**:
-   - Complete thought per bullet
+3. **Bullet Points vs Paragraphs (CRITICAL)**:
+   - Use bullets ONLY for TRUE LISTS: multiple discrete items (3+ items ideal), key highlights, metrics, quick facts
+   - Use paragraphs for narrative analysis, explanations, single points, or descriptions
+   - NEVER use a bullet for a single descriptive paragraph - just write the paragraph
+   - Complete thought per bullet when bullets are appropriate
    - Blank line before first bullet, after last bullet
    - NO blank lines between bullets in same list
+   
+   WRONG (single paragraph as bullet):
+   • Regulatory Developments: This is a long paragraph with multiple sentences explaining one topic in narrative form. It continues with more analysis and implications.
+   
+   CORRECT (paragraph format):
+   **Regulatory Developments**
+   
+   This is a paragraph with multiple sentences explaining one topic. It continues with more analysis and implications.
+   
+   CORRECT (true list with bullets):
+   Key highlights from the filing:
+   
+   - Q1 revenue increased 15%
+   - New product launch scheduled
+   - CEO appointed to board
    
 4. **Paragraphs (CRITICAL)**:
    - 2-5 related sentences per paragraph (NOT single sentences)

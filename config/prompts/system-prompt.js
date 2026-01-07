@@ -125,12 +125,13 @@ const QUERY_TYPE_FORMATTING = `
 **NEWS queries**:
 • Focus on WHAT articles say, not meta-information ABOUT articles
 • Thematic headers: **Competitive Pressures**, **Market Conditions**
-• 3-6 sentences per story with implications
+• Use PARAGRAPHS (3-6 sentences) for narrative analysis, NOT bullets for single items
+• Only use bullets when presenting TRUE LISTS (3+ discrete items, key highlights, quick facts)
 • [VIEW_ARTICLE:...] markers on their OWN LINE after paragraphs, NEVER in bullets
 
-**ANALYSIS queries**: Thematic sections with **BOLD** headers
+**ANALYSIS queries**: Thematic sections with **BOLD** headers. Use flowing paragraphs for analysis, bullets only for actual lists.
 
-**DEFAULT/FOLLOW-UPS**: Always use structured formatting with headers and bullets`;
+**DEFAULT/FOLLOW-UPS**: Use structured formatting with headers. Choose paragraphs or bullets based on content type - use bullets ONLY for actual lists (multiple discrete items), use paragraphs for narrative analysis.`;
 
 /**
  * Card marker placement rules

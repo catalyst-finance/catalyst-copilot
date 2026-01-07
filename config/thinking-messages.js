@@ -109,7 +109,16 @@ function buildPromptForPhase(phase, context) {
       break;
     
     case 'plan_start':
-      const collections = (context.collections || []).map(c => getCollectionFriendlyName(c)).join(' and ');
+      // Filter out stock price data collections
+      const filteredCollections = (context.collections || []).filter(c => 
+        c !== 'finnhub_quote_snapshots' && 
+        c !== 'one_minute_prices' && 
+        c !== 'daily_prices'
+      );
+      
+      if (filteredCollections.length === 0) return null;
+      
+      const collections = filteredCollections.map(c => getCollectionFriendlyName(c)).join(' and ');
       const count = context.totalResults || context.count;
       description = count 
         ? `organizing ${count} items from ${collections}`
@@ -140,6 +149,13 @@ function buildPromptForPhase(phase, context) {
       break;
     
     case 'formatting':
+      // Filter out stock price data collections
+      if (context.collection === 'finnhub_quote_snapshots' || 
+          context.collection === 'one_minute_prices' || 
+          context.collection === 'daily_prices') {
+        return null;
+      }
+      
       const formatCollection = context.collection ? getCollectionFriendlyName(context.collection) : 'data';
       const formatCount = context.count || 0;
       const formatTicker = context.ticker;
@@ -197,6 +213,15 @@ function getFallbackMessage(phase, context) {
       const collections = context.collections?.length > 0 
         ? getCollectionFriendlyName(context.collections[0])
         : 'results';
+      
+      // Filter out stock price data collections
+      const collection = context.collections?.[0];
+      if (collection === 'finnhub_quote_snapshots' || 
+          collection === 'one_minute_prices' || 
+          collection === 'daily_prices') {
+        return null; // Skip message for price data
+      }
+      
       return count ? `Organizing ${count} ${collections}` : `Planning ${collections}`;
     }
     
@@ -219,6 +244,13 @@ function getFallbackMessage(phase, context) {
       const collection = context.collection ? getCollectionFriendlyName(context.collection) : null;
       const count = context.count || 0;
       const ticker = context.ticker;
+      
+      // Filter out stock price data collections
+      if (context.collection === 'finnhub_quote_snapshots' || 
+          context.collection === 'one_minute_prices' || 
+          context.collection === 'daily_prices') {
+        return null; // Skip message for price data
+      }
       
       if (ticker && count > 0) return `Formatting ${ticker} (${count})`;
       if (count > 0 && collection) return `Formatting ${count} ${collection}`;
