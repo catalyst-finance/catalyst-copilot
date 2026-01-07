@@ -225,7 +225,6 @@ Determine the optimal way to present this data to answer the user's question. Fo
 - If user wants "highlights" or "summary" → detailLevel: moderate
 - If user wants "list" or "recent" → detailLevel: summary
 - SEC filings: default to full when analyzing, moderate for lists
-- **CRITICAL - 8-K Filings**: If query is about stock movement ("why is [stock] up/down today?") AND there's a recent 8-K filing (within 7 days) → ALWAYS use detailLevel: full, fetchExternalContent: true, priority: 5. 8-K filings contain material corporate events that explain price changes.
 - News: full only if specifically asked about article content
 - Government policy: IMPORTANT - transcripts are very long! 
   * detailLevel: full is OK, but ALWAYS limit maxItems to 5-10 maximum to avoid token overflow
@@ -255,6 +254,9 @@ Also provide a "responseStyle" recommendation that tells the AI how to structure
 - **concise**: Brief, to-the-point, minimal elaboration
 - **comprehensive**: Detailed, thorough, includes context
 - **explanatory**: Educational, walks through concepts
+
+**CRITICAL PRINCIPLE - ANALYZE BEFORE MENTIONING:**
+NEVER reference a document, filing, or data source in your response without having analyzed its actual content first. If you mention "TMC filed an 8-K on January 2", you MUST explain what's IN that 8-K and why it matters. Don't just say something exists - explain its relevance.
 
 **FORMATTING STANDARDS (CRITICAL):**
 ALL responses must follow these professional formatting rules:
