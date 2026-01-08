@@ -337,19 +337,24 @@ class StreamProcessor {
     
     // Inject missing markers
     if (articlesToInject.length > 0) {
-      // Add a small separator then inject markers
-      this.emit({ type: 'content', content: '\n\n---\n\n**Related Coverage:**\n' });
+      // Add a small separator then inject markers as TEXT content (not events)
+      // This ensures they render at the END of the response in proper order
+      let injectionText = '\n\n---\n\n**Related Coverage:**\n\n';
       
       for (const article of articlesToInject) {
-        // Emit the article card
-        this.emit({ 
-          type: 'article_block', 
-          cardId: article.cardId,
-          showSourceLabel: false,  // No "Source:" for injected markers
-          injected: true  // Flag so frontend knows this was auto-injected
-        });
+        // Inject as marker text that will be processed by frontend extractStreamBlocks
+        injectionText += `[VIEW_ARTICLE:${article.cardId}]\n`;
         console.log(`  → Injected [VIEW_ARTICLE:${article.cardId}]`);
+        
+        // Track that we injected this marker (add to foundMarkers so we don't duplicate)
+        this.foundMarkers.add(article.cardId);
       }
+      
+      // Add to fullResponse so it appears in logs
+      this.fullResponse += injectionText;
+      
+      // Emit as content event so it gets processed by frontend in correct order
+      this.emit({ type: 'content', content: injectionText });
     }
   }
 

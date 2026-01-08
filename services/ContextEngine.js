@@ -710,19 +710,29 @@ class ContextEngine {
 
     // PHASE 3: Build output and dataCards sequentially (for correct ordering)
     
-    // Add explicit marker placement instruction WITHOUT using actual marker syntax (to avoid confusing the parser)
-    output += `\n⚠️ CRITICAL INSTRUCTION - ARTICLE MARKER PLACEMENT:\n`;
-    output += `\nREQUIRED PATTERN FOR EVERY ARTICLE:\n`;
-    output += `Step 1: Article header with title, source, and date\n`;
-    output += `Step 2: Write 1-3 paragraphs of analysis about this specific article\n`;
-    output += `Step 3: Place the VIEW_ARTICLE marker immediately after your analysis\n`;
-    output += `\n✅ CORRECT STRUCTURE:\n`;
-    output += `**Article Title** (Source, Date)\n`;
-    output += `Your analysis paragraph goes here discussing the article content...\n`;
-    output += `<-- VIEW_ARTICLE marker goes here after the analysis -->\n`;
-    output += `\n❌ WRONG: Do NOT place VIEW_ARTICLE markers before or during the article discussion.\n`;
-    output += `❌ WRONG: Do NOT place markers immediately after the header.\n`;
-    output += `✅ CORRECT: Markers come AFTER you've written your complete analysis.\n\n`;
+    // Add explicit marker placement instruction - EMPHASIZE marker placement AFTER discussion
+    output += `\n═══════════════════════════════════════════════════════════\n`;
+    output += `🚨 CRITICAL: ARTICLE MARKER PLACEMENT (NON-NEGOTIABLE) 🚨\n`;
+    output += `═══════════════════════════════════════════════════════════\n\n`;
+    output += `MANDATORY SEQUENCE FOR EVERY ARTICLE - NO EXCEPTIONS:\n`;
+    output += `  1️⃣ Write numbered header: 1. **Article Title**\n`;
+    output += `  2️⃣ Write 2-4 sentences analyzing/discussing the article\n`;
+    output += `  3️⃣ Place [VIEW_ARTICLE:article-X-Y] AFTER discussion\n\n`;
+    output += `❌ ABSOLUTELY FORBIDDEN:\n`;
+    output += `   • Placing marker immediately after header\n`;
+    output += `   • Placing marker before writing analysis\n`;
+    output += `   • Any pattern that shows card before discussion\n\n`;
+    output += `❌ WRONG EXAMPLE:\n`;
+    output += `1. **Market Analysis**\n`;
+    output += `[VIEW_ARTICLE:article-TSLA-0] ← WRONG! No discussion yet\n`;
+    output += `This article shows...\n\n`;
+    output += `✅ CORRECT EXAMPLE:\n`;
+    output += `1. **Market Analysis**\n`;
+    output += `This article reveals Tesla Q4 earnings beat with 25% growth.\n`;
+    output += `Strong delivery numbers indicate robust demand fundamentals.\n`;
+    output += `[VIEW_ARTICLE:article-TSLA-0] ← CORRECT! After discussion\n\n`;
+    output += `NOTE: Markers do NOT appear in data - you place them.\n`;
+    output += `═══════════════════════════════════════════════════════════\n\n`;
     
     for (const a of articleData) {
       const { article, index, domain } = a;
@@ -756,10 +766,11 @@ class ContextEngine {
         output += `${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
       }
       
-      // Show marker alone - GPT should write discussion BEFORE this marker
+      // DO NOT include marker in data context - GPT will place it after discussion
+      // Store article ID for reference
       if (article.url) {
         const articleId = `article-${article.ticker || 'news'}-${index}`;
-        output += `[VIEW_ARTICLE:${articleId}]\n`;
+        // Marker will be: [VIEW_ARTICLE:${articleId}]
       }
 
       output += `\n`;
