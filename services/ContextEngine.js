@@ -429,25 +429,25 @@ class ContextEngine {
     // Format based on collection type
     switch (collection) {
       case 'sec_filings':
-        return await this.formatSecFilings(itemsToShow, detailLevel, fetchExternalContent, DataConnector, dataCards, intelligenceMetadata, output);
+        return await this.formatSecFilings(itemsToShow, detailLevel, fetchExternalContent, DataConnector, dataCards, intelligenceMetadata, output, sendThinking);
       
       case 'government_policy':
-        return this.formatGovernmentPolicy(itemsToShow, detailLevel, output, queryIntent);
+        return this.formatGovernmentPolicy(itemsToShow, detailLevel, output, queryIntent, sendThinking);
       
       case 'news':
         return await this.formatNews(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards, sendThinking);
       
       case 'price_targets':
-        return this.formatPriceTargets(itemsToShow, detailLevel, output);
+        return this.formatPriceTargets(itemsToShow, detailLevel, output, sendThinking);
       
       case 'earnings_transcripts':
-        return this.formatEarningsTranscripts(itemsToShow, detailLevel, output);
+        return this.formatEarningsTranscripts(itemsToShow, detailLevel, output, sendThinking);
       
       case 'press_releases':
-        return await this.formatPressReleases(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output);
+        return await this.formatPressReleases(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, sendThinking);
       
       case 'macro_economics':
-        return await this.formatMacroEconomics(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards);
+        return await this.formatMacroEconomics(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards, sendThinking);
       
       case 'ownership':
         return this.formatOwnership(itemsToShow, detailLevel, output);
@@ -482,9 +482,21 @@ class ContextEngine {
   /**
    * Format SEC filings
    */
-  async formatSecFilings(items, detailLevel, fetchExternal, DataConnector, dataCards, intelligenceMetadata, output) {
+  async formatSecFilings(items, detailLevel, fetchExternal, DataConnector, dataCards, intelligenceMetadata, output, sendThinking) {
+    // Send thinking message about SEC filings
+    if (sendThinking && items.length > 0) {
+      const ticker = items[0]?.ticker || 'company';
+      const formType = items[0]?.form_type || 'filing';
+      sendThinking('retrieving', `Searching ${ticker} ${formType} filings`);
+    }
+    
     for (let index = 0; index < items.length; index++) {
       const filing = items[index];
+      
+      // Send granular thinking for each filing
+      if (sendThinking && fetchExternal && filing.url && index < 3) {
+        sendThinking('retrieving', `Analyzing ${filing.ticker} ${filing.form_type}`);
+      }
       const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
       
       output += `${index + 1}. ${filing.form_type} filed on ${date}\n`;
@@ -565,7 +577,13 @@ class ContextEngine {
   /**
    * Format government policy documents
    */
-  formatGovernmentPolicy(items, detailLevel, output, queryContext = null) {
+  formatGovernmentPolicy(items, detailLevel, output, queryContext = null, sendThinking) {
+    // Send thinking message about government policy
+    if (sendThinking && items.length > 0) {
+      const speaker = items[0]?.participants?.[0] || 'officials';
+      sendThinking('retrieving', `Reading ${speaker} statements`);
+    }
+    
     // Smart filtering: extract keywords from query context to show only relevant turns
     let keywords = [];
     if (queryContext && queryContext.analysisKeywords) {
@@ -802,7 +820,13 @@ class ContextEngine {
   /**
    * Format price targets
    */
-  formatPriceTargets(items, detailLevel, output) {
+  formatPriceTargets(items, detailLevel, output, sendThinking) {
+    // Send thinking message about price targets
+    if (sendThinking && items.length > 0) {
+      const ticker = items[0]?.ticker || items[0]?.symbol || 'stock';
+      sendThinking('retrieving', `Analyzing Wall Street price targets for ${ticker}`);
+    }
+    
     items.forEach((target, index) => {
       const date = target.date ? new Date(target.date).toLocaleDateString() : 'Unknown date';
       output += `${index + 1}. ${target.analyst || 'Unknown Analyst'} - ${date}\n`;
@@ -817,7 +841,14 @@ class ContextEngine {
   /**
    * Format earnings transcripts
    */
-  formatEarningsTranscripts(items, detailLevel, output) {
+  formatEarningsTranscripts(items, detailLevel, output, sendThinking) {
+    // Send thinking message about earnings transcripts
+    if (sendThinking && items.length > 0) {
+      const ticker = items[0]?.ticker || 'company';
+      const quarter = items[0]?.quarter ? `Q${items[0].quarter}` : 'earnings';
+      sendThinking('retrieving', `Reading ${ticker} ${quarter} call`);
+    }
+    
     const contentLength = detailLevel === 'full' ? 10000 : (detailLevel === 'detailed' ? 5000 : 2000);
     
     items.forEach((transcript, index) => {
@@ -834,7 +865,13 @@ class ContextEngine {
   /**
    * Format press releases
    */
-  async formatPressReleases(items, detailLevel, fetchExternal, DataConnector, output) {
+  async formatPressReleases(items, detailLevel, fetchExternal, DataConnector, output, sendThinking) {
+    // Send thinking message about press releases
+    if (sendThinking && items.length > 0) {
+      const ticker = items[0]?.ticker || 'company';
+      sendThinking('retrieving', `Reading ${ticker} press releases`);
+    }
+    
     for (let index = 0; index < items.length; index++) {
       const press = items[index];
       const date = press.published_date ? new Date(press.published_date).toLocaleDateString() : (press.date ? new Date(press.date).toLocaleDateString() : 'Unknown date');
@@ -858,7 +895,13 @@ class ContextEngine {
   /**
    * Format macro economics
    */
-  async formatMacroEconomics(items, detailLevel, fetchExternal, DataConnector, output, dataCards) {
+  async formatMacroEconomics(items, detailLevel, fetchExternal, DataConnector, output, dataCards, sendThinking) {
+    // Send thinking message about economic data
+    if (sendThinking && items.length > 0) {
+      const indicator = items[0]?.title || items[0]?.category || 'economic data';
+      sendThinking('retrieving', `Assessing ${indicator}`);
+    }
+    
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
       const date = item.date ? new Date(item.date).toLocaleDateString() : 'Unknown date';
