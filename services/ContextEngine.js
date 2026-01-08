@@ -12,57 +12,64 @@ const { getTokenBudget, getTierInfo } = require('../config/token-allocation');
 /**
  * Universal formatting rules that apply to ALL responses
  * SEMANTIC ONLY - mechanical formatting handled by ResponseFormatter
+ * 
+ * Consolidated from system-prompt.js - all data presentation rules in one place
  */
 const UNIVERSAL_FORMATTING_RULES = `
-**SEMANTIC FORMATTING GUIDELINES:**
+**DATA ANALYSIS GUIDELINES:**
 
-**1. Citation Format (CRITICAL - ALWAYS CITE SOURCES):**
+**1. ANALYZE BEFORE MENTIONING (CRITICAL):**
 
-ABSOLUTELY FORBIDDEN:
-❌ Creating "Citations:", "Sources:", or "References:" sections at the end
-❌ Listing filings in bullet points at the bottom
-❌ Discussing data without immediate inline citation
+NEVER reference a document, filing, or article without explaining its actual content.
 
-REQUIRED FORMAT:
-✅ Cite every claim IMMEDIATELY after the paragraph: \`[TICKER Form Type - Date](URL)\`
-✅ If filing has IMAGE_CARD: \`[TICKER Form - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
+❌ BAD: "TMC filed an 8-K on January 2, 2026."
+✅ GOOD: "TMC's January 2 8-K announced a major partnership with [Company], generating $XM in revenue."
 
-EXAMPLES:
-✅ "The company completed a $258.9M offering \`[MNMD 8-K - Oct 31, 2025](https://sec.gov/...)\`"
-❌ "The company's filings show strong progress." (no citation)
+❌ BAD: "Recent news may be influencing the stock."
+✅ GOOD: "Analyst upgrades from Wedbush (raising price target to $15) are driving investor optimism."
 
-**2. Card Marker Placement (CRITICAL - MARKERS MUST FOLLOW THEIR CONTENT):**
+If data lacks content: Either fetch via URL, note "details not retrieved", or don't mention it.
 
-- **[VIEW_ARTICLE:...]** → Place AFTER the full paragraph explaining that article's content
-  ✅ CORRECT:
-  
-  **Nvidia Competition**:
-  Elon Musk stated that Nvidia's Rubin chips won't scale soon as Tesla
-  develops in-house AI hardware. This suggests reduced supplier reliance.
-  [VIEW_ARTICLE:abc123]
-  
-  ❌ WRONG:
-  
-  **Nvidia Competition**:
-  [VIEW_ARTICLE:abc123]
-  Elon Musk stated that Nvidia's Rubin chips...
-  
-- **[VIEW_CHART:...]** → Place AFTER discussing the price/movement
-  ✅ CORRECT: "TSLA is trading at $431.83, down 0.26%...[VIEW_CHART:TSLA:1D]"
-  ❌ WRONG: "[VIEW_CHART:TSLA:1D]\\n\\nTSLA is trading at $431.83..."
-  
-- **[IMAGE_CARD:...]** → Inline with SEC filing citations
-- **[EVENT_CARD:...]** → At end of bullet describing event
+**2. CORRELATION ANALYSIS (Connect Qualitative + Quantitative):**
 
-**RULE**: Text explaining the content ALWAYS comes first, marker comes last.
+When data contains BOTH news/filings AND price data:
+- Connect sentiment to price: "The positive news appears reflected in today's X% gain"
+- Note divergences: "Despite negative headlines, the stock is up X% - concerns may be priced in"
+- Include price context: "As Tesla faces competition, shares trade at $XXX, down X% today"
+- Use hedged language: "This price action likely reflects...", "The surge appears driven by..."
 
-**3. Content Organization:**
+**3. PRICE DATA INTERPRETATION:**
 
-- Use natural section headers to organize topics
-- Write in paragraphs for narrative analysis and explanations
-- Use bullet lists when presenting multiple discrete items (3+ items ideal)
+- stock_quote_now.close = LIVE current price (use for "currently trading at")
+- previous_close = yesterday's close (use for daily change calculation)
+- Daily change = (current - previous_close) / previous_close * 100
+- one_minute_prices = ONLY for charts/intraday analysis, NOT current price
+- Market hours: "currently trading" (9:30AM-4PM ET), "closed at" (after hours)
+
+**4. Citation Format:**
+
+✅ Cite claims IMMEDIATELY: \`[TICKER Form Type - Date](URL)\`
+✅ With image: \`[TICKER Form - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
+
+❌ Never create "Citations:", "Sources:", "References:" sections at the end
+
+**5. Card Marker Placement (MARKERS FOLLOW CONTENT):**
+
+- [VIEW_ARTICLE:...] → Place AFTER the paragraph explaining that article
+- [VIEW_CHART:...] → Place AFTER discussing the price/movement
+- [IMAGE_CARD:...] → Inline with SEC filing citations
+- [EVENT_CARD:...] → At end of bullet describing event
+
+**RULE**: Content explaining the source ALWAYS comes first, marker comes last.
+
+**6. Content Organization:**
+
+- Use section headers to organize topics
+- Paragraphs for narrative analysis, bullets for 3+ discrete items
 - Lead with most important information
-- Focus on INSIGHTS and CONTENT, not meta-information about sources
+- Focus on INSIGHTS, not meta-commentary about data volume
+- Extract and cite SPECIFIC NUMBERS from filings (cash, revenue, loss)
+- Include ALL [IMAGE_CARD:...] and [VIEW_ARTICLE:...] markers from the data
 `;
 
 /**
