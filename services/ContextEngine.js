@@ -24,7 +24,11 @@ const UNIVERSAL_FORMATTING_RULES = `
 
 3. **Price Data**: stock_quote_now.close = live price, previous_close = yesterday. Calculate % change from these.
 
-4. **Citations**: For articles, cite inline after claims. For SEC filings, provide ONE markdown link at the end of your analysis.
+4. **Citations**: 
+   - When discussing MULTIPLE sources: Cite inline after each section with markdown link
+   - Format: [Source Name](URL) or [TICKER FORM Filing](URL)
+   - When discussing ONLY ONE SEC filing: Provide one markdown link at end
+   - DO NOT use bracket citations like [10-Q 11/13/2025] - use markdown links only
 
 5. **Card Markers (CRITICAL)**:
    - **CHARTS**: Place [VIEW_CHART:...] FIRST, before price analysis text
@@ -521,10 +525,11 @@ class ContextEngine {
             output += `   • Example: "15,634" in thousands = $15.6 million\n`;
             output += `   • Example: "(133,357)" = negative $133.4 million (loss)\n`;
             output += `\n   ⚠️ CITATION RULES FOR THIS FILING ⚠️\n`;
-            output += `   • DO NOT use inline citations like [10-Q 11/13/2025] or [10-Q]\n`;
-            output += `   • At the END of your analysis, provide ONE markdown link:\n`;
+            output += `   • DO NOT use bracket citations like [10-Q 11/13/2025] or [10-Q]\n`;
+            output += `   • If discussing ONLY this filing: One markdown link at end\n`;
+            output += `   • If discussing MULTIPLE sources (filing + articles): Inline citation after filing section\n`;
             output += `   • Format: [${filing.ticker} ${filing.form_type} Filing](${filing.url})\n`;
-            output += `   • This is the ONLY source reference needed for this filing\n`;
+            output += `   • Place citation immediately after the paragraph discussing this filing\n`;
             output += `   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
             
             intelligenceMetadata.secFilings.push({
