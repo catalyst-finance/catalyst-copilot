@@ -28,19 +28,30 @@ const UNIVERSAL_FORMATTING_RULES = `
 
 5. **Card Markers (CRITICAL)**:
    - **CHARTS**: Place [VIEW_CHART:...] FIRST, before price analysis text
-   - **ARTICLES**: Place [VIEW_ARTICLE:...] AFTER the discussion paragraph for that article
+   - **ARTICLES**: Place [VIEW_ARTICLE:...] AFTER discussion (see format below)
    - **IMAGES**: [IMAGE_CARD:...] inline with SEC filing citations
    - **EVENTS**: [EVENT_CARD:...] at end of bullet describing that event
 
-6. **Article Structure - FOLLOW THIS EXACT PATTERN**:
-   ❌ WRONG: [VIEW_ARTICLE:X] then discussion
-   ❌ WRONG: Title [VIEW_ARTICLE:X] then discussion  
-   ✅ CORRECT: Title → Discussion paragraph(s) → [VIEW_ARTICLE:X]
+6. **Article Discussion Format (EXACT STRUCTURE REQUIRED)**:
+   Every article MUST follow this 4-part sequence:
+   
+   Part 1: **Bold Numbered Header** (1. **Title**)
+   Part 2: Discussion/Analysis (1-2 paragraphs, 1-3 sentences each)
+   Part 3: [VIEW_ARTICLE:article-X-Y] marker
+   Part 4: Horizontal separator (auto-added)
+   
+   ❌ WRONG: Marker before discussion or after header
+   ✅ CORRECT: Header → Discussion → Marker → Separator
    
    Example:
-   **Tesla Announces Breakthrough**
-   Tesla's new battery technology represents a major advancement in EV range, potentially increasing...
+   1. **Tesla Announces Battery Breakthrough**
+   Tesla's new 4680 battery cells represent a major advancement in EV technology.
+   The innovation could increase range by 16% while reducing production costs.
+   
+   This breakthrough positions Tesla ahead of competitors in the race for
+   longer-range, more affordable electric vehicles.
    [VIEW_ARTICLE:article-TSLA-0]
+   ---
 
 7. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
 `;
@@ -710,28 +721,33 @@ class ContextEngine {
 
     // PHASE 3: Build output and dataCards sequentially (for correct ordering)
     
-    // Add explicit marker placement instruction - EMPHASIZE marker placement AFTER discussion
+    // Add explicit marker placement instruction - DEFINE EXACT FORMAT
     output += `\n═══════════════════════════════════════════════════════════\n`;
-    output += `🚨 CRITICAL: ARTICLE MARKER PLACEMENT (NON-NEGOTIABLE) 🚨\n`;
+    output += `🚨 ARTICLE DISCUSSION FORMAT (MANDATORY) 🚨\n`;
     output += `═══════════════════════════════════════════════════════════\n\n`;
-    output += `MANDATORY SEQUENCE FOR EVERY ARTICLE - NO EXCEPTIONS:\n`;
-    output += `  1️⃣ Write numbered header: 1. **Article Title**\n`;
-    output += `  2️⃣ Write 2-4 sentences analyzing/discussing the article\n`;
-    output += `  3️⃣ Place [VIEW_ARTICLE:article-X-Y] AFTER discussion\n\n`;
-    output += `❌ ABSOLUTELY FORBIDDEN:\n`;
-    output += `   • Placing marker immediately after header\n`;
-    output += `   • Placing marker before writing analysis\n`;
-    output += `   • Any pattern that shows card before discussion\n\n`;
-    output += `❌ WRONG EXAMPLE:\n`;
+    output += `REQUIRED FORMAT FOR EVERY ARTICLE:\n\n`;
+    output += `1️⃣ **Bold Numbered Header** (e.g., 1. **Article Title**)\n`;
+    output += `2️⃣ Discussion/Analysis:\n`;
+    output += `   • Write 1-2 paragraphs\n`;
+    output += `   • Each paragraph: 1-3 sentences\n`;
+    output += `   • Explain significance, context, and implications\n`;
+    output += `3️⃣ [VIEW_ARTICLE:article-X-Y] marker\n`;
+    output += `4️⃣ Horizontal separator (automatically added)\n\n`;
+    output += `❌ WRONG - Marker before discussion:\n`;
     output += `1. **Market Analysis**\n`;
-    output += `[VIEW_ARTICLE:article-TSLA-0] ← WRONG! No discussion yet\n`;
+    output += `[VIEW_ARTICLE:article-TSLA-0] ← WRONG!\n`;
     output += `This article shows...\n\n`;
-    output += `✅ CORRECT EXAMPLE:\n`;
+    output += `✅ CORRECT - Complete format:\n`;
     output += `1. **Market Analysis**\n`;
-    output += `This article reveals Tesla Q4 earnings beat with 25% growth.\n`;
-    output += `Strong delivery numbers indicate robust demand fundamentals.\n`;
-    output += `[VIEW_ARTICLE:article-TSLA-0] ← CORRECT! After discussion\n\n`;
-    output += `NOTE: Markers do NOT appear in data - you place them.\n`;
+    output += `Tesla's Q4 earnings beat expectations with 25% YoY revenue growth.\n`;
+    output += `The strong performance reflects robust demand and margin expansion.\n\n`;
+    output += `Strong delivery numbers indicate sustained market confidence in the\n`;
+    output += `company's long-term strategy and execution capabilities.\n`;
+    output += `[VIEW_ARTICLE:article-TSLA-0] ← CORRECT!\n`;
+    output += `---\n\n`;
+    output += `CRITICAL: Never place marker immediately after header.\n`;
+    output += `CRITICAL: Always write analysis BEFORE placing marker.\n`;
+    output += `NOTE: Markers do NOT appear in data below - you must place them.\n`;
     output += `═══════════════════════════════════════════════════════════\n\n`;
     
     for (const a of articleData) {
