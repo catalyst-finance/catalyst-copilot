@@ -1,33 +1,85 @@
-name: catalyst-ai-agent
+﻿alerts:
+- rule: DEPLOYMENT_FAILED
+- rule: DOMAIN_FAILED
+databases:
+- name: catalyst-db
+envs:
+- key: MONGODB_URI
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+  value: EV[1:tgU8cnN0bU/AXmVL14zZvTRTLFBzUs/h:2Hf9IYAmOfwAja+fAujiTW3SBODPCoFV/ApDFWqeONFWUX75NbMdfdRyA3dcPeoNNCQfeyHIvIKMM+HyCEOjUEa07g/Kt6O3FZyrlOJ3/XrDmWKaAsNU5bwBQb2GEL8cBNFhqQx7rqGWPS5BCSd7rm92g1AS0855sFskhTWitnZkMJZE3bXDrectszWwn+gCScYfsx0LJvkDQhePo52WMDsJm7p5L4EPyZ7IlBk4yDME]
+- key: OPENAI_API_KEY
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+  value: EV[1:tBtyELSciK90cYdQu0jua0c+109LnoUz:PjFL92vv99gBfrJVvbGWaTwU9GZtVh3Pmq13BQlboaaR5DsAY+l1zj3lCG2VzKx7+/67sWIVnp20SvA6TAvBw15YEzu6NW3f59XFugt7lZ8B4ItefqbgMevH0tRGzZTyjDFvxBJ0xxa4qEm5/uvz2/+WhdiOnp53nhqdg6oHRi1q3cIrnt+bOTV43Wa3ziBJREE5wO8eRMBDD7eM8VyBrPl9iHQUWQBW5bP15XGjw6oqrfyl]
+- key: SUPABASE_URL
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+  value: EV[1:wAU9crDlMIdisABwqFMX0PhjA2t4bV5F:ku9ojgwlYNJuoYnwpelIDSNRDnzlpP5ng53PwRbhmRuqQNAP+7DKuZs8C6/nVdq+J+6TkEGSg8c=]
+- key: SUPABASE_SERVICE_ROLE_KEY
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+  value: EV[1:JNHli/v3VhcGnlVeKVCz6armvzmGa5Ag:OoaUBVE9F59VtpVHdWWzd0VYpCsecHKgmYHcDBkNyYxylsVPsMPlDcmxj5gRzYHBZEMxWB9EM3jz+6/8yfarBXUtxQziteU8CC4bhm0av71uo0n+sk5fT1R001VTW/AnAlmxvx2sa111Lb2zGaHvFUgC47bXXZsaas0U8nhgqYTuPPRWNhTGeNoB1GkYSVjVmypCHAbYKrtGN9VS2zGM7m4LNAYKPpMhnp6igQd2ejNdzgnXOJoraiJfg+5bsa4N88JT4xZLTVdsBo7b6QKCanm798cAZKwDDNnGYOv8BTssj4Y3Qe+4OW89aw==]
+features:
+- buildpack-stack=ubuntu-22
+ingress:
+  rules:
+  - component:
+      name: catalyst-api
+    match:
+      authority: {}
+      path:
+        prefix: /api/price-targets
+  - component:
+      name: catalyst-api
+    match:
+      authority: {}
+      path:
+        prefix: /api/quote
+  - component:
+      name: catalyst-copilot
+    match:
+      authority: {}
+      path:
+        prefix: /
+name: catalyst-copilot
 region: nyc
 services:
-- name: api
-  environment_slug: node-js
+- environment_slug: node-js
+  envs:
+  - key: DATABASE_URL
+    scope: RUN_TIME
+    value: ${production-database.DATABASE_URL}
   github:
     branch: main
     deploy_on_push: true
-    repo: YOUR_GITHUB_USERNAME/catalyst-ai-agent
+    repo: catalyst-finance/catalyst-copilot
+  health_check:
+    failure_threshold: 9
+    http_path: /health
+    period_seconds: 10
+    success_threshold: 1
+    timeout_seconds: 1
+  http_port: 8080
   instance_count: 1
-  instance_size_slug: basic-xs
-  http_port: 3000
-  routes:
-  - path: /
-  envs:
-  - key: OPENAI_API_KEY
-    scope: RUN_TIME
-    type: SECRET
-  - key: SUPABASE_URL
-    scope: RUN_TIME
-    type: SECRET
-  - key: SUPABASE_SERVICE_ROLE_KEY
-    scope: RUN_TIME
-    type: SECRET
-  - key: MONGODB_URI
-    scope: RUN_TIME
-    type: SECRET
-  - key: PORT
-    scope: RUN_TIME
-    value: "3000"
-  - key: NODE_ENV
-    scope: RUN_TIME
-    value: "production"
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  name: catalyst-copilot
+  run_command: npm start
+  source_dir: /
+- environment_slug: node-js
+  github:
+    branch: main
+    deploy_on_push: true
+    repo: catalyst-finance/catalyst-copilot
+  health_check:
+    failure_threshold: 9
+    http_path: /health
+    period_seconds: 10
+    success_threshold: 1
+    timeout_seconds: 1
+  http_port: 8080
+  instance_count: 1
+  instance_size_slug: apps-s-1vcpu-0.5gb
+  name: catalyst-api
+  run_command: node api-server.js
+  source_dir: /
