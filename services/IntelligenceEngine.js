@@ -717,6 +717,29 @@ class IntelligenceEngine {
       events: {},
       connections: []
     };
+    
+    // Stopwords: Common words and SEC filing boilerplate to exclude
+    const stopwords = new Set([
+      'AND', 'OR', 'THE', 'OF', 'IN', 'TO', 'FOR', 'ON', 'AT', 'BY', 'FROM', 'WITH',
+      'AN', 'AS', 'IS', 'WAS', 'BE', 'ARE', 'BEEN', 'BEING', 'HAVE', 'HAS', 'HAD',
+      'DO', 'DOES', 'DID', 'WILL', 'WOULD', 'SHALL', 'SHOULD', 'MAY', 'MIGHT', 'CAN', 'COULD',
+      'THIS', 'THAT', 'THESE', 'THOSE', 'SUCH', 'ANY', 'ALL', 'EACH', 'EVERY', 'SOME', 'NO', 'NOT',
+      'SEC', 'FORM', 'ITEM', 'PART', 'CFR', 'ACT', 'CODE', 'RULE', 'RULES', 'UNDER', 'PURSUANT',
+      'SECTION', 'EXHIBIT', 'SCHEDULE', 'ANNEX', 'OMB', 'IRS', 'EDGAR', 'XBRL', 'HTML', 'XML',
+      'INC', 'LLC', 'LTD', 'CORP', 'CO', 'LP', 'TRUST', 'FUND', 'GROUP', 'HOLDINGS',
+      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+      'BETWEEN', 'DURING', 'BEFORE', 'AFTER', 'ABOVE', 'BELOW', 'UP', 'DOWN', 'OUT', 'OFF',
+      'OVER', 'UNDER', 'AGAIN', 'FURTHER', 'THEN', 'ONCE', 'HERE', 'THERE', 'WHEN', 'WHERE',
+      'WHY', 'HOW', 'WHO', 'WHICH', 'WHAT', 'WHOM', 'WHOSE', 'THAN', 'TOO', 'VERY', 'BOTH',
+      'SALE', 'SALES', 'PURCHASE', 'PURCHASES', 'OPTION', 'OPTIONS', 'GRANT', 'GRANTS',
+      'PLAN', 'PLANS', 'AGREEMENT', 'AGREEMENTS', 'CONTRACT', 'CONTRACTS', 'COMMON', 'PREFERRED',
+      'CLASS', 'SERIES', 'SHARES', 'STOCK', 'EQUITY', 'DEBT', 'NOTE', 'NOTES', 'BOND', 'BONDS',
+      'TEST', 'LIVE', 'ROAD', 'STREET', 'AVE', 'AVENUE', 'LANE', 'DRIVE', 'BLVD', 'WAY',
+      'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA',
+      'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+      'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT',
+      'VA', 'WA', 'WV', 'WI', 'WY', 'DC', 'PR', 'VI', 'GU', 'AS', 'MP', 'USA', 'US'
+    ]);
 
     // Extract company mentions
     if (data.secFilings) {
@@ -738,7 +761,11 @@ class IntelligenceEngine {
           const tickerPattern = /\b[A-Z]{2,5}\b/g;
           const matches = filing.content.match(tickerPattern) || [];
           matches.forEach(match => {
-            if (match !== ticker && match.length <= 5) {
+            // Filter out: same ticker, stopwords, and very short matches (2 chars)
+            if (match !== ticker && 
+                match.length >= 3 && 
+                match.length <= 5 && 
+                !stopwords.has(match)) {
               relationships.companies[ticker].relatedCompanies.add(match);
               relationships.connections.push({
                 from: ticker,
