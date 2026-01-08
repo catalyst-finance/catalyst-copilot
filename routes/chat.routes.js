@@ -173,7 +173,8 @@ router.post('/', optionalAuth, async (req, res) => {
           queryResults,
           DataConnector,
           sendThinking,
-          queryIntent  // Pass query intent with analysisKeywords for smart filtering
+          queryIntent,  // Pass query intent with analysisKeywords for smart filtering
+          message  // Pass user message for relevance scoring
         );
         
         dataContext = formatted.dataContext;

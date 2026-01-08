@@ -320,7 +320,7 @@ class ContextEngine {
   /**
    * Execute the formatting plan to build data context
    */
-  async executeFormattingPlan(plan, queryResults, DataConnector, sendThinking, queryIntent = null) {
+  async executeFormattingPlan(plan, queryResults, DataConnector, sendThinking, queryIntent = null, userMessage = '') {
     let dataContext = "";
     const dataCards = [];
     const intelligenceMetadata = {
@@ -359,7 +359,8 @@ class ContextEngine {
         sendThinking,
         dataCards,
         intelligenceMetadata,
-        queryIntent
+        queryIntent,
+        userMessage
       );
 
       if (formatted) {
@@ -411,7 +412,7 @@ class ContextEngine {
   /**
    * Format a specific collection based on formatting spec
    */
-  async formatCollection(result, formatSpec, DataConnector, sendThinking, dataCards, intelligenceMetadata, queryIntent = null) {
+  async formatCollection(result, formatSpec, DataConnector, sendThinking, dataCards, intelligenceMetadata, queryIntent = null, userMessage = '') {
     const { collection, detailLevel, fetchExternalContent, maxItems, formattingNotes } = formatSpec;
     
     let output = `\n\n═══ ${this.getCollectionTitle(collection)} (${result.data.length} items) ═══\n`;
@@ -452,7 +453,7 @@ class ContextEngine {
         return this.formatGovernmentPolicy(itemsToShow, detailLevel, output, queryIntent, sendThinking);
       
       case 'news':
-        return await this.formatNews(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards, sendThinking);
+        return await this.formatNews(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards, sendThinking, userMessage, queryIntent);
       
       case 'price_targets':
         return this.formatPriceTargets(itemsToShow, detailLevel, output, sendThinking);
@@ -685,9 +686,110 @@ class ContextEngine {
   }
 
   /**
-   * Format news articles - OPTIMIZED with parallel metadata fetching
+   * Score article relevance to query using semantic similarity and metadata signals
    */
-  async formatNews(items, detailLevel, fetchExternal, DataConnector, output, dataCards, sendThinking) {
+  async scoreArticleRelevance(article, userMessage, queryIntent) {
+    try {
+      // Build article text for embedding (title + snippet)
+      const articleText = `${article.title} ${article.content?.substring(0, 200) || ''}`.trim();
+      
+      // Get embeddings for both query and article (in parallel)
+      const [queryEmbedding, articleEmbedding] = await Promise.all([
+        openai.embeddings.create({
+          model: 'text-embedding-3-small',
+          input: userMessage
+        }),
+        openai.embeddings.create({
+          model: 'text-embedding-3-small',
+          input: articleText
+        })
+      ]);
+      
+      // Calculate cosine similarity
+      const qEmbed = queryEmbedding.data[0].embedding;
+      const aEmbed = articleEmbedding.data[0].embedding;
+      
+      let dotProduct = 0;
+      let qMag = 0;
+      let aMag = 0;
+      for (let i = 0; i < qEmbed.length; i++) {
+        dotProduct += qEmbed[i] * aEmbed[i];
+        qMag += qEmbed[i] * qEmbed[i];
+        aMag += aEmbed[i] * aEmbed[i];
+      }
+      const semanticScore = dotProduct / (Math.sqrt(qMag) * Math.sqrt(aMag));
+      
+      // Metadata scoring factors
+      const now = new Date();
+      const publishDate = article.published_at ? new Date(article.published_at) : null;
+      const hoursSincePublished = publishDate ? (now - publishDate) / (1000 * 60 * 60) : 999999;
+      
+      // Recency score (exponential decay: 1.0 for <6hrs, 0.8 for <24hrs, 0.5 for <7days)
+      let recencyScore = 1.0;
+      if (hoursSincePublished > 6) recencyScore = 0.9;
+      if (hoursSincePublished > 24) recencyScore = 0.7;
+      if (hoursSincePublished > 168) recencyScore = 0.4; // 7 days
+      if (hoursSincePublished > 720) recencyScore = 0.2; // 30 days
+      
+      // Source quality score (tier-based)
+      const domain = article.url ? this.extractDomain(article.url) : '';
+      let sourceScore = 0.5; // default
+      const premiumSources = ['wsj.com', 'bloomberg.com', 'reuters.com', 'ft.com', 'cnbc.com'];
+      const goodSources = ['marketwatch.com', 'barrons.com', 'seekingalpha.com', 'benzinga.com', 'fool.com', 'investors.com'];
+      
+      if (premiumSources.some(s => domain.includes(s))) sourceScore = 1.0;
+      else if (goodSources.some(s => domain.includes(s))) sourceScore = 0.8;
+      else if (domain.includes('yahoo.com')) sourceScore = 0.7; // aggregator
+      
+      // Content depth score (has content snippet)
+      const depthScore = article.content && article.content.length > 100 ? 1.0 : 0.6;
+      
+      // Ticker match bonus (if article explicitly mentions query ticker)
+      const ticker = article.ticker || queryIntent?.chartConfig?.symbol;
+      const tickerBonus = ticker && userMessage.toUpperCase().includes(ticker) ? 1.2 : 1.0;
+      
+      // Combined weighted score
+      // Semantic similarity is primary (60%), metadata signals are secondary (40%)
+      const finalScore = (
+        semanticScore * 0.6 + 
+        recencyScore * 0.15 + 
+        sourceScore * 0.15 + 
+        depthScore * 0.1
+      ) * tickerBonus;
+      
+      return {
+        score: finalScore,
+        semanticScore,
+        recencyScore,
+        sourceScore,
+        depthScore,
+        hoursSincePublished
+      };
+      
+    } catch (error) {
+      console.error(`Error scoring article relevance: ${error.message}`);
+      // Fallback: use basic recency scoring
+      const now = new Date();
+      const publishDate = article.published_at ? new Date(article.published_at) : null;
+      const hoursSincePublished = publishDate ? (now - publishDate) / (1000 * 60 * 60) : 999999;
+      const recencyScore = hoursSincePublished < 24 ? 0.8 : (hoursSincePublished < 168 ? 0.5 : 0.3);
+      
+      return {
+        score: recencyScore,
+        semanticScore: 0,
+        recencyScore,
+        sourceScore: 0.5,
+        depthScore: 0.5,
+        hoursSincePublished,
+        fallback: true
+      };
+    }
+  }
+
+  /**
+   * Format news articles - OPTIMIZED with parallel metadata fetching + relevance scoring
+   */
+  async formatNews(items, detailLevel, fetchExternal, DataConnector, output, dataCards, sendThinking, userMessage = '', queryIntent = null) {
     // Domains that block requests (403/paywall) - skip fetching metadata
     const BLOCKED_DOMAINS = ['seekingalpha.com', 'wsj.com', 'ft.com', 'barrons.com'];
     
@@ -747,11 +849,61 @@ class ContextEngine {
         logoUrl: domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null,
         imageUrl: article.image || null,
         extractedProvider: null,
-        needsMetadataFetch: needsFetch
+        needsMetadataFetch: needsFetch,
+        relevanceScore: null // Will be populated in Phase 1.5
       };
     });
     
     console.log(`✅ Article data array built with ${articleData.length} articles`);
+
+    // PHASE 1.5: Score article relevance in PARALLEL (if we have query context)
+    if (userMessage && items.length > 1) {
+      console.log(`\n🎯 PHASE 1.5: Scoring article relevance to query`);
+      console.log(`   Query: "${userMessage.substring(0, 80)}..."`);
+      
+      const scoringPromises = articleData.map(async (a) => {
+        const scoring = await this.scoreArticleRelevance(a.article, userMessage, queryIntent);
+        a.relevanceScore = scoring;
+        return a;
+      });
+      
+      await Promise.all(scoringPromises);
+      
+      // Sort by relevance score (highest first)
+      articleData.sort((a, b) => (b.relevanceScore?.score || 0) - (a.relevanceScore?.score || 0));
+      
+      console.log(`\n📊 Article Relevance Ranking:`);
+      articleData.forEach((a, idx) => {
+        const score = a.relevanceScore;
+        if (score) {
+          console.log(`   ${idx + 1}. [Score: ${score.score.toFixed(3)}] "${a.article.title?.substring(0, 60)}..."`);
+          console.log(`      → Semantic: ${score.semanticScore.toFixed(3)}, Recency: ${score.recencyScore.toFixed(2)}, Source: ${score.sourceScore.toFixed(2)}, ${score.hoursSincePublished.toFixed(0)}h ago`);
+        } else {
+          console.log(`   ${idx + 1}. [No Score] "${a.article.title?.substring(0, 60)}..."`);
+        }
+      });
+      
+      // Determine split: top N for analysis, rest for "Related Coverage"
+      const analysisThreshold = 0.5; // Articles scoring above 0.5 get full analysis
+      const minAnalysis = 2; // Always analyze at least 2 articles
+      const maxAnalysis = 5; // Cap at 5 for detailed analysis
+      
+      const highRelevance = articleData.filter(a => (a.relevanceScore?.score || 0) >= analysisThreshold);
+      const analysisCount = Math.max(minAnalysis, Math.min(maxAnalysis, highRelevance.length));
+      
+      console.log(`\n✅ Relevance-based routing: ${analysisCount} for analysis, ${articleData.length - analysisCount} for related coverage`);
+      
+      // Tag articles for routing
+      articleData.forEach((a, idx) => {
+        a.forAnalysis = idx < analysisCount;
+      });
+    } else {
+      // No query context - use default routing (first 3 for analysis)
+      console.log(`\n⏭️  Skipping relevance scoring (no query context or only 1 article)`);
+      articleData.forEach((a, idx) => {
+        a.forAnalysis = idx < 3;
+      });
+    }
 
     // PHASE 2: Fetch metadata in PARALLEL for articles that need it
     // Send thinking message about reading articles
