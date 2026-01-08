@@ -45,7 +45,7 @@ async function generateThinkingMessage(phase, context = {}) {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      temperature: 1.0,
+      temperature: 2.0,
       max_completion_tokens: 15  // Use max_completion_tokens (excludes prompt from limit)
     });
     

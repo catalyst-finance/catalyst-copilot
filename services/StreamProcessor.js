@@ -190,31 +190,20 @@ class StreamProcessor {
       // No complete marker found
       // Check if there might be a partial marker at the end
       if (!flush && hasPartialMarker(this.buffer)) {
-        // Don't emit yet, wait for more content
+        // Only buffer the potential partial marker, emit everything before it
+        const lastBracketIndex = this.buffer.lastIndexOf('[');
+        if (lastBracketIndex > 0) {
+          this.emitText(this.buffer.substring(0, lastBracketIndex));
+          this.buffer = this.buffer.substring(lastBracketIndex);
+        }
+        // Don't emit partial marker, wait for more content
         break;
       }
 
-      // Find a good break point (paragraph or at least some content)
+      // No partial marker - emit everything immediately for smooth streaming
       if (!flush) {
-        // Look for paragraph break
-        const paragraphBreak = this.buffer.indexOf('\n\n');
-        if (paragraphBreak >= 0) {
-          this.emitText(this.buffer.substring(0, paragraphBreak + 2));
-          this.buffer = this.buffer.substring(paragraphBreak + 2);
-          continue;
-        }
-        
-        // If buffer is getting large, emit up to a sentence
-        if (this.buffer.length > 200) {
-          const sentenceEnd = this.buffer.search(/[.!?]\s/);
-          if (sentenceEnd >= 0) {
-            this.emitText(this.buffer.substring(0, sentenceEnd + 2));
-            this.buffer = this.buffer.substring(sentenceEnd + 2);
-            continue;
-          }
-        }
-        
-        // Wait for more content
+        this.emitText(this.buffer);
+        this.buffer = '';
         break;
       } else {
         // Flush: emit everything
