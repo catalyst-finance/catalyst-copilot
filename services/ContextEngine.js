@@ -16,105 +16,25 @@ const { getTokenBudget, getTierInfo } = require('../config/token-allocation');
  * Consolidated from system-prompt.js - all data presentation rules in one place
  */
 const UNIVERSAL_FORMATTING_RULES = `
-**DATA ANALYSIS GUIDELINES:**
+**RESPONSE GUIDELINES:**
 
-**1. ANALYZE BEFORE MENTIONING (CRITICAL):**
+1. **Analyze Before Mentioning**: Never reference a document without explaining its content. Extract specific numbers, dates, and facts.
 
-NEVER reference a document, filing, or article without explaining its actual content.
+2. **Correlate Data**: Connect news/filings to price movements: "The positive FDA news appears reflected in today's 8% gain."
 
-❌ BAD: "TMC filed an 8-K on January 2, 2026."
-✅ GOOD: "TMC's January 2 8-K announced a major partnership with [Company], generating $XM in revenue."
+3. **Price Data**: stock_quote_now.close = live price, previous_close = yesterday. Calculate % change from these.
 
-❌ BAD: "Recent news may be influencing the stock."
-✅ GOOD: "Analyst upgrades from Wedbush (raising price target to $15) are driving investor optimism."
+4. **Citations**: Cite inline immediately after claims. NO "Sources:" sections at the end.
 
-If data lacks content: Either fetch more content via the URL provided, note "details not retrieved", or don't mention it.
+5. **Card Markers (CRITICAL)**:
+   - **CHARTS**: Place [VIEW_CHART:...] FIRST, before price analysis text
+   - **ARTICLES**: Place [VIEW_ARTICLE:...] AFTER the discussion paragraph for that article
+   - **IMAGES**: [IMAGE_CARD:...] inline with SEC filing citations
+   - **EVENTS**: [EVENT_CARD:...] at end of bullet describing that event
 
-**2. CORRELATION ANALYSIS (Connect Qualitative + Quantitative):**
+6. **Article Structure**: Each article gets Header → Paragraph(s) of analysis → [VIEW_ARTICLE:...] marker. NO numbered lists for articles.
 
-When data contains BOTH news/filings AND price data:
-- Connect sentiment to price: "The positive news appears reflected in today's X% gain"
-- Note divergences: "Despite negative headlines, the stock is up X% - concerns may be priced in"
-- Include price context: "As Tesla faces competition, shares trade at $XXX, down X% today"
-- Use hedged language: "This price action likely reflects...", "The surge appears driven by..."
-
-**3. PRICE DATA INTERPRETATION:**
-
-- stock_quote_now.close = LIVE current price (use for "currently trading at")
-- previous_close = yesterday's close (use for daily change calculation)
-- Daily change = (current - previous_close) / previous_close * 100
-- one_minute_prices = ONLY for charts/intraday analysis, NOT current price
-- Market hours: "currently trading" (9:30AM-4PM ET), "closed at" (after hours)
-
-**4. Citation Format:**
-
-✅ Cite claims IMMEDIATELY: \`[TICKER Form Type - Date](URL)\`
-✅ With image: \`[TICKER Form - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
-
-❌ Never create "Citations:", "Sources:", "References:" sections at the end
-
-**5. Card Marker Placement (CRITICAL):**
-
-**FOR ARTICLES** - Card comes AFTER FULL discussion text:
-
-Each article gets its own section (NOT in numbered/bulleted lists):
-
-\`\`\`
-**Tesla's Operational Challenges**
-
-Tesla is facing a challenging environment in the electric vehicle market. 
-Q4 2025 deliveries declined by 16% and overall revenue for FY25 is expected 
-to drop by 3%. The company is working to navigate these headwinds through 
-cost optimization and new product development.
-
-[VIEW_ARTICLE:article-TSLA-0]
-
-**Nvidia Competition Commentary**
-
-Elon Musk recently commented on Nvidia's next-generation Rubin chips, stating 
-they won't scale as quickly as expected. Tesla continues to develop in-house 
-AI hardware to reduce dependency on external suppliers. This strategic shift 
-could impact Tesla's competitive position in autonomous driving technology.
-
-[VIEW_ARTICLE:article-TSLA-1]
-\`\`\`
-
-❌ WRONG (card immediately after header):
-\`\`\`
-1. **Tesla's Operational Challenges**
-   [VIEW_ARTICLE:article-TSLA-0]
-   - Tesla is facing challenges...
-\`\`\`
-
-❌ WRONG (using numbered lists for articles):
-\`\`\`
-1. **Article Topic**
-   Discussion text...
-   [VIEW_ARTICLE:...]
-\`\`\`
-
-**FOR PRICE CHARTS** - Chart comes FIRST, before discussion:
-\`\`\`
-[VIEW_CHART:TSLA:1D]
-
-**Price Analysis**
-TSLA is currently trading at $431.83, down 0.26% from yesterday's close...
-\`\`\`
-
-**OTHER MARKERS:**
-- [IMAGE_CARD:...] → Inline with SEC filing citations
-- [EVENT_CARD:...] → At end of bullet describing event
-
-**MANDATORY**: Include ALL [VIEW_ARTICLE:...] markers from the data. Count them and ensure none are missing.
-
-**6. Content Organization:**
-
-- Use section headers to organize topics
-- Paragraphs for narrative analysis, bullets for 3+ discrete items
-- Lead with most important information
-- Focus on INSIGHTS, not meta-commentary about data volume
-- Extract and cite SPECIFIC NUMBERS from filings (cash, revenue, loss)
-- Include ALL [IMAGE_CARD:...] and [VIEW_ARTICLE:...] markers from the data
+7. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
 `;
 
 /**
@@ -238,8 +158,9 @@ class ContextEngine {
     const msgLower = userMessage.toLowerCase();
     
     // Detect query patterns
-    const isListQuery = /\b(list|show|recent|latest|top \d+|last \d+)\b/i.test(userMessage);
-    const isAnalysisQuery = /\b(why|analyze|explain|what happened|impact|cause|reason)\b/i.test(userMessage);
+    // Note: "last 10-Q" or "last 8-K" should NOT be list queries (they're SEC filing analysis)
+    const isListQuery = /\b(list|show me|recent|latest|top \d+|last \d+(?!\s*-?[QqKk]))\b/i.test(userMessage);
+    const isAnalysisQuery = /\b(why|analyze|explain|what happened|impact|cause|reason|details?|breakdown)\b/i.test(userMessage);
     const isCompareQuery = /\b(compare|vs|versus|difference|between)\b/i.test(userMessage);
     const isSummaryQuery = /\b(summary|highlights|overview|tldr|brief)\b/i.test(userMessage);
     

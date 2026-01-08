@@ -3,6 +3,8 @@
  * 
  * Processes the OpenAI stream and emits structured block events instead of raw text.
  * This handles marker parsing backend-side so the frontend receives clean, pre-processed events.
+ * 
+ * Also includes smart marker injection to ensure ALL markers from data context appear in response.
  */
 
 const ResponseFormatter = require('./ResponseFormatter');
@@ -13,6 +15,14 @@ const MARKER_PATTERNS = {
   ARTICLE: /\[VIEW_ARTICLE:([^\]]+)\]/,
   IMAGE: /\[IMAGE_CARD:([^\]]+)\]/,
   EVENT: /\[EVENT_CARD:([^\]]+)\]/,
+};
+
+// Global patterns for extracting all markers
+const ALL_MARKER_PATTERNS = {
+  CHART: /\[VIEW_CHART:([A-Z]+):([^\]]+)\]/g,
+  ARTICLE: /\[VIEW_ARTICLE:([^\]]+)\]/g,
+  IMAGE: /\[IMAGE_CARD:([^\]]+)\]/g,
+  EVENT: /\[EVENT_CARD:([^\]]+)\]/g,
 };
 
 // All marker pattern for quick detection
@@ -78,6 +88,7 @@ function extractFirstMarker(text) {
 /**
  * StreamProcessor class
  * Buffers incoming stream content and emits structured events
+ * Tracks expected markers from dataCards and injects missing ones
  */
 class StreamProcessor {
   constructor(res, dataCards = []) {
@@ -85,7 +96,39 @@ class StreamProcessor {
     this.dataCards = dataCards;
     this.buffer = '';
     this.fullResponse = '';
-    this.formatter = new ResponseFormatter(); // Add formatter for post-processing
+    this.formatter = new ResponseFormatter();
+    
+    // Track expected markers from dataCards for smart injection
+    this.expectedMarkers = this.buildExpectedMarkers(dataCards);
+    this.foundMarkers = new Set();
+  }
+
+  /**
+   * Build expected markers from dataCards
+   */
+  buildExpectedMarkers(dataCards) {
+    const markers = {
+      articles: [],  // { cardId, ticker, title }
+      images: [],
+      events: [],
+      charts: []     // { symbol, timeRange } - from price data
+    };
+    
+    for (const card of dataCards) {
+      if (card.type === 'article' && card.data?.cardId) {
+        markers.articles.push({
+          cardId: card.data.cardId,
+          ticker: card.data.ticker,
+          title: card.data.title || ''
+        });
+      } else if (card.type === 'image' && card.data?.cardId) {
+        markers.images.push(card.data.cardId);
+      } else if (card.type === 'event' && card.data?.id) {
+        markers.events.push(card.data.id);
+      }
+    }
+    
+    return markers;
   }
 
   /**
@@ -114,6 +157,7 @@ class StreamProcessor {
    * Send a chart block event
    */
   emitChart(symbol, timeRange) {
+    this.foundMarkers.add(`chart:${symbol}:${timeRange}`);
     this.emit({ type: 'chart_block', symbol, timeRange });
   }
 
@@ -121,6 +165,7 @@ class StreamProcessor {
    * Send an article block event with "Source:" label metadata
    */
   emitArticle(cardId) {
+    this.foundMarkers.add(`article:${cardId}`);
     this.emit({ 
       type: 'article_block', 
       cardId,
@@ -139,6 +184,7 @@ class StreamProcessor {
    * Send an image block event
    */
   emitImage(cardId) {
+    this.foundMarkers.add(`image:${cardId}`);
     this.emit({ type: 'image_block', cardId });
   }
 
@@ -146,6 +192,7 @@ class StreamProcessor {
    * Send an event card block event
    */
   emitEvent(cardId) {
+    this.foundMarkers.add(`event:${cardId}`);
     this.emit({ type: 'event_block', cardId });
   }
 
@@ -227,7 +274,7 @@ class StreamProcessor {
   }
 
   /**
-   * Finalize processing - flush any remaining content
+   * Finalize processing - flush any remaining content and inject missing markers
    */
   finalize() {
     this.processBuffer(true);
@@ -236,6 +283,70 @@ class StreamProcessor {
     const remainingFormatted = this.formatter.flush();
     if (remainingFormatted) {
       this.emit({ type: 'content', content: remainingFormatted });
+    }
+    
+    // Smart marker injection for missing markers
+    this.injectMissingMarkers();
+  }
+  
+  /**
+   * Smart marker injection - inject missing VIEW_ARTICLE markers after related content
+   * Uses contextual placement when possible, groups remaining at end
+   */
+  injectMissingMarkers() {
+    const missingArticles = this.expectedMarkers.articles.filter(
+      article => !this.foundMarkers.has(`article:${article.cardId}`)
+    );
+    
+    if (missingArticles.length === 0) return;
+    
+    console.log(`🔧 Smart Marker Injection: ${missingArticles.length} missing article markers`);
+    
+    // Try to find contextual placement for each missing marker
+    const response = this.fullResponse.toLowerCase();
+    const articlesToInject = [];
+    
+    for (const article of missingArticles) {
+      // Try to find if GPT discussed this article's topic
+      const titleWords = (article.title || '').toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .split(/\s+/)
+        .filter(w => w.length > 3);
+      
+      // Check if significant title words appear in response
+      const matchedWords = titleWords.filter(word => response.includes(word));
+      const matchScore = matchedWords.length / Math.max(titleWords.length, 1);
+      
+      if (matchScore > 0.3) {
+        // Good match - this article was likely discussed
+        console.log(`  ✓ "${article.title}" appears discussed (${Math.round(matchScore * 100)}% match)`);
+      }
+      
+      articlesToInject.push({
+        ...article,
+        matchScore,
+        discussed: matchScore > 0.3
+      });
+    }
+    
+    // Sort by match score (discussed articles first) then preserve order
+    articlesToInject.sort((a, b) => b.matchScore - a.matchScore);
+    
+    // Inject missing markers
+    if (articlesToInject.length > 0) {
+      // Add a small separator then inject markers
+      this.emit({ type: 'content', content: '\n\n---\n\n**Related Coverage:**\n' });
+      
+      for (const article of articlesToInject) {
+        // Emit the article card
+        this.emit({ 
+          type: 'article_block', 
+          cardId: article.cardId,
+          showSourceLabel: false,  // No "Source:" for injected markers
+          injected: true  // Flag so frontend knows this was auto-injected
+        });
+        console.log(`  → Injected [VIEW_ARTICLE:${article.cardId}]`);
+      }
     }
   }
 
