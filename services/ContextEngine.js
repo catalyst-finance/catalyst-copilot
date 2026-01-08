@@ -1137,10 +1137,22 @@ class ContextEngine {
     });
     console.log(`✅ Press release data array built with ${pressData.length} items\n`);
 
+    // Deduplicate by title (same press release with different URLs)
+    const seenTitles = new Set();
+    const dedupedData = pressData.filter(p => {
+      if (seenTitles.has(p.press.title)) {
+        console.log(`  ⚠️ Skipping duplicate: "${p.press.title?.substring(0, 50)}..."`);
+        return false;
+      }
+      seenTitles.add(p.press.title);
+      return true;
+    });
+    console.log(`✅ After deduplication: ${dedupedData.length} unique press releases\n`);
+
     // PHASE 2: Fetch metadata in parallel (images from Nasdaq/GlobeNewswire)
     if (fetchExternal) {
       console.log(`🔍 PHASE 2: Filtering press releases that need metadata fetch`);
-      const toFetch = pressData.filter(p => p.needsMetadataFetch);
+      const toFetch = dedupedData.filter(p => p.needsMetadataFetch);
       console.log(`  Found ${toFetch.length} press releases needing metadata fetch:`);
       toFetch.forEach(p => {
         console.log(`    [Original Index ${p.index}] "${p.press.title?.substring(0, 50)}..."`);
@@ -1149,7 +1161,7 @@ class ContextEngine {
       const metadataPromises = toFetch.map(async (p) => {
         console.log(`  🌐 Fetching metadata for press release [${p.index}]: "${p.press.title?.substring(0, 50)}..."`);
         try {
-          const metadata = await DataConnector.fetchWebMetadata(p.press.url);
+          const metadata = await DataConnector.fetchWebContent(p.press.url, 10000, true);
           
           // Look for GlobeNewswire image: <img src="https://ml.globenewswire.com/media/..."
           if (metadata.htmlContent) {
@@ -1186,7 +1198,7 @@ class ContextEngine {
     // PHASE 3: Build output and dataCards
     console.log(`🔍 PHASE 3: Building data cards and output context`);
     
-    for (const p of pressData) {
+    for (const p of dedupedData) {
       const { press, index, domain } = p;
       
       if (press.url) {
@@ -1231,7 +1243,7 @@ class ContextEngine {
       output += `\n`;
     }
 
-    console.log(`\n✅ PHASE 3 complete: Created ${dataCards.length} data cards from ${pressData.length} press releases\n`);
+    console.log(`\n✅ PHASE 3 complete: Created ${dataCards.length} data cards from ${dedupedData.length} press releases\n`);
     return output;
   }
 
