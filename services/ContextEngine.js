@@ -53,36 +53,33 @@ When data contains BOTH news/filings AND price data:
 
 ❌ Never create "Citations:", "Sources:", "References:" sections at the end
 
-**5. Card Marker Placement (CRITICAL - ALL CARDS AT END):**
+**5. Card Marker Placement (CRITICAL):**
 
-Structure your response in TWO parts:
-
-**PART 1 - ANALYSIS** (main body):
-- Write your full analysis with headers, paragraphs, and insights
-- Reference articles/news by describing their content (no markers yet)
-- Discuss price movements and charts conceptually
-
-**PART 2 - SOURCES** (at the very end):
-- After ALL analysis is complete, add a "---" separator
-- Then list ALL [VIEW_ARTICLE:...] markers (one per line)
-- Then add [VIEW_CHART:...] marker last
-
-Example structure:
+**FOR ARTICLES** - Card comes AFTER discussion:
 \`\`\`
-[Your full analysis text here...]
-
----
+**Article Topic Header**
+Discussion explaining what this article says and why it matters.
+The full analysis of the article content goes here.
 [VIEW_ARTICLE:article-TSLA-0]
+
+**Next Article Topic**
+Discussion of this article...
 [VIEW_ARTICLE:article-TSLA-1]
-[VIEW_ARTICLE:article-TSLA-2]
-[VIEW_CHART:TSLA:1D]
 \`\`\`
+
+**FOR PRICE CHARTS** - Chart comes FIRST, before discussion:
+\`\`\`
+[VIEW_CHART:TSLA:1D]
+
+**Price Analysis**
+TSLA is currently trading at $431.83, down 0.26% from yesterday's close...
+\`\`\`
+
+**OTHER MARKERS:**
+- [IMAGE_CARD:...] → Inline with SEC filing citations
+- [EVENT_CARD:...] → At end of bullet describing event
 
 **MANDATORY**: Include ALL [VIEW_ARTICLE:...] markers from the data. Count them and ensure none are missing.
-
-**EXCEPTIONS** (keep inline):
-- [IMAGE_CARD:...] → Keep inline with SEC filing citations
-- [EVENT_CARD:...] → Keep at end of bullet describing event
 
 **6. Content Organization:**
 
