@@ -120,8 +120,8 @@ const CARD_MARKER_RULES = `
 **CARD MARKER PLACEMENT:**
 
 1. **[VIEW_ARTICLE:...]** → Own line AFTER paragraph, NEVER inline or in bullets
-2. **[VIEW_CHART:...]** → After Current Price section, no header before it
-3. **[IMAGE_CARD:...]** → Inline with SEC filing citations
+2. **[VIEW_CHART:...]** → After Current Price section, or any section that discusses price, no header before it
+3. **[IMAGE_CARD:...]** → Inline with SEC filing citations, only if the SEC filing contains an image
 4. **[EVENT_CARD:...]** → At end of bullet point describing event
 
 **VIEW_ARTICLE example:**
@@ -155,42 +155,15 @@ const CRITICAL_CONSTRAINTS = `
 9. **MANDATORY**: Count [IMAGE_CARD:...] and [VIEW_ARTICLE:...] markers in data - your response must include ALL of them`;
 
 /**
- * Build paragraph formatting rules (inserted when responseStyleGuidelines present)
+ * Format response style guidelines from ResponseEngine (if present)
  */
 function buildStyleInstructions(responseStyleGuidelines) {
-  if (!responseStyleGuidelines) return '';
+  if (!responseStyleGuidelines || !responseStyleGuidelines.instructions) return '';
   
   return `
 
-**AI-RECOMMENDED RESPONSE STYLE:**
-Format: ${responseStyleGuidelines.format}
-Tone: ${responseStyleGuidelines.tone}
-${responseStyleGuidelines.instructions ? `Instructions: ${responseStyleGuidelines.instructions}` : ''}
-
-**PARAGRAPH FORMATTING RULES (MANDATORY):**
-
-**RULE 1: Multi-Sentence Paragraphs Only**
-Each paragraph MUST contain 2-5 complete sentences. Single-sentence paragraphs are FORBIDDEN except for headers.
-
-**RULE 2: Blank Line Placement**
-- ONE blank line between paragraphs
-- ONE blank line before/after bullet lists
-- ZERO blank lines within a paragraph or between bullets
-
-**RULE 3: Sentence Cohesion**
-Keep related phrases together. NEVER split mid-sentence.
-
-**WRONG:**
-\`\`\`
-The company announced results.
-
-Revenue increased significantly.
-\`\`\`
-
-**CORRECT:**
-\`\`\`
-The company announced strong quarterly results. Revenue increased 25% year-over-year, beating analyst estimates.
-\`\`\`
+**RESPONSE FORMATTING:**
+${responseStyleGuidelines.instructions}
 `;
 }
 
