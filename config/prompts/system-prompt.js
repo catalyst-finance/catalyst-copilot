@@ -81,64 +81,6 @@ const PRICE_DATA_FORMAT = `
 - NEVER use first vs last intraday bar for daily change`;
 
 /**
- * Citation format instructions
- */
-const CITATION_FORMAT = `
-**CITATION FORMAT** (CRITICAL - ALWAYS CITE SOURCES):
-
-**ABSOLUTELY FORBIDDEN:**
-❌ Creating "Citations:", "Sources:", or "References:" sections at the end
-❌ Listing filings in bullet points at the bottom
-❌ Discussing data without immediate inline citation
-
-**REQUIRED FORMAT:**
-✅ Cite every claim IMMEDIATELY after the paragraph that discusses it: \`[TICKER Form Type - Date](URL)\`
-✅ If filing has IMAGE_CARD, include it: \`[TICKER Form - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
-
-**EXAMPLES:**
-✅ "The company completed a $258.9M offering \`[MNMD 8-K - Oct 31, 2025](https://sec.gov/...)\`"
-❌ "The company's filings show strong progress." (no citation)`;
-
-/**
- * General formatting principles
- * Note: Specific query-type formatting is handled dynamically by ResponseEngine
- */
-const GENERAL_FORMATTING = `
-**GENERAL FORMATTING PRINCIPLES:**
-
-• Use **bold section headers** to organize information thematically
-• Choose paragraphs or bullets based on content type:
-  - PARAGRAPHS (3-6 sentences): Narrative analysis, explanations, context
-  - BULLETS: True lists only (3+ discrete items, key highlights, specifications)
-• Focus on CONTENT and insights, not meta-information about sources
-• Structure responses to answer the user's question directly and thoroughly`;
-
-/**
- * Card marker placement rules
- */
-const CARD_MARKER_RULES = `
-**CARD MARKER PLACEMENT:**
-
-1. **[VIEW_ARTICLE:...]** → Own line AFTER paragraph, NEVER inline or in bullets
-2. **[VIEW_CHART:...]** → After Current Price section, or any section that discusses price, no header before it
-3. **[IMAGE_CARD:...]** → Inline with SEC filing citations, only if the SEC filing contains an image
-4. **[EVENT_CARD:...]** → At end of bullet point describing event
-
-**VIEW_ARTICLE example:**
-**Headline Topic**
-
-Analysis paragraph explaining the news story.
-
-[VIEW_ARTICLE:article-TICKER-0]
-
-**VIEW_CHART example:**
-**Current Price**
-
-Tesla (TSLA) is currently trading at $432.02, down 4.35%...
-
-[VIEW_CHART:TSLA:1D]`;
-
-/**
  * Critical constraints
  */
 const CRITICAL_CONSTRAINTS = `
@@ -156,6 +98,7 @@ const CRITICAL_CONSTRAINTS = `
 
 /**
  * Format response style guidelines from ResponseEngine (if present)
+ * ResponseEngine now includes all formatting rules (citations, cards, paragraphs vs bullets)
  */
 function buildStyleInstructions(responseStyleGuidelines) {
   if (!responseStyleGuidelines || !responseStyleGuidelines.instructions) return '';
@@ -187,12 +130,6 @@ These formatting guidelines apply to EVERY response - first message or follow-up
 
 **DEPTH AND THOROUGHNESS**: Default to comprehensive, detailed responses. Extract multiple insights, cite specific numbers. Don't summarize when you can analyze.
 
-${CITATION_FORMAT}
-
-${GENERAL_FORMATTING}
-
-${CARD_MARKER_RULES}
-
 ${CRITICAL_CONSTRAINTS}
 
 ${contextMessage}${dataContext ? '\n\n═══ DATA PROVIDED ═══\n' + dataContext : '\n\n═══ NO DATA AVAILABLE ═══\nYou must inform the user that this information is not in the database.'}${upcomingDatesContext}${eventCardsContext}${intelligenceContext}`;
@@ -205,8 +142,5 @@ module.exports = {
   ANALYZE_BEFORE_MENTIONING,
   CORRELATION_ANALYSIS,
   PRICE_DATA_FORMAT,
-  CITATION_FORMAT,
-  GENERAL_FORMATTING,
-  CARD_MARKER_RULES,
   CRITICAL_CONSTRAINTS
 };

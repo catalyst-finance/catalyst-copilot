@@ -15,6 +15,7 @@ const ResponseEngine = require('../services/ResponseEngine');
 const { processOpenAIStream } = require('../services/StreamProcessor');
 const { optionalAuth } = require('../middleware/auth');
 const { buildSystemPrompt } = require('../config/prompts/system-prompt');
+const { UNIVERSAL_FORMATTING_RULES } = require('../config/prompts/formatting-rules');
 const { getTokenBudget, getTierInfo, estimateCost } = require('../config/token-allocation');
 
 // Main AI chat endpoint
@@ -189,9 +190,17 @@ router.post('/', optionalAuth, async (req, res) => {
             console.log(`📈 Added chart marker for ${queryIntent.chartConfig.symbol}`);
           }
           
-          // Store AI-recommended response style
+          // Store AI-recommended response style and prepend universal formatting rules
           if (formattingPlan.responseStyle) {
             responseStyleGuidelines = formattingPlan.responseStyle;
+            
+            // Prepend universal formatting rules to query-specific instructions
+            if (responseStyleGuidelines.instructions) {
+              responseStyleGuidelines.instructions = UNIVERSAL_FORMATTING_RULES + '\n\n' + responseStyleGuidelines.instructions;
+            } else {
+              responseStyleGuidelines.instructions = UNIVERSAL_FORMATTING_RULES;
+            }
+            
             console.log('📐 Response Style:', responseStyleGuidelines.format, '-', responseStyleGuidelines.tone);
           }
           
