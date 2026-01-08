@@ -115,18 +115,21 @@ class StreamProcessor {
     };
     
     for (const card of dataCards) {
-      if (card.type === 'article' && card.data?.cardId) {
+      // Article cards use 'id' field, not 'cardId'
+      if (card.type === 'article' && card.data?.id) {
         markers.articles.push({
-          cardId: card.data.cardId,
+          cardId: card.data.id,
           ticker: card.data.ticker,
           title: card.data.title || ''
         });
-      } else if (card.type === 'image' && card.data?.cardId) {
-        markers.images.push(card.data.cardId);
+      } else if (card.type === 'image' && card.data?.id) {
+        markers.images.push(card.data.id);
       } else if (card.type === 'event' && card.data?.id) {
         markers.events.push(card.data.id);
       }
     }
+    
+    console.log(`📊 StreamProcessor tracking ${markers.articles.length} article markers, ${markers.images.length} image markers`);
     
     return markers;
   }
