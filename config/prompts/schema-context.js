@@ -92,7 +92,7 @@ const QUERY_SCHEMA_CONTEXT = `
    - Institutional/13F → ownership
    - Analyst ratings → price_targets
    - Company news → news
-   - Official announcements → press_releases
+   - Official announcements/board changes/executive appointments → press_releases
    - Earnings calls → earnings_transcripts
    - Social sentiment → hype
    - Economic indicators → macro_economics
@@ -100,7 +100,7 @@ const QUERY_SCHEMA_CONTEXT = `
    - Current prices → finnhub_quote_snapshots (Supabase)
    - Intraday bars → one_minute_prices (Supabase)
    - Daily history → daily_prices (Supabase)
-   - Events → event_data (Supabase)
+   - Calendar events → event_data (Supabase - usually empty, use press_releases instead)
 
 6. **Supabase format**: .select(), .eq(), .ilike(), .gte()/.lte(), .order(), .limit()
 `;

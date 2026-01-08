@@ -84,6 +84,7 @@ ${this.schemaContext}
 
 **CRITICAL RULES:**
 - For government policy queries about politicians, prioritize querying government_policy collection in MongoDB
+- For board changes, executive appointments, management updates → query press_releases collection first (not event_data)
 - Extract semantic synonyms for concepts (e.g., "take a stake" → ["stake", "investment", "invest", "acquire", ...])
 - Use $or to match ANY keyword when searching transcripts
 - Map speaker names correctly (Trump → search for "trump" OR "hassett")
