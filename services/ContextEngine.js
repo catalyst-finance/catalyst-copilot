@@ -53,6 +53,7 @@ const RESPONSE_STYLE_OPTIONS = `
 
 **Tone:**
 - **analytical + comprehensive**: Professional, data-focused, objective, detailed, thorough, includes context
+`;
 
 /**
  * Detail level decision criteria
