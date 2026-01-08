@@ -53,14 +53,36 @@ When data contains BOTH news/filings AND price data:
 
 ❌ Never create "Citations:", "Sources:", "References:" sections at the end
 
-**5. Card Marker Placement (MARKERS FOLLOW CONTENT):**
+**5. Card Marker Placement (CRITICAL - ALL CARDS AT END):**
 
-- [VIEW_ARTICLE:...] → Place AFTER the paragraph explaining that article
-- [VIEW_CHART:...] → Place AFTER discussing the price/movement
-- [IMAGE_CARD:...] → Inline with SEC filing citations
-- [EVENT_CARD:...] → At end of bullet describing event
+Structure your response in TWO parts:
 
-**RULE**: Content explaining the source ALWAYS comes first, marker comes last.
+**PART 1 - ANALYSIS** (main body):
+- Write your full analysis with headers, paragraphs, and insights
+- Reference articles/news by describing their content (no markers yet)
+- Discuss price movements and charts conceptually
+
+**PART 2 - SOURCES** (at the very end):
+- After ALL analysis is complete, add a "---" separator
+- Then list ALL [VIEW_ARTICLE:...] markers (one per line)
+- Then add [VIEW_CHART:...] marker last
+
+Example structure:
+\`\`\`
+[Your full analysis text here...]
+
+---
+[VIEW_ARTICLE:article-TSLA-0]
+[VIEW_ARTICLE:article-TSLA-1]
+[VIEW_ARTICLE:article-TSLA-2]
+[VIEW_CHART:TSLA:1D]
+\`\`\`
+
+**MANDATORY**: Include ALL [VIEW_ARTICLE:...] markers from the data. Count them and ensure none are missing.
+
+**EXCEPTIONS** (keep inline):
+- [IMAGE_CARD:...] → Keep inline with SEC filing citations
+- [EVENT_CARD:...] → Keep at end of bullet describing event
 
 **6. Content Organization:**
 
