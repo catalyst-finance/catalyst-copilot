@@ -435,7 +435,7 @@ class ContextEngine {
         return this.formatGovernmentPolicy(itemsToShow, detailLevel, output, queryIntent);
       
       case 'news':
-        return await this.formatNews(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards);
+        return await this.formatNews(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards, sendThinking);
       
       case 'price_targets':
         return this.formatPriceTargets(itemsToShow, detailLevel, output);
@@ -628,7 +628,7 @@ class ContextEngine {
   /**
    * Format news articles - OPTIMIZED with parallel metadata fetching
    */
-  async formatNews(items, detailLevel, fetchExternal, DataConnector, output, dataCards) {
+  async formatNews(items, detailLevel, fetchExternal, DataConnector, output, dataCards, sendThinking) {
     // Domains that block requests (403/paywall) - skip fetching metadata
     const BLOCKED_DOMAINS = ['seekingalpha.com', 'wsj.com', 'ft.com', 'barrons.com'];
     
@@ -686,10 +686,22 @@ class ContextEngine {
     });
 
     // PHASE 2: Fetch metadata in PARALLEL for articles that need it
+    // Send thinking message about reading articles
+    if (sendThinking && items.length > 0) {
+      const ticker = items[0]?.ticker || 'company';
+      sendThinking('retrieving', `Reading ${items.length} ${ticker} articles`);
+    }
+    
     const metadataPromises = articleData
       .filter(a => a.needsMetadataFetch)
-      .map(async (a) => {
+      .map(async (a, idx) => {
         try {
+          // Send granular thinking message for each article
+          if (sendThinking && idx < 3) { // Show thinking for first 3 articles to avoid spam
+            const titlePreview = a.article.title?.substring(0, 40) || 'article';
+            sendThinking('retrieving', `Reading ${titlePreview}...`);
+          }
+          
           const contentResult = await DataConnector.fetchWebContent(a.article.url, 8000, true);
           if (contentResult.success) {
             if (contentResult.imageUrl) a.imageUrl = contentResult.imageUrl;
