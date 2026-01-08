@@ -1,0 +1,122 @@
+📡 SSE stream handler initialized (edit mode)
+📦 Received chunk (edit mode, length: 79 )
+✅ Found 1 complete messages (edit mode)
+📥 SSE (edit): thinking
+📦 Received chunk (edit mode, length: 484 )
+✅ Found 6 complete messages (edit mode)
+6
+📥 SSE (edit): thinking
+📦 Received chunk (edit mode, length: 6478 )
+✅ Found 3 complete messages (edit mode)
+2
+📥 SSE (edit): thinking
+📥 SSE (edit): metadata
+📦 Received chunk (edit mode, length: 66 )
+✅ Found 1 complete messages (edit mode)
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 25
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+🔍 [extractStreamBlocks] START - buffer length: 25
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+📦 Received chunk (edit mode, length: 227 )
+✅ Found 1 complete messages (edit mode)
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 211
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+🔍 [extractStreamBlocks] START - buffer length: 211
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📦 Received chunk (edit mode, length: 802 )
+✅ Found 3 complete messages (edit mode)
+📥 SSE (edit): article_block
+📥 SSE (edit): horizontal_rule
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 855
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+🔍 [extractStreamBlocks] START - buffer length: 855
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📦 Received chunk (edit mode, length: 115 )
+✅ Found 2 complete messages (edit mode)
+📥 SSE (edit): article_block
+📥 SSE (edit): horizontal_rule
+📦 Received chunk (edit mode, length: 763 )
+✅ Found 3 complete messages (edit mode)
+📥 SSE (edit): article_block
+📥 SSE (edit): horizontal_rule
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 1460
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+🔍 [extractStreamBlocks] START - buffer length: 1460
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📦 Received chunk (edit mode, length: 700 )
+✅ Found 9 complete messages (edit mode)
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 1646
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📥 SSE (edit): horizontal_rule
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 1671
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 1701
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 1731
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 1761
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 1791
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📥 SSE (edit): content
+🔍 [extractStreamBlocks] START - buffer length: 1821
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today
+📥 SSE (edit): done
+🔍 [extractStreamBlocks] START - buffer length: 1821
+⚠️ ⚠️ [extractStreamBlocks] Found marker at index 0 that wasn't handled by direct matches. Breaking.
+⚠️ ⚠️ Remaining starts with: [VIEW_CHART:chart-TSLA]
+
+Tesla's stock is up today

@@ -38,12 +38,12 @@ const UNIVERSAL_FORMATTING_RULES = `
    - **SEC FILINGS**: DO NOT use [10-Q 11/13/2025] citations - provide markdown link at end only
    
    ⚠️ CHART PLACEMENT RULE:
-   If discussing price changes, the response MUST start with:
-   [VIEW_CHART:chart-TICKER]
-   Then begin price analysis text.
+   If discussing price changes, the response MUST start with the chart marker.
+   DO NOT add chart markers - they are already in the data context.
+   Simply start your response with price analysis text.
    
-   ❌ WRONG: "TMC's stock is down 2.90% today..." (no chart)
-   ✅ CORRECT: "[VIEW_CHART:chart-TMC]\nTMC's stock is down 2.90% today..."
+   ✅ CORRECT: "Tesla's stock is up 0.42% today..."
+   ❌ WRONG: "[VIEW_CHART:TSLA:1D]\nTesla's stock is up..." (don't add markers)
 
 6. **Article Discussion Format - MANDATORY 4-PART STRUCTURE**:
    Part 1: Header - Create a UNIQUE thematic header, NOT the article's exact title

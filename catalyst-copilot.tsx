@@ -139,6 +139,15 @@ function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: S
       continue;
     }
     
+    // Fallback: Check for malformed chart markers (e.g., [VIEW_CHART:chart-TSLA])
+    const malformedChartMatch = remaining.match(/^(\s*)\[VIEW_CHART:([^\]]+)\](\s*)/);
+    if (malformedChartMatch) {
+      console.warn('⚠️ Found malformed VIEW_CHART marker, removing:', malformedChartMatch[0]);
+      // Skip the malformed marker to prevent infinite loop
+      remaining = remaining.substring(malformedChartMatch[0].length);
+      continue;
+    }
+    
     // Check for VIEW_ARTICLE marker
     const articleMatch = remaining.match(/^(\s*)\[VIEW_ARTICLE:([^\]]+)\](\s*)/);
     if (articleMatch) {
