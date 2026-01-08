@@ -26,9 +26,15 @@ const UNIVERSAL_FORMATTING_RULES = `
 
 4. **Citations**: 
    - **NEWS ARTICLES**: Use [VIEW_ARTICLE:article-X-Y] markers ONLY, never markdown links
+   - **PRESS RELEASES**: Use [VIEW_ARTICLE:press-X-Y] markers ONLY, place immediately after mentioning the fact
    - **SEC FILINGS**: Provide one markdown link at end: [TICKER FORM Filing](URL)
    - DO NOT use bracket citations like [10-Q 11/13/2025]
    - DO NOT use [Source Name](URL) for articles - use [VIEW_ARTICLE:...] markers only
+   - **ALWAYS cite sources** - Even for simple factual answers, include the marker
+   
+   ✅ CORRECT: "Steve Jurvetson joined TMC's board on April 10, 2024. [VIEW_ARTICLE:press-TMC-4]"
+   ❌ WRONG: "Steve Jurvetson joined TMC's board on April 10, 2024." (missing marker)
+   ❌ WRONG: "...on April 10, 2024. [TMC Press Release](https://url)" (no markdown links)
    
    ✅ CORRECT: "Truist cut price target to $439... [VIEW_ARTICLE:article-TSLA-7]"
    ❌ WRONG: "Truist cut price target... [Insider Monkey](https://url)" (no markdown links for articles)
