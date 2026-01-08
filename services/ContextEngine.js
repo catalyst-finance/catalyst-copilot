@@ -28,30 +28,25 @@ const UNIVERSAL_FORMATTING_RULES = `
 
 5. **Card Markers (CRITICAL)**:
    - **CHARTS**: Place [VIEW_CHART:...] FIRST, before price analysis text
-   - **ARTICLES**: Place [VIEW_ARTICLE:...] AFTER discussion (see format below)
+   - **ARTICLES**: Place [VIEW_ARTICLE:...] AFTER the discussion paragraph for that article
    - **IMAGES**: [IMAGE_CARD:...] inline with SEC filing citations
    - **EVENTS**: [EVENT_CARD:...] at end of bullet describing that event
 
-6. **Article Discussion Format (EXACT STRUCTURE REQUIRED)**:
-   Every article MUST follow this 4-part sequence:
-   
-   Part 1: **Bold Numbered Header** (1. **Title**)
-   Part 2: Discussion/Analysis (1-2 paragraphs, 1-3 sentences each)
+6. **Article Discussion Format - MANDATORY 4-PART STRUCTURE**:
+   Part 1: Header in bold (numbered: 1. **Title**)
+   Part 2: Discussion - 1-2 paragraphs, each with 1-3 sentences
    Part 3: [VIEW_ARTICLE:article-X-Y] marker
-   Part 4: Horizontal separator (auto-added)
+   Part 4: Horizontal separator (auto-added by backend)
    
-   ❌ WRONG: Marker before discussion or after header
-   ✅ CORRECT: Header → Discussion → Marker → Separator
+   ❌ WRONG: Marker before discussion
+   ❌ WRONG: Marker immediately after header
+   ✅ CORRECT: Header → Discussion → Marker
    
    Example:
-   1. **Tesla Announces Battery Breakthrough**
-   Tesla's new 4680 battery cells represent a major advancement in EV technology.
-   The innovation could increase range by 16% while reducing production costs.
-   
-   This breakthrough positions Tesla ahead of competitors in the race for
-   longer-range, more affordable electric vehicles.
+   1. **Tesla Battery Breakthrough**
+   Tesla announced a new battery technology that increases EV range by 40%.
+   This development could significantly accelerate EV adoption rates.
    [VIEW_ARTICLE:article-TSLA-0]
-   ---
 
 7. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
 `;
@@ -721,33 +716,32 @@ class ContextEngine {
 
     // PHASE 3: Build output and dataCards sequentially (for correct ordering)
     
-    // Add explicit marker placement instruction - DEFINE EXACT FORMAT
+    // Add explicit marker placement instruction - EMPHASIZE marker placement AFTER discussion
     output += `\n═══════════════════════════════════════════════════════════\n`;
-    output += `🚨 ARTICLE DISCUSSION FORMAT (MANDATORY) 🚨\n`;
+    output += `🚨 REQUIRED FORMAT: ARTICLE DISCUSSION (4-PART STRUCTURE) 🚨\n`;
     output += `═══════════════════════════════════════════════════════════\n\n`;
-    output += `REQUIRED FORMAT FOR EVERY ARTICLE:\n\n`;
-    output += `1️⃣ **Bold Numbered Header** (e.g., 1. **Article Title**)\n`;
-    output += `2️⃣ Discussion/Analysis:\n`;
-    output += `   • Write 1-2 paragraphs\n`;
-    output += `   • Each paragraph: 1-3 sentences\n`;
-    output += `   • Explain significance, context, and implications\n`;
-    output += `3️⃣ [VIEW_ARTICLE:article-X-Y] marker\n`;
-    output += `4️⃣ Horizontal separator (automatically added)\n\n`;
+    output += `EVERY ARTICLE MUST FOLLOW THIS EXACT SEQUENCE:\n\n`;
+    output += `  1️⃣ Header (bold, numbered): 1. **Article Title**\n`;
+    output += `  2️⃣ Discussion: 1-2 paragraphs (1-3 sentences each)\n`;
+    output += `  3️⃣ Article Card: [VIEW_ARTICLE:article-X-Y]\n`;
+    output += `  4️⃣ Separator: (auto-added by backend)\n\n`;
+    output += `DISCUSSION REQUIREMENTS:\n`;
+    output += `  • 1-2 paragraphs per article\n`;
+    output += `  • 1-3 sentences per paragraph\n`;
+    output += `  • Analyze significance, impact, or key insights\n\n`;
     output += `❌ WRONG - Marker before discussion:\n`;
     output += `1. **Market Analysis**\n`;
-    output += `[VIEW_ARTICLE:article-TSLA-0] ← WRONG!\n`;
+    output += `[VIEW_ARTICLE:article-TSLA-0] ← NO!\n`;
     output += `This article shows...\n\n`;
-    output += `✅ CORRECT - Complete format:\n`;
+    output += `✅ CORRECT - Discussion then marker:\n`;
     output += `1. **Market Analysis**\n`;
-    output += `Tesla's Q4 earnings beat expectations with 25% YoY revenue growth.\n`;
-    output += `The strong performance reflects robust demand and margin expansion.\n\n`;
-    output += `Strong delivery numbers indicate sustained market confidence in the\n`;
-    output += `company's long-term strategy and execution capabilities.\n`;
-    output += `[VIEW_ARTICLE:article-TSLA-0] ← CORRECT!\n`;
-    output += `---\n\n`;
-    output += `CRITICAL: Never place marker immediately after header.\n`;
-    output += `CRITICAL: Always write analysis BEFORE placing marker.\n`;
-    output += `NOTE: Markers do NOT appear in data below - you must place them.\n`;
+    output += `Tesla's Q4 earnings beat expectations with 25% YoY growth.\n`;
+    output += `Strong delivery numbers signal robust demand fundamentals.\n\n`;
+    output += `The margin expansion from manufacturing efficiency demonstrates\n`;
+    output += `Tesla's ability to scale profitably. This positions them well\n`;
+    output += `for continued market share gains in 2026.\n`;
+    output += `[VIEW_ARTICLE:article-TSLA-0]\n\n`;
+    output += `NOTE: Markers do NOT appear in data below - you place them.\n`;
     output += `═══════════════════════════════════════════════════════════\n\n`;
     
     for (const a of articleData) {
