@@ -52,10 +52,10 @@ app.get('/', (req, res) => {
       health: '/health',
       auth: '/auth/*',
       watchlists: '/watchlists/*',
-      conversations,
+      conversations: '/conversations/*',
+      chat: '/chat',
       quote: '/api/quote/:symbol',
-      priceTargets: '/api/price-targets/:symbol': '/conversations/*',
-      chat: '/chat'
+      priceTargets: '/api/price-targets/:symbol'
     }
   });
 });
