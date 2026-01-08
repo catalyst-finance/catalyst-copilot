@@ -870,7 +870,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
             data_cards: dataCards.length > 0 ? dataCards : null,
             token_count: ConversationManager.estimateTokens(fullResponse),
             metadata: {
-              model: model || 'gpt-4o-mini',
+              model: model || 'gpt-4o',  // Fallback matches actual model used on line 814
               finish_reason: finishReason
             }
           }

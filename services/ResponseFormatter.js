@@ -157,4 +157,4 @@ class ResponseFormatter {
   }
 }
 
-module.exports = new ResponseFormatter();
+module.exports = ResponseFormatter;
