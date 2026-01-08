@@ -126,15 +126,44 @@ class StreamProcessor {
           title: card.data.title || ''
         });
       } else if (card.type === 'image' && card.data?.id) {
-        markers.images.push(card.data.id);
+        console.log(`  🖼️  Expected image marker: ${card.data.id} - "${card.data.title?.substring(0, 50)}..."`);
+        markers.images.push({
+          cardId: card.data.id,
+          ticker: card.data.ticker,
+          title: card.data.title || ''
+        });
       } else if (card.type === 'event' && card.data?.id) {
-        markers.events.push(card.data.id);
+        markers.events.push({
+          cardId: card.data.id.toString(),
+          title: card.data.title || ''
+        });
+      } else if (card.type === 'filing' && card.data?.id) {
+        console.log(`  📄 Expected filing reference: ${card.data.id}`);
       }
     }
     
     console.log(`📊 StreamProcessor tracking ${markers.articles.length} article markers, ${markers.images.length} image markers`);
     
     return markers;
+  }
+
+  /**
+   * Validate that a marker has a corresponding dataCard
+   */
+  validateMarker(marker) {
+    switch (marker.type) {
+      case 'ARTICLE':
+        return this.expectedMarkers.articles.some(a => a.cardId === marker.data.cardId);
+      case 'IMAGE':
+        return this.expectedMarkers.images.some(i => i.cardId === marker.data.cardId);
+      case 'EVENT':
+        return this.expectedMarkers.events.some(e => e.cardId === marker.data.cardId);
+      case 'CHART':
+        // Charts don't have expected markers from dataCards yet
+        return true;
+      default:
+        return false;
+    }
   }
 
   /**
@@ -217,6 +246,19 @@ class StreamProcessor {
         console.log(`   Data: ${JSON.stringify(marker.data)}`);
         console.log(`   Before length: ${marker.before.length} chars`);
         console.log(`   After length: ${marker.after.length} chars`);
+        
+        // Validate marker has corresponding dataCard
+        const isValid = this.validateMarker(marker);
+        if (!isValid) {
+          console.warn(`⚠️  INVALID MARKER DETECTED: ${marker.marker}`);
+          console.warn(`   No matching dataCard found - GPT generated a marker for non-existent data`);
+          console.warn(`   Skipping emission and removing from buffer...`);
+          // Emit the text before as normal content
+          this.emitText(marker.before);
+          // Skip the invalid marker entirely
+          this.buffer = marker.after;
+          continue;
+        }
         
         // Emit any text before the marker
         this.emitText(marker.before);

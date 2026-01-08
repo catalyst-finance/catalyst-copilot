@@ -529,12 +529,30 @@ class ContextEngine {
               url: filing.url
             });
 
+            // ALWAYS create a filing reference card, even if no images
+            const filingCardId = `filing-${filing.ticker}-${filing.form_type}-${index}`;
+            console.log(`  📄 Creating filing reference card: ${filingCardId}`);
+            dataCards.push({
+              type: 'filing',
+              data: {
+                id: filingCardId,
+                ticker: filing.ticker,
+                formType: filing.form_type,
+                title: `${filing.form_type} Filing - ${date}`,
+                url: filing.url,
+                date: date,
+                content: contentResult.content.substring(0, 1000)
+              }
+            });
+
             if (contentResult.images && contentResult.images.length > 0) {
+              console.log(`  🖼️  Found ${contentResult.images.length} images in ${filing.form_type}`);
               output += `\n   === IMAGES/CHARTS IN THIS FILING ===\n`;
               output += `   ⚠️ EACH IMAGE MUST HAVE A DESCRIPTION IN YOUR RESPONSE ⚠️\n`;
               output += `   DO NOT just drop [IMAGE_CARD:...] at the end - describe what each image shows!\n\n`;
               contentResult.images.slice(0, 5).forEach((img, idx) => {
                 const imageId = `sec-image-${filing.ticker}-${index}-${idx}`;
+                console.log(`    [${idx}] Creating image card: ${imageId} - "${img.alt || 'Chart/Table'}"`);
                 dataCards.push({
                   type: 'image',
                   data: {
