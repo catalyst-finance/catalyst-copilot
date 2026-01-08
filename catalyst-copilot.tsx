@@ -109,7 +109,7 @@ interface CatalystCopilotProps {
  */
 interface StreamBlock {
   id: string;
-  type: 'text' | 'chart' | 'article' | 'image' | 'event';
+  type: 'text' | 'chart' | 'article' | 'image' | 'event' | 'separator';
   content: string;  // For text blocks, the markdown content
   data?: any;       // For cards/charts, the structured data
 }
@@ -682,6 +682,17 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 }
                 break;
 
+              case 'horizontal_rule':
+                // Horizontal separator - styled divider after article discussions
+                const separatorBlock: StreamBlock = {
+                  id: `separator-${blockIdCounter++}`,
+                  type: 'separator',
+                  content: ''
+                };
+                collectedBlocks.push(separatorBlock);
+                setStreamedBlocks(prev => [...prev, separatorBlock]);
+                break;
+
               case 'image_block':
                 // Image block - find card data and render
                 const imageCard = collectedDataCards.find(c => c.type === 'image' && c.data?.id === data.cardId);
@@ -1029,6 +1040,17 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   collectedBlocks.push(editArticleBlock);
                   setStreamedBlocks(prev => [...prev, editArticleBlock]);
                 }
+                break;
+
+              case 'horizontal_rule':
+                // Horizontal separator - styled divider after article discussions
+                const editSeparatorBlock: StreamBlock = {
+                  id: `edit-separator-${editBlockIdCounter++}`,
+                  type: 'separator',
+                  content: ''
+                };
+                collectedBlocks.push(editSeparatorBlock);
+                setStreamedBlocks(prev => [...prev, editSeparatorBlock]);
                 break;
 
               case 'image_block':
@@ -1996,6 +2018,13 @@ function StreamBlockRenderer({
                   onImageClick={onImageClick} 
                   onTickerClick={onTickerClick} 
                 />
+              </div>
+            );
+          
+          case 'separator':
+            return (
+              <div key={block.id} className="my-4">
+                <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 dark:via-neutral-700 to-transparent" />
               </div>
             );
           

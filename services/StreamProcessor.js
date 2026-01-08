@@ -107,6 +107,8 @@ class StreamProcessor {
    * Build expected markers from dataCards
    */
   buildExpectedMarkers(dataCards) {
+    console.log(`\n🎯 StreamProcessor: Building expected markers from ${dataCards.length} dataCards`);
+    
     const markers = {
       articles: [],  // { cardId, ticker, title }
       images: [],
@@ -117,6 +119,7 @@ class StreamProcessor {
     for (const card of dataCards) {
       // Article cards use 'id' field, not 'cardId'
       if (card.type === 'article' && card.data?.id) {
+        console.log(`  📰 Expected article marker: ${card.data.id} - "${card.data.title?.substring(0, 50)}..."`);
         markers.articles.push({
           cardId: card.data.id,
           ticker: card.data.ticker,
@@ -209,20 +212,27 @@ class StreamProcessor {
       const marker = extractFirstMarker(this.buffer);
       
       if (marker) {
+        console.log(`\n🎯 MARKER FOUND: ${marker.marker}`);
+        console.log(`   Type: ${marker.type}`);
+        console.log(`   Data: ${JSON.stringify(marker.data)}`);
+        console.log(`   Before length: ${marker.before.length} chars`);
+        console.log(`   After length: ${marker.after.length} chars`);
+        
         // Emit any text before the marker
         this.emitText(marker.before);
         
         // Emit the marker as a structured block
         switch (marker.type) {
           case 'CHART':
+            console.log(`   → Emitting CHART block: ${marker.data.symbol}:${marker.data.timeRange}`);
             this.emitChart(marker.data.symbol, marker.data.timeRange);
             break;
           case 'ARTICLE':
+            console.log(`   → Emitting ARTICLE block: ${marker.data.cardId}`);
             this.emitArticle(marker.data.cardId);
-            // Check if there's content after this article - if so, add horizontal rule
-            if (marker.after.trim().length > 0) {
-              this.emitHorizontalRule();
-            }
+            // Always add horizontal rule after article card for visual separation
+            console.log(`   → Emitting HORIZONTAL_RULE after article`);
+            this.emitHorizontalRule();
             break;
           case 'IMAGE':
             this.emitImage(marker.data.cardId);
@@ -337,24 +347,34 @@ class StreamProcessor {
     
     // Inject missing markers
     if (articlesToInject.length > 0) {
-      // Add a small separator then inject markers as TEXT content (not events)
-      // This ensures they render at the END of the response in proper order
-      let injectionText = '\n\n---\n\n**Related Coverage:**\n\n';
+      console.log(`\n💉 SMART MARKER INJECTION: Injecting ${articlesToInject.length} missing article markers`);
+      articlesToInject.forEach((article, idx) => {
+        console.log(`  [${idx}] ${article.cardId}: "${article.title?.substring(0, 50)}..."`);
+      });
       
+      // Add styled separator before Related Coverage section
+      console.log(`  → Emitting HORIZONTAL_RULE before Related Coverage`);
+      this.emitHorizontalRule();
+      
+      // Add Related Coverage header as TEXT content
+      const headerText = '\n\n**Related Coverage:**\n\n';
+      console.log(`  → Emitting Related Coverage header`);
+      this.fullResponse += headerText;
+      this.emit({ type: 'content', content: headerText });
+      
+      // Inject markers as TEXT content (not events)
+      // This ensures they render at the END of the response in proper order
       for (const article of articlesToInject) {
         // Inject as marker text that will be processed by frontend extractStreamBlocks
-        injectionText += `[VIEW_ARTICLE:${article.cardId}]\n`;
-        console.log(`  → Injected [VIEW_ARTICLE:${article.cardId}]`);
+        const markerText = `[VIEW_ARTICLE:${article.cardId}]\n`;
+        this.fullResponse += markerText;
+        this.emit({ type: 'content', content: markerText });
+        console.log(`  → Injected [VIEW_ARTICLE:${article.cardId}]: "${article.title?.substring(0, 40)}..."`);
         
         // Track that we injected this marker (add to foundMarkers so we don't duplicate)
         this.foundMarkers.add(article.cardId);
       }
-      
-      // Add to fullResponse so it appears in logs
-      this.fullResponse += injectionText;
-      
-      // Emit as content event so it gets processed by frontend in correct order
-      this.emit({ type: 'content', content: injectionText });
+      console.log(`✅ Smart injection complete\n`);
     }
   }
 

@@ -669,9 +669,12 @@ class ContextEngine {
     };
 
     // PHASE 1: Prepare article data and identify which need metadata fetches
+    console.log(`\n🔍 PHASE 1: Building article data array from ${items.length} items`);
     const articleData = items.map((article, index) => {
       const date = article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown date';
       const domain = article.url ? this.extractDomain(article.url) : null;
+      
+      console.log(`  [${index}] Mapping: "${article.title?.substring(0, 50)}..." from ${domain}`);
       
       // Determine actual source
       let actualSource = domain || article.origin || 'Unknown';
@@ -689,6 +692,11 @@ class ContextEngine {
         }
       }
 
+      const needsFetch = article.url && items.length <= 10 && !article.image && 
+          domain && !BLOCKED_DOMAINS.some(blocked => domain.includes(blocked));
+      
+      console.log(`  [${index}] needsMetadataFetch: ${needsFetch} (hasImage: ${!!article.image}, domain: ${domain})`);
+      
       return {
         article,
         index,
@@ -698,10 +706,11 @@ class ContextEngine {
         logoUrl: domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null,
         imageUrl: article.image || null,
         extractedProvider: null,
-        needsMetadataFetch: article.url && items.length <= 10 && !article.image && 
-          domain && !BLOCKED_DOMAINS.some(blocked => domain.includes(blocked))
+        needsMetadataFetch: needsFetch
       };
     });
+    
+    console.log(`✅ Article data array built with ${articleData.length} articles`);
 
     // PHASE 2: Fetch metadata in PARALLEL for articles that need it
     // Send thinking message about reading articles
@@ -710,10 +719,18 @@ class ContextEngine {
       sendThinking('retrieving', `Reading ${items.length} ${ticker} articles`);
     }
     
-    const metadataPromises = articleData
-      .filter(a => a.needsMetadataFetch)
+    console.log(`\n🔍 PHASE 2: Filtering articles that need metadata fetch`);
+    const articlesNeedingFetch = articleData.filter(a => a.needsMetadataFetch);
+    console.log(`  Found ${articlesNeedingFetch.length} articles needing metadata fetch:`);
+    articlesNeedingFetch.forEach((a, i) => {
+      console.log(`    [Original Index ${a.index}] "${a.article.title?.substring(0, 50)}..."`);
+    });
+    
+    const metadataPromises = articlesNeedingFetch
       .map(async (a, idx) => {
         try {
+          console.log(`  🌐 Fetching metadata for article [${a.index}]: "${a.article.title?.substring(0, 50)}..."`);
+          
           // Send granular thinking message for each article
           if (sendThinking && idx < 3) { // Show thinking for first 3 articles to avoid spam
             const titlePreview = a.article.title?.substring(0, 40) || 'article';
@@ -722,6 +739,7 @@ class ContextEngine {
           
           const contentResult = await DataConnector.fetchWebContent(a.article.url, 8000, true);
           if (contentResult.success) {
+            console.log(`    ✅ [${a.index}] Metadata fetched: provider=${contentResult.providerName}, hasImage=${!!contentResult.imageUrl}`);
             if (contentResult.imageUrl) a.imageUrl = contentResult.imageUrl;
             if (contentResult.providerName) {
               a.extractedProvider = contentResult.providerName;
@@ -730,17 +748,21 @@ class ContextEngine {
                 a.logoUrl = `https://www.google.com/s2/favicons?domain=${providerDomain}&sz=128`;
               }
             }
+          } else {
+            console.log(`    ❌ [${a.index}] Metadata fetch failed`);
           }
         } catch (error) {
-          // Silently fail - will use fallback values
+          console.log(`    ❌ [${a.index}] Metadata fetch error: ${error.message}`);
         }
         return a;
       });
 
     // Wait for ALL metadata fetches to complete in parallel
     await Promise.all(metadataPromises);
+    console.log(`✅ PHASE 2 complete: All metadata fetches finished\n`);
 
     // PHASE 3: Build output and dataCards sequentially (for correct ordering)
+    console.log(`🔍 PHASE 3: Building data cards and output context`);
     
     // Add explicit marker placement instruction - EMPHASIZE marker placement AFTER discussion
     output += `\n═══════════════════════════════════════════════════════════\n`;
@@ -779,6 +801,16 @@ class ContextEngine {
         const articleId = `article-${article.ticker || 'news'}-${index}`;
         const displaySource = a.extractedProvider || a.actualSource;
         
+        // Verbose logging for article ID assignment
+        console.log(`\n  📝 DataCard Creation [${index}]:`);
+        console.log(`     Title: "${article.title}"`);
+        console.log(`     ID: ${articleId}`);
+        console.log(`     Source: ${displaySource}`);
+        console.log(`     URL: ${article.url}`);
+        console.log(`     Domain: ${domain}`);
+        console.log(`     Published: ${article.published_at}`);
+        console.log(`     ImageURL: ${a.imageUrl ? 'Yes' : 'No'}`);
+        
         dataCards.push({
           type: 'article',
           data: {
@@ -813,6 +845,13 @@ class ContextEngine {
 
       output += `\n`;
     }
+
+    console.log(`\n✅ PHASE 3 complete: Created ${dataCards.length} data cards from ${articleData.length} articles\n`);
+    console.log(`📋 Final DataCards Array (${dataCards.length} cards):`);
+    dataCards.forEach((card, idx) => {
+      console.log(`  [${idx}] ${card.data.id}: "${card.data.title?.substring(0, 50)}..."`);
+    });
+    console.log(``);
 
     return output;
   }
