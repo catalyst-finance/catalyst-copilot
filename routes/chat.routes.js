@@ -827,12 +827,11 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     // - event_block: { cardId }
     const { fullResponse, finishReason, model } = await processOpenAIStream(stream, res, dataCards);
 
-    // Log response structure with marker positions for debugging
+    // Log complete response structure with marker positions for debugging
     console.log('\n📄 FULL RESPONSE STRUCTURE:');
     console.log('='.repeat(80));
-    
-    // Show first 800 chars to see initial structure
-    console.log(fullResponse.substring(0, 800) + (fullResponse.length > 800 ? '...\n' : '\n'));
+    console.log(fullResponse);
+    console.log('='.repeat(80));
     
     // Show marker positions to verify they come after discussion
     const markerMatches = [...fullResponse.matchAll(/\[VIEW_ARTICLE:[^\]]+\]/g)];
@@ -847,15 +846,8 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
         console.log(`  ${i + 1}. ${match[0]} at char ${position}`);
         console.log(`     Context: ...${preview}...`);
       });
+      console.log('='.repeat(80));
     }
-    
-    // Show last 400 chars to see injected markers
-    if (fullResponse.length > 400) {
-      console.log(`\n📌 RESPONSE END (last 400 chars):`);
-      console.log(fullResponse.substring(fullResponse.length - 400));
-    }
-    
-    console.log('='.repeat(80));
     
     // Debug: Check if GPT-4 preserved VIEW_ARTICLE markers
     const responseViewArticleMatches = (fullResponse.match(/\[VIEW_ARTICLE:[^\]]+\]/g) || []);
