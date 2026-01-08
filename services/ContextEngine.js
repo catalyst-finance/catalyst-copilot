@@ -38,11 +38,7 @@ const UNIVERSAL_FORMATTING_RULES = `
    Part 3: [VIEW_ARTICLE:article-X-Y] marker
    Part 4: Horizontal separator (auto-added by backend)
    
-   ❌ WRONG: Marker before discussion
-   ❌ WRONG: Marker immediately after header
-   ✅ CORRECT: Header → Discussion → Marker
-   
-   Example:
+   ✅ ALWAYS USE THIS STRUCTURE:
    1. **Tesla Battery Breakthrough**
    Tesla announced a new battery technology that increases EV range by 40%.
    This development could significantly accelerate EV adoption rates.
@@ -726,21 +722,23 @@ class ContextEngine {
     output += `  3️⃣ Article Card: [VIEW_ARTICLE:article-X-Y]\n`;
     output += `  4️⃣ Separator: (auto-added by backend)\n\n`;
     output += `DISCUSSION REQUIREMENTS:\n`;
-    output += `  • 1-2 paragraphs per article\n`;
-    output += `  • 1-3 sentences per paragraph\n`;
-    output += `  • Analyze significance, impact, or key insights\n\n`;
-    output += `❌ WRONG - Marker before discussion:\n`;
+    output += `  • Write 1-2 paragraphs analyzing the article\n`;
+    output += `  • Each paragraph should have 1-3 sentences\n`;
+    output += `  • Discuss significance, impact, or key insights\n`;
+    output += `  • Place marker AFTER all discussion text\n\n`;
+    output += `✅ EXAMPLE WITH 1 PARAGRAPH:\n`;
     output += `1. **Market Analysis**\n`;
-    output += `[VIEW_ARTICLE:article-TSLA-0] ← NO!\n`;
-    output += `This article shows...\n\n`;
-    output += `✅ CORRECT - Discussion then marker:\n`;
-    output += `1. **Market Analysis**\n`;
+    output += `Tesla's Q4 earnings beat expectations with 25% YoY growth.\n`;
+    output += `Strong delivery numbers signal robust demand fundamentals.\n`;
+    output += `[VIEW_ARTICLE:article-TSLA-0]\n\n`;
+    output += `✅ EXAMPLE WITH 2 PARAGRAPHS:\n`;
+    output += `2. **Manufacturing Efficiency**\n`;
     output += `Tesla's Q4 earnings beat expectations with 25% YoY growth.\n`;
     output += `Strong delivery numbers signal robust demand fundamentals.\n\n`;
     output += `The margin expansion from manufacturing efficiency demonstrates\n`;
     output += `Tesla's ability to scale profitably. This positions them well\n`;
     output += `for continued market share gains in 2026.\n`;
-    output += `[VIEW_ARTICLE:article-TSLA-0]\n\n`;
+    output += `[VIEW_ARTICLE:article-TSLA-1]\n\n`;
     output += `NOTE: Markers do NOT appear in data below - you place them.\n`;
     output += `═══════════════════════════════════════════════════════════\n\n`;
     
