@@ -73,12 +73,13 @@ const DETAIL_LEVEL_RULES = `
 **CRITICAL PRINCIPLE - IF YOU PLAN TO REFERENCE IT, YOU MUST ANALYZE IT:**
 
 For EVERY data source:
-- Will the AI MENTION or REFERENCE this source? → fetchExternalContent: true, detailLevel: full
 - Don't list documents without explaining their content
+- Extract specific numbers, dates, and facts from the content
 
-Ask: "Will the AI need to explain WHAT'S IN this source?"
-- YES → fetchExternalContent: true, detailLevel: full
-- NO (just need existence) → fetchExternalContent: false
+**FetchExternalContent Decision:**
+- Does the database already have the full text content? → fetchExternalContent: false (use existing content)
+- Database only has URL/metadata, but content is needed for analysis? → fetchExternalContent: true
+- Just need title/metadata? → fetchExternalContent: false, detailLevel: summary
 
 **General Rules:**
 - "analyze" or "details" → detailLevel: full, fetchExternalContent: true
