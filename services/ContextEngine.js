@@ -726,12 +726,20 @@ class ContextEngine {
           }
         });
         
-        output += `${index + 1}. [VIEW_ARTICLE:${articleId}]\n`;
+        // Put marker AFTER article info so GPT discusses it first, then places card
+        output += `${index + 1}. **${article.title || 'Untitled'}** (${displaySource})\n`;
+        output += `   Published: ${article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown'}\n`;
       }
 
       if (article.content && detailLevel !== 'summary') {
         const contentLength = detailLevel === 'full' ? 5000 : (detailLevel === 'detailed' ? 1000 : 300);
-        output += `   Content: ${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
+        output += `   Summary: ${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
+      }
+      
+      // Marker comes LAST - after all article info
+      if (article.url) {
+        const articleId = `article-${article.ticker || 'news'}-${index}`;
+        output += `   → Place card after discussing: [VIEW_ARTICLE:${articleId}]\n`;
       }
 
       output += `\n`;
