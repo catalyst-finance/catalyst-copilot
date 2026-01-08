@@ -38,16 +38,20 @@ const UNIVERSAL_FORMATTING_RULES = `
    - **SEC FILINGS**: DO NOT use [10-Q 11/13/2025] citations - provide markdown link at end only
 
 6. **Article Discussion Format - MANDATORY 4-PART STRUCTURE**:
-   Part 1: Header in bold (numbered: 1. **Title**)
+   Part 1: Header - Create a UNIQUE thematic header, NOT the article's exact title
    Part 2: Discussion - 1-2 paragraphs, each with 1-3 sentences
    Part 3: [VIEW_ARTICLE:article-X-Y] marker
    Part 4: Horizontal separator (auto-added by backend)
    
-   ✅ ALWAYS USE THIS STRUCTURE:
-   1. **Tesla Battery Breakthrough**
-   Tesla announced a new battery technology that increases EV range by 40%.
-   This development could significantly accelerate EV adoption rates.
-   [VIEW_ARTICLE:article-TSLA-0]
+   ✅ HEADER RULES:
+   - Create descriptive, thematic headers: "### Insider Trading Activity" ✅
+   - DO NOT copy article title: "### TMC Chief Development Officer Was Highly..." ❌
+   - Summarize the TOPIC, not repeat the title
+   
+   ✅ CORRECT STRUCTURE:
+   ### Insider Trading Activity
+   Recent insider sales by TMC's Chief Development Officer raised concerns...
+   [VIEW_ARTICLE:article-TMC-0]
 
 7. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
 `;
