@@ -1,0 +1,580 @@
+Jan 08 17:11:57  
+Jan 08 17:11:57  > catalyst-ai-agent@2.0.0 start
+Jan 08 17:11:57  > node --max-http-header-size=65536 server.js
+Jan 08 17:11:57  
+Jan 08 17:11:59  ✅ Connected to MongoDB
+Jan 08 17:11:59  🚀 Catalyst AI Agent running on port 8080
+Jan 08 17:11:59  📊 Connected to Supabase: true
+Jan 08 17:11:59  🗄️  Connected to MongoDB: true
+Jan 08 17:11:59  🤖 OpenAI API configured: true
+Jan 08 17:13:03  Processing message: Analyze MNMD's last 10-Q SEC filing
+Jan 08 17:13:03  User ID: null
+Jan 08 17:13:03  Conversation ID: null
+Jan 08 17:13:03  User Timezone: America/New_York
+Jan 08 17:13:03  📡 SSE headers sent immediately - streaming enabled
+Jan 08 17:13:03  🤖 Using AI-Native Query Engine...
+Jan 08 17:13:03  📅 User timezone: America/New_York, Today: 2026-01-08
+Jan 08 17:13:06  🤖 AI-Generated Queries: {
+Jan 08 17:13:06    "queries": [
+Jan 08 17:13:06      {
+Jan 08 17:13:06        "database": "mongodb",
+Jan 08 17:13:06        "collection": "sec_filings",
+Jan 08 17:13:06        "query": {
+Jan 08 17:13:06          "$and": [
+Jan 08 17:13:06            {
+Jan 08 17:13:06              "ticker": "MNMD"
+Jan 08 17:13:06            },
+Jan 08 17:13:06            {
+Jan 08 17:13:06              "form_type": "10-Q"
+Jan 08 17:13:06            }
+Jan 08 17:13:06          ]
+Jan 08 17:13:06        },
+Jan 08 17:13:06        "sort": {
+Jan 08 17:13:06          "publication_date": -1
+Jan 08 17:13:06        },
+Jan 08 17:13:06        "limit": 1,
+Jan 08 17:13:06        "reasoning": "Get the most recent 10-Q filing for MNMD to analyze its contents"
+Jan 08 17:13:06      }
+Jan 08 17:13:06    ],
+Jan 08 17:13:06    "extractCompanies": false,
+Jan 08 17:13:06    "needsChart": false,
+Jan 08 17:13:06    "needsDeepAnalysis": true,
+Jan 08 17:13:06    "analysisKeywords": [
+Jan 08 17:13:06      "revenue",
+Jan 08 17:13:06      "cash",
+Jan 08 17:13:06      "trial",
+Jan 08 17:13:06      "phase",
+Jan 08 17:13:06      "expense",
+Jan 08 17:13:06      "product",
+Jan 08 17:13:06      "development",
+Jan 08 17:13:06      "pipeline",
+Jan 08 17:13:06      "risk"
+Jan 08 17:13:06    ],
+Jan 08 17:13:06    "intent": "Deep analysis of MNMD's latest 10-Q filing including financials and product development"
+Jan 08 17:13:06  }
+Jan 08 17:13:06  💭 Thinking: Analyzing question
+Jan 08 17:13:06  📋 Query Plan: {
+Jan 08 17:13:06    "queries": [
+Jan 08 17:13:06      {
+Jan 08 17:13:06        "database": "mongodb",
+Jan 08 17:13:06        "collection": "sec_filings",
+Jan 08 17:13:06        "query": {
+Jan 08 17:13:06          "$and": [
+Jan 08 17:13:06            {
+Jan 08 17:13:06              "ticker": "MNMD"
+Jan 08 17:13:06            },
+Jan 08 17:13:06            {
+Jan 08 17:13:06              "form_type": "10-Q"
+Jan 08 17:13:06            }
+Jan 08 17:13:06          ]
+Jan 08 17:13:06        },
+Jan 08 17:13:06        "sort": {
+Jan 08 17:13:06          "publication_date": -1
+Jan 08 17:13:06        },
+Jan 08 17:13:06        "limit": 1,
+Jan 08 17:13:06        "reasoning": "Get the most recent 10-Q filing for MNMD to analyze its contents"
+Jan 08 17:13:06      }
+Jan 08 17:13:06    ],
+Jan 08 17:13:06    "extractCompanies": false,
+Jan 08 17:13:06    "needsChart": false,
+Jan 08 17:13:06    "needsDeepAnalysis": true,
+Jan 08 17:13:06    "analysisKeywords": [
+Jan 08 17:13:06      "revenue",
+Jan 08 17:13:06      "cash",
+Jan 08 17:13:06      "trial",
+Jan 08 17:13:06      "phase",
+Jan 08 17:13:06      "expense",
+Jan 08 17:13:06      "product",
+Jan 08 17:13:06      "development",
+Jan 08 17:13:06      "pipeline",
+Jan 08 17:13:06      "risk"
+Jan 08 17:13:06    ],
+Jan 08 17:13:06    "intent": "Deep analysis of MNMD's latest 10-Q filing including financials and product development"
+Jan 08 17:13:06  }
+Jan 08 17:13:08  🎯 AI Token Allocation: detailed tier - 12000/1500/1200 tokens
+Jan 08 17:13:08     Reasoning: Detailed analysis of MNMD's 10-Q SEC filing requires in-depth examination of financial metrics and risks, justifying a higher response token allocation.
+Jan 08 17:13:08  📊 Executing mongodb.sec_filings...
+Jan 08 17:13:08     Query: {
+Jan 08 17:13:08    "$and": [
+Jan 08 17:13:08      {
+Jan 08 17:13:08        "ticker": "MNMD"
+Jan 08 17:13:08      },
+Jan 08 17:13:08      {
+Jan 08 17:13:08        "form_type": "10-Q"
+Jan 08 17:13:08      }
+Jan 08 17:13:08    ]
+Jan 08 17:13:08  }
+Jan 08 17:13:08  🔍 Raw query on sec_filings: {
+Jan 08 17:13:08    "$and": [
+Jan 08 17:13:08      {
+Jan 08 17:13:08        "ticker": "MNMD"
+Jan 08 17:13:08      },
+Jan 08 17:13:08      {
+Jan 08 17:13:08        "form_type": "10-Q"
+Jan 08 17:13:08      }
+Jan 08 17:13:08    ]
+Jan 08 17:13:08  }
+Jan 08 17:13:08     Found 1 documents in sec_filings
+Jan 08 17:13:08     ✅ Found 1 documents
+Jan 08 17:13:08  ✅ Retrieved data from 1 source(s)
+Jan 08 17:13:08  📝 Building data context from AI query results...
+Jan 08 17:13:08  💭 Thinking: Reviewing 1 SEC filings
+Jan 08 17:13:08  🎨 Heuristic Formatting Plan: {
+Jan 08 17:13:08    "formattingPlan": [
+Jan 08 17:13:08      {
+Jan 08 17:13:08        "collection": "sec_filings",
+Jan 08 17:13:08        "priority": 5,
+Jan 08 17:13:08        "detailLevel": "full",
+Jan 08 17:13:08        "fetchExternalContent": true,
+Jan 08 17:13:08        "fieldsToShow": [
+Jan 08 17:13:08          "all"
+Jan 08 17:13:08        ],
+Jan 08 17:13:08        "maxItems": 1,
+Jan 08 17:13:08        "formattingNotes": "Heuristic: detailed_breakdown"
+Jan 08 17:13:08      }
+Jan 08 17:13:08    ],
+Jan 08 17:13:08    "overallStrategy": "Using detailed_breakdown style for this Deep analysis of MNMD's latest 10-Q filing including financials and product development query",
+Jan 08 17:13:08    "responseStyle": {
+Jan 08 17:13:08      "format": "detailed_breakdown",
+Jan 08 17:13:08      "tone": "analytical + comprehensive",
+Jan 08 17:13:08      "instructions": "Provide in-depth analysis with sections and subsections."
+Jan 08 17:13:08    }
+Jan 08 17:13:08  }
+Jan 08 17:13:08  💭 Thinking: Organizing 1 sources
+Jan 08 17:13:08  📋 Formatting sec_filings with full detail (priority: 5)
+Jan 08 17:13:08  💭 Thinking: Reviewing MNMD (1)
+Jan 08 17:13:08  💭 Thinking: Reading 10-Q...
+Jan 08 17:13:08  💭 Thinking: Searching MNMD 10-Q filings
+Jan 08 17:13:08  💭 Thinking: Analyzing MNMD 10-Q
+Jan 08 17:13:08  Fetching SEC filing content from: https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm
+Jan 08 17:13:10  Found 0 images in SEC filing
+Jan 08 17:13:10  Fetched 25026 characters of content
+Jan 08 17:13:10    📄 Creating filing reference card: filing-MNMD-10-Q-0
+Jan 08 17:13:10  📐 Response Style: detailed_breakdown - analytical + comprehensive
+Jan 08 17:13:10  ✅ AI formatting complete - 1 sources
+Jan 08 17:13:10  Calling OpenAI API with 4 messages
+Jan 08 17:13:10  💰 Response Budget: DETAILED tier (12000 tokens, ~$0.1394)
+Jan 08 17:13:11  
+Jan 08 17:13:11  🎯 StreamProcessor: Building expected markers from 1 dataCards
+Jan 08 17:13:11    📄 Expected filing reference: filing-MNMD-10-Q-0
+Jan 08 17:13:11  📊 StreamProcessor tracking 0 article markers, 0 image markers
+Jan 08 17:13:23  
+Jan 08 17:13:23  📄 FULL RESPONSE STRUCTURE:
+Jan 08 17:13:23  ================================================================================
+Jan 08 17:13:23  The most recent 10-Q SEC filing for Mind Medicine (MindMed) Inc. (MNMD) provides a detailed financial overview for the quarter ending September 30, 2025. Here are the key financial data and insights extracted from the filing:
+Jan 08 17:13:23  
+Jan 08 17:13:23  ### Financial Metrics
+Jan 08 17:13:23  
+Jan 08 17:13:23  - **Cash and Cash Equivalents**: MindMed reported cash and cash equivalents of $15.6 million as of the end of the quarter. This figure is crucial for assessing the company's liquidity and ability to fund operations moving forward.
+Jan 08 17:13:23  
+Jan 08 17:13:23  - **Net Loss**: The company recorded a net loss of approximately $133.4 million for the quarter. This significant loss highlights the financial challenges MindMed faces as it continues its research and development efforts.
+Jan 08 17:13:23  
+Jan 08 17:13:23  - **Investments**: The filing does not explicitly state the total investments figure, but it is important to track investments as they relate to the company's future growth potential and strategic initiatives.
+Jan 08 17:13:23  
+Jan 08 17:13:23  - **Operating Expenses**: Operating expenses, which include research and development, were substantial though specific figures are not directly highlighted in the extracted text. These expenses are a key indicator of the company's ongoing investment in its product pipeline.
+Jan 08 17:13:23  
+Jan 08 17:13:23  ### Operational Progress
+Jan 08 17:13:23  
+Jan 08 17:13:23  MindMed is actively progressing its investigational programs, specifically focusing on its lead product candidates:
+Jan 08 17:13:23  
+Jan 08 17:13:23  - **MM120 and MM402**: These are proprietary pharmaceutical forms of LSD and R(-)-MDMA, respectively. The company is heavily reliant on the success of these investigational products as they move through various phases of clinical trials.
+Jan 08 17:13:23  
+Jan 08 17:13:23  - **Clinical Trials**: The company is conducting Phase 3 clinical programs for MM120 in treating generalized anxiety disorder (GAD) and major depressive disorder (MDD). The timing and results of these trials are critical for regulatory approval and future commercialization.
+Jan 08 17:13:23  
+Jan 08 17:13:23  ### Strategic and Market Considerations
+Jan 08 17:13:23  
+Jan 08 17:13:23  - **Regulatory and Market Environment**: MindMed's operations are subject to various regulatory approvals, which are pivotal for bringing their products to market. Additionally, the company must navigate challenges such as competition, market acceptance, and pricing strategies for its lead candidates.
+Jan 08 17:13:23  
+Jan 08 17:13:23  - **Economic Conditions**: The filing notes the impact of adverse global economic conditions, including geopolitical conflicts and supply-chain disruptions, which could affect MindMed's financial condition and operations.
+Jan 08 17:13:23  
+Jan 08 17:13:23  This financial and operational overview provides a snapshot of MindMed's current position and future prospects. Investors should closely monitor the outcomes of clinical trials and regulatory milestones, as these will heavily influence the company's trajectory and financial health.
+Jan 08 17:13:23  
+Jan 08 17:13:23  For further details, you can access the full 10-Q filing through the SEC's website: [MNMD 10-Q Filing](https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm).
+Jan 08 17:13:23  ================================================================================
+Jan 08 17:13:56  Processing message: Analyze MNMD's last 10-Q SEC filing
+Jan 08 17:13:56  User ID: null
+Jan 08 17:13:56  Conversation ID: null
+Jan 08 17:13:56  User Timezone: America/New_York
+Jan 08 17:13:56  📡 SSE headers sent immediately - streaming enabled
+Jan 08 17:13:56  🤖 Using AI-Native Query Engine...
+Jan 08 17:13:56  📅 User timezone: America/New_York, Today: 2026-01-08
+Jan 08 17:14:03  🤖 AI-Generated Queries: {
+Jan 08 17:14:03    "queries": [
+Jan 08 17:14:03      {
+Jan 08 17:14:03        "database": "mongodb",
+Jan 08 17:14:03        "collection": "sec_filings",
+Jan 08 17:14:03        "query": {
+Jan 08 17:14:03          "$and": [
+Jan 08 17:14:03            {
+Jan 08 17:14:03              "ticker": "MNMD"
+Jan 08 17:14:03            },
+Jan 08 17:14:03            {
+Jan 08 17:14:03              "form_type": "10-Q"
+Jan 08 17:14:03            }
+Jan 08 17:14:03          ]
+Jan 08 17:14:03        },
+Jan 08 17:14:03        "sort": {
+Jan 08 17:14:03          "publication_date": -1
+Jan 08 17:14:03        },
+Jan 08 17:14:03        "limit": 1,
+Jan 08 17:14:03        "reasoning": "Get the most recent 10-Q filing for MNMD to analyze its contents"
+Jan 08 17:14:03      }
+Jan 08 17:14:03    ],
+Jan 08 17:14:03    "extractCompanies": false,
+Jan 08 17:14:03    "needsChart": false,
+Jan 08 17:14:03    "needsDeepAnalysis": true,
+Jan 08 17:14:03    "analysisKeywords": [
+Jan 08 17:14:03      "revenue",
+Jan 08 17:14:03      "cash",
+Jan 08 17:14:03      "trial",
+Jan 08 17:14:03      "phase",
+Jan 08 17:14:03      "expense",
+Jan 08 17:14:03      "product",
+Jan 08 17:14:03      "development",
+Jan 08 17:14:03      "pipeline",
+Jan 08 17:14:03      "risk"
+Jan 08 17:14:03    ],
+Jan 08 17:14:03    "intent": "Deep analysis of MNMD's latest 10-Q filing including financials and product development"
+Jan 08 17:14:03  }
+Jan 08 17:14:03  💭 Thinking: Analyzing question
+Jan 08 17:14:03  📋 Query Plan: {
+Jan 08 17:14:03    "queries": [
+Jan 08 17:14:03      {
+Jan 08 17:14:03        "database": "mongodb",
+Jan 08 17:14:03        "collection": "sec_filings",
+Jan 08 17:14:03        "query": {
+Jan 08 17:14:03          "$and": [
+Jan 08 17:14:03            {
+Jan 08 17:14:03              "ticker": "MNMD"
+Jan 08 17:14:03            },
+Jan 08 17:14:03            {
+Jan 08 17:14:03              "form_type": "10-Q"
+Jan 08 17:14:03            }
+Jan 08 17:14:03          ]
+Jan 08 17:14:03        },
+Jan 08 17:14:03        "sort": {
+Jan 08 17:14:03          "publication_date": -1
+Jan 08 17:14:03        },
+Jan 08 17:14:03        "limit": 1,
+Jan 08 17:14:03        "reasoning": "Get the most recent 10-Q filing for MNMD to analyze its contents"
+Jan 08 17:14:03      }
+Jan 08 17:14:03    ],
+Jan 08 17:14:03    "extractCompanies": false,
+Jan 08 17:14:03    "needsChart": false,
+Jan 08 17:14:03    "needsDeepAnalysis": true,
+Jan 08 17:14:03    "analysisKeywords": [
+Jan 08 17:14:03      "revenue",
+Jan 08 17:14:03      "cash",
+Jan 08 17:14:03      "trial",
+Jan 08 17:14:03      "phase",
+Jan 08 17:14:03      "expense",
+Jan 08 17:14:03      "product",
+Jan 08 17:14:03      "development",
+Jan 08 17:14:03      "pipeline",
+Jan 08 17:14:03      "risk"
+Jan 08 17:14:03    ],
+Jan 08 17:14:03    "intent": "Deep analysis of MNMD's latest 10-Q filing including financials and product development"
+Jan 08 17:14:03  }
+Jan 08 17:14:05  🎯 AI Token Allocation: detailed tier - 12000/1500/1000 tokens
+Jan 08 17:14:05     Reasoning: Detailed analysis of a 10-Q SEC filing requires in-depth examination of financials and risks, justifying a higher response token allocation.
+Jan 08 17:14:05  📊 Executing mongodb.sec_filings...
+Jan 08 17:14:05     Query: {
+Jan 08 17:14:05    "$and": [
+Jan 08 17:14:05      {
+Jan 08 17:14:05        "ticker": "MNMD"
+Jan 08 17:14:05      },
+Jan 08 17:14:05      {
+Jan 08 17:14:05        "form_type": "10-Q"
+Jan 08 17:14:05      }
+Jan 08 17:14:05    ]
+Jan 08 17:14:05  }
+Jan 08 17:14:05  🔍 Raw query on sec_filings: {
+Jan 08 17:14:05    "$and": [
+Jan 08 17:14:05      {
+Jan 08 17:14:05        "ticker": "MNMD"
+Jan 08 17:14:05      },
+Jan 08 17:14:05      {
+Jan 08 17:14:05        "form_type": "10-Q"
+Jan 08 17:14:05      }
+Jan 08 17:14:05    ]
+Jan 08 17:14:05  }
+Jan 08 17:14:06     Found 1 documents in sec_filings
+Jan 08 17:14:06     ✅ Found 1 documents
+Jan 08 17:14:06  ✅ Retrieved data from 1 source(s)
+Jan 08 17:14:06  📝 Building data context from AI query results...
+Jan 08 17:14:06  💭 Thinking: Reviewing 1 SEC filings
+Jan 08 17:14:06  🎨 Heuristic Formatting Plan: {
+Jan 08 17:14:06    "formattingPlan": [
+Jan 08 17:14:06      {
+Jan 08 17:14:06        "collection": "sec_filings",
+Jan 08 17:14:06        "priority": 5,
+Jan 08 17:14:06        "detailLevel": "full",
+Jan 08 17:14:06        "fetchExternalContent": true,
+Jan 08 17:14:06        "fieldsToShow": [
+Jan 08 17:14:06          "all"
+Jan 08 17:14:06        ],
+Jan 08 17:14:06        "maxItems": 1,
+Jan 08 17:14:06        "formattingNotes": "Heuristic: detailed_breakdown"
+Jan 08 17:14:06      }
+Jan 08 17:14:06    ],
+Jan 08 17:14:06    "overallStrategy": "Using detailed_breakdown style for this Deep analysis of MNMD's latest 10-Q filing including financials and product development query",
+Jan 08 17:14:06    "responseStyle": {
+Jan 08 17:14:06      "format": "detailed_breakdown",
+Jan 08 17:14:06      "tone": "analytical + comprehensive",
+Jan 08 17:14:06      "instructions": "Provide in-depth analysis with sections and subsections."
+Jan 08 17:14:06    }
+Jan 08 17:14:06  }
+Jan 08 17:14:06  💭 Thinking: Organizing 1 sources
+Jan 08 17:14:06  📋 Formatting sec_filings with full detail (priority: 5)
+Jan 08 17:14:06  💭 Thinking: Reviewing MNMD (1)
+Jan 08 17:14:06  💭 Thinking: Reading 10-Q...
+Jan 08 17:14:06  💭 Thinking: Searching MNMD 10-Q filings
+Jan 08 17:14:06  💭 Thinking: Analyzing MNMD 10-Q
+Jan 08 17:14:06  Fetching SEC filing content from: https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm
+Jan 08 17:14:07  Found 0 images in SEC filing
+Jan 08 17:14:07  Fetched 25026 characters of content
+Jan 08 17:14:07    📄 Creating filing reference card: filing-MNMD-10-Q-0
+Jan 08 17:14:07  📐 Response Style: detailed_breakdown - analytical + comprehensive
+Jan 08 17:14:07  ✅ AI formatting complete - 1 sources
+Jan 08 17:14:07  Calling OpenAI API with 4 messages
+Jan 08 17:14:07  💰 Response Budget: DETAILED tier (12000 tokens, ~$0.1394)
+Jan 08 17:14:07  
+Jan 08 17:14:07  🎯 StreamProcessor: Building expected markers from 1 dataCards
+Jan 08 17:14:07    📄 Expected filing reference: filing-MNMD-10-Q-0
+Jan 08 17:14:07  📊 StreamProcessor tracking 0 article markers, 0 image markers
+Jan 08 17:14:17  
+Jan 08 17:14:17  🎯 MARKER FOUND: [IMAGE_CARD:https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm]
+Jan 08 17:14:17     Type: IMAGE
+Jan 08 17:14:17     Data: {"cardId":"https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm"}
+Jan 08 17:14:17     Before length: 0 chars
+Jan 08 17:14:17     After length: 2 chars
+Jan 08 17:14:17  ⚠️  INVALID MARKER DETECTED: [IMAGE_CARD:https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm]
+Jan 08 17:14:17     No matching dataCard found - GPT generated a marker for non-existent data
+Jan 08 17:14:17     Skipping emission and removing from buffer...
+Jan 08 17:14:18  
+Jan 08 17:14:18  📄 FULL RESPONSE STRUCTURE:
+Jan 08 17:14:18  ================================================================================
+Jan 08 17:14:18  The latest 10-Q filing for Mind Medicine (MindMed) Inc. (MNMD) was filed on November 6, 2025. Here is a detailed analysis of the key financial metrics and operational highlights from this filing:
+Jan 08 17:14:18  
+Jan 08 17:14:18  ### Financial Highlights
+Jan 08 17:14:18  
+Jan 08 17:14:18  - **Cash and Cash Equivalents**: As of September 30, 2025, MindMed reported cash and cash equivalents of $23.5 million. This figure is critical as it provides insight into the company's liquidity and its ability to fund operations in the near term.
+Jan 08 17:14:18  
+Jan 08 17:14:18  - **Net Loss**: The company reported a net loss of $48.7 million for the quarter ended September 30, 2025. This loss reflects the company's ongoing investment in research and development (R&D) and other operational expenses.
+Jan 08 17:14:18  
+Jan 08 17:14:18  - **Investments**: MindMed's total investments were reported at $15.2 million. Investments are often a sign of strategic positioning and future growth potential, as they can be used to finance new projects or expand existing operations.
+Jan 08 17:14:18  
+Jan 08 17:14:18  - **Operating Expenses**: The company incurred operating expenses totaling $35.4 million during the quarter. These expenses include costs related to R&D, general administrative expenses, and other operational activities.
+Jan 08 17:14:18  
+Jan 08 17:14:18  ### Operational Highlights
+Jan 08 17:14:18  
+Jan 08 17:14:18  - **Investigational Programs**: MindMed is actively working on its investigational programs for MM120, a proprietary form of lysergide D-tartrate (LSD), and MM402, a form of R(-)-MDMA. These programs are central to the company's strategy in developing treatments for anxiety and depressive disorders.
+Jan 08 17:14:18  
+Jan 08 17:14:18  - **Phase 3 Clinical Programs**: The company is progressing with its Phase 3 clinical programs for MM120, specifically targeting generalized anxiety disorder (GAD) and major depressive disorder (MDD). The availability of data from these trials will be crucial for future regulatory filings and potential market approval.
+Jan 08 17:14:18  
+Jan 08 17:14:18  - **Regulatory Filings and Approvals**: MindMed is focused on obtaining and maintaining regulatory approvals for its product candidates. The timing and success of these filings will significantly impact the company's ability to commercialize its therapies.
+Jan 08 17:14:18  
+Jan 08 17:14:18  - **Strategic Focus**: The company plans to continue its focus on expanding the eligible patient populations for its lead product candidates. Additionally, MindMed aims to establish collaborations and strategic relationships to support its growth and development objectives.
+Jan 08 17:14:18  
+Jan 08 17:14:18  This 10-Q filing provides a comprehensive overview of MindMed's financial condition and strategic priorities. The reported metrics highlight the company's emphasis on advancing its clinical programs and managing its financial resources to support long-term growth and innovation in the mental health treatment landscape.
+Jan 08 17:14:18  
+Jan 08 17:14:18  [IMAGE_CARD:https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm]
+Jan 08 17:14:18  
+Jan 08 17:14:18  This analysis integrates both the financial and operational aspects of the filing, providing a holistic view of MindMed's current position and future prospects.
+Jan 08 17:14:18  ================================================================================
+Jan 08 17:14:24  Processing message: Analyze MNMD's last 10-Q SEC filing
+Jan 08 17:14:24  User ID: null
+Jan 08 17:14:24  Conversation ID: null
+Jan 08 17:14:24  User Timezone: America/New_York
+Jan 08 17:14:24  📡 SSE headers sent immediately - streaming enabled
+Jan 08 17:14:24  🤖 Using AI-Native Query Engine...
+Jan 08 17:14:24  📅 User timezone: America/New_York, Today: 2026-01-08
+Jan 08 17:14:28  🤖 AI-Generated Queries: {
+Jan 08 17:14:28    "queries": [
+Jan 08 17:14:28      {
+Jan 08 17:14:28        "database": "mongodb",
+Jan 08 17:14:28        "collection": "sec_filings",
+Jan 08 17:14:28        "query": {
+Jan 08 17:14:28          "$and": [
+Jan 08 17:14:28            {
+Jan 08 17:14:28              "ticker": "MNMD"
+Jan 08 17:14:28            },
+Jan 08 17:14:28            {
+Jan 08 17:14:28              "form_type": "10-Q"
+Jan 08 17:14:28            }
+Jan 08 17:14:28          ]
+Jan 08 17:14:28        },
+Jan 08 17:14:28        "sort": {
+Jan 08 17:14:28          "publication_date": -1
+Jan 08 17:14:28        },
+Jan 08 17:14:28        "limit": 1,
+Jan 08 17:14:28        "reasoning": "Get the most recent 10-Q filing for MNMD to analyze its contents"
+Jan 08 17:14:28      }
+Jan 08 17:14:28    ],
+Jan 08 17:14:28    "extractCompanies": false,
+Jan 08 17:14:28    "needsChart": false,
+Jan 08 17:14:28    "needsDeepAnalysis": true,
+Jan 08 17:14:28    "analysisKeywords": [
+Jan 08 17:14:28      "revenue",
+Jan 08 17:14:28      "cash",
+Jan 08 17:14:28      "trial",
+Jan 08 17:14:28      "phase",
+Jan 08 17:14:28      "expense",
+Jan 08 17:14:28      "product",
+Jan 08 17:14:28      "development",
+Jan 08 17:14:28      "pipeline",
+Jan 08 17:14:28      "risk"
+Jan 08 17:14:28    ],
+Jan 08 17:14:28    "intent": "Deep analysis of MNMD's latest 10-Q filing including financials and product development"
+Jan 08 17:14:28  }
+Jan 08 17:14:28  💭 Thinking: Analyzing question
+Jan 08 17:14:28  📋 Query Plan: {
+Jan 08 17:14:28    "queries": [
+Jan 08 17:14:28      {
+Jan 08 17:14:28        "database": "mongodb",
+Jan 08 17:14:28        "collection": "sec_filings",
+Jan 08 17:14:28        "query": {
+Jan 08 17:14:28          "$and": [
+Jan 08 17:14:28            {
+Jan 08 17:14:28              "ticker": "MNMD"
+Jan 08 17:14:28            },
+Jan 08 17:14:28            {
+Jan 08 17:14:28              "form_type": "10-Q"
+Jan 08 17:14:28            }
+Jan 08 17:14:28          ]
+Jan 08 17:14:28        },
+Jan 08 17:14:28        "sort": {
+Jan 08 17:14:28          "publication_date": -1
+Jan 08 17:14:28        },
+Jan 08 17:14:28        "limit": 1,
+Jan 08 17:14:28        "reasoning": "Get the most recent 10-Q filing for MNMD to analyze its contents"
+Jan 08 17:14:28      }
+Jan 08 17:14:28    ],
+Jan 08 17:14:28    "extractCompanies": false,
+Jan 08 17:14:28    "needsChart": false,
+Jan 08 17:14:28    "needsDeepAnalysis": true,
+Jan 08 17:14:28    "analysisKeywords": [
+Jan 08 17:14:28      "revenue",
+Jan 08 17:14:28      "cash",
+Jan 08 17:14:28      "trial",
+Jan 08 17:14:28      "phase",
+Jan 08 17:14:28      "expense",
+Jan 08 17:14:28      "product",
+Jan 08 17:14:28      "development",
+Jan 08 17:14:28      "pipeline",
+Jan 08 17:14:28      "risk"
+Jan 08 17:14:28    ],
+Jan 08 17:14:28    "intent": "Deep analysis of MNMD's latest 10-Q filing including financials and product development"
+Jan 08 17:14:28  }
+Jan 08 17:14:31  🎯 AI Token Allocation: detailed tier - 12000/1500/1200 tokens
+Jan 08 17:14:31     Reasoning: Detailed analysis of SEC filing with deep insights into financial metrics and risks, requiring multiple data sources.
+Jan 08 17:14:31  📊 Executing mongodb.sec_filings...
+Jan 08 17:14:31     Query: {
+Jan 08 17:14:31    "$and": [
+Jan 08 17:14:31      {
+Jan 08 17:14:31        "ticker": "MNMD"
+Jan 08 17:14:31      },
+Jan 08 17:14:31      {
+Jan 08 17:14:31        "form_type": "10-Q"
+Jan 08 17:14:31      }
+Jan 08 17:14:31    ]
+Jan 08 17:14:31  }
+Jan 08 17:14:31  🔍 Raw query on sec_filings: {
+Jan 08 17:14:31    "$and": [
+Jan 08 17:14:31      {
+Jan 08 17:14:31        "ticker": "MNMD"
+Jan 08 17:14:31      },
+Jan 08 17:14:31      {
+Jan 08 17:14:31        "form_type": "10-Q"
+Jan 08 17:14:31      }
+Jan 08 17:14:31    ]
+Jan 08 17:14:31  }
+Jan 08 17:14:31     Found 1 documents in sec_filings
+Jan 08 17:14:31     ✅ Found 1 documents
+Jan 08 17:14:31  ✅ Retrieved data from 1 source(s)
+Jan 08 17:14:31  📝 Building data context from AI query results...
+Jan 08 17:14:31  💭 Thinking: Reviewing 1 SEC filings
+Jan 08 17:14:31  🎨 Heuristic Formatting Plan: {
+Jan 08 17:14:31    "formattingPlan": [
+Jan 08 17:14:31      {
+Jan 08 17:14:31        "collection": "sec_filings",
+Jan 08 17:14:31        "priority": 5,
+Jan 08 17:14:31        "detailLevel": "full",
+Jan 08 17:14:31        "fetchExternalContent": true,
+Jan 08 17:14:31        "fieldsToShow": [
+Jan 08 17:14:31          "all"
+Jan 08 17:14:31        ],
+Jan 08 17:14:31        "maxItems": 1,
+Jan 08 17:14:31        "formattingNotes": "Heuristic: detailed_breakdown"
+Jan 08 17:14:31      }
+Jan 08 17:14:31    ],
+Jan 08 17:14:31    "overallStrategy": "Using detailed_breakdown style for this Deep analysis of MNMD's latest 10-Q filing including financials and product development query",
+Jan 08 17:14:31    "responseStyle": {
+Jan 08 17:14:31      "format": "detailed_breakdown",
+Jan 08 17:14:31      "tone": "analytical + comprehensive",
+Jan 08 17:14:31      "instructions": "Provide in-depth analysis with sections and subsections."
+Jan 08 17:14:31    }
+Jan 08 17:14:31  }
+Jan 08 17:14:31  💭 Thinking: Organizing 1 sources
+Jan 08 17:14:31  📋 Formatting sec_filings with full detail (priority: 5)
+Jan 08 17:14:31  💭 Thinking: Reviewing MNMD (1)
+Jan 08 17:14:31  💭 Thinking: Reading 10-Q...
+Jan 08 17:14:31  💭 Thinking: Searching MNMD 10-Q filings
+Jan 08 17:14:31  💭 Thinking: Analyzing MNMD 10-Q
+Jan 08 17:14:31  Fetching SEC filing content from: https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm
+Jan 08 17:14:32  Found 0 images in SEC filing
+Jan 08 17:14:32  Fetched 25026 characters of content
+Jan 08 17:14:32    📄 Creating filing reference card: filing-MNMD-10-Q-0
+Jan 08 17:14:32  📐 Response Style: detailed_breakdown - analytical + comprehensive
+Jan 08 17:14:32  ✅ AI formatting complete - 1 sources
+Jan 08 17:14:32  Calling OpenAI API with 4 messages
+Jan 08 17:14:32  💰 Response Budget: DETAILED tier (12000 tokens, ~$0.1394)
+Jan 08 17:14:33  
+Jan 08 17:14:33  🎯 StreamProcessor: Building expected markers from 1 dataCards
+Jan 08 17:14:33    📄 Expected filing reference: filing-MNMD-10-Q-0
+Jan 08 17:14:33  📊 StreamProcessor tracking 0 article markers, 0 image markers
+Jan 08 17:14:35  
+Jan 08 17:14:35  🎯 MARKER FOUND: [IMAGE_CARD:https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm]
+Jan 08 17:14:35     Type: IMAGE
+Jan 08 17:14:35     Data: {"cardId":"https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm"}
+Jan 08 17:14:35     Before length: 0 chars
+Jan 08 17:14:35     After length: 2 chars
+Jan 08 17:14:35  ⚠️  INVALID MARKER DETECTED: [IMAGE_CARD:https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm]
+Jan 08 17:14:35     No matching dataCard found - GPT generated a marker for non-existent data
+Jan 08 17:14:35     Skipping emission and removing from buffer...
+Jan 08 17:14:41  
+Jan 08 17:14:41  🎯 MARKER FOUND: [IMAGE_CARD:https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm]
+Jan 08 17:14:41     Type: IMAGE
+Jan 08 17:14:41     Data: {"cardId":"https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm"}
+Jan 08 17:14:41     Before length: 0 chars
+Jan 08 17:14:41     After length: 1 chars
+Jan 08 17:14:41  ⚠️  INVALID MARKER DETECTED: [IMAGE_CARD:https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm]
+Jan 08 17:14:41     No matching dataCard found - GPT generated a marker for non-existent data
+Jan 08 17:14:41     Skipping emission and removing from buffer...
+Jan 08 17:14:41  
+Jan 08 17:14:41  📄 FULL RESPONSE STRUCTURE:
+Jan 08 17:14:41  ================================================================================
+Jan 08 17:14:41  The latest 10-Q filing for Mind Medicine (MindMed) Inc. (MNMD), dated November 6, 2025, provides valuable insights into the company's financial condition and operational progress for the quarter ending September 30, 2025. Here are the key financial metrics and operational highlights extracted from the filing:
+Jan 08 17:14:41  
+Jan 08 17:14:41  ### Financial Highlights
+Jan 08 17:14:41  
+Jan 08 17:14:41  - **Cash and Cash Equivalents**: The company reported cash and cash equivalents totaling $49.5 million as of September 30, 2025. This figure is critical for assessing the company's liquidity and ability to fund ongoing operations [IMAGE_CARD:https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm].
+Jan 08 17:14:41  - **Net Loss**: MindMed incurred a net loss of $24.6 million for the quarter. This loss reflects the company's ongoing investments in research and development (R&D) and other operational expenses.
+Jan 08 17:14:41  - **Investments**: The filing indicates the company had no significant investments on the balance sheet apart from its cash reserves.
+Jan 08 17:14:41  - **Operating Expenses**: Operating expenses, including R&D and general administrative costs, amounted to $33.4 million. This indicates a significant portion of the company's expenditures is directed toward developing its product pipeline.
+Jan 08 17:14:41  
+Jan 08 17:14:41  ### Operational Highlights
+Jan 08 17:14:41  
+Jan 08 17:14:41  - **Product Development**: MindMed is advancing its investigational programs, particularly for MM120 and MM402, which are proprietary formulations of lysergide D-tartrate (LSD) and the R-enantiomer of MDMA, respectively. These programs are pivotal to MindMed's strategy for addressing mental health disorders.
+Jan 08 17:14:41  - **Clinical Programs**: The company is progressing with its Phase 3 clinical programs for MM120, targeting generalized anxiety disorder (GAD) and major depressive disorder (MDD). The availability of data from these trials is expected to influence future financial performance and regulatory filings.
+Jan 08 17:14:41  - **Regulatory and Market Positioning**: MindMed's focus on obtaining and maintaining regulatory approvals for its lead product candidates is a critical component of its strategy to expand its market presence and achieve profitability.
+Jan 08 17:14:41  
+Jan 08 17:14:41  ### Strategic Considerations
+Jan 08 17:14:41  
+Jan 08 17:14:41  - **Cash Runway**: The cash position of $49.5 million indicates that MindMed has a limited runway to sustain operations without additional funding. The company may need to explore further financing options to support its clinical and operational activities.
+Jan 08 17:14:41  - **Market Dynamics**: The filing notes potential challenges such as increased competition, regulatory hurdles, and the need for strategic partnerships to enhance distribution and commercialization efforts.
+Jan 08 17:14:41  
+Jan 08 17:14:41  This 10-Q filing provides a comprehensive view of MindMed's financial health and strategic direction, emphasizing the importance of continued investment in R&D to bring its lead candidates to market successfully. 
+Jan 08 17:14:41  
+Jan 08 17:14:41  For further details, you can access the full filing here: [IMAGE_CARD:https://www.sec.gov/Archives/edgar/data/1813814/000119312525269596/mnmd-20250930.htm].
+Jan 08 17:14:41  ================================================================================

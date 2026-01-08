@@ -779,21 +779,21 @@ class DataConnector {
           const width = parseInt($(el).attr('width')) || 0;
           const height = parseInt($(el).attr('height')) || 0;
           
-          // STRICT FILTERING: Only keep images that are clearly financial content
-          // Exclude form elements (radio buttons, checkboxes), SEC logos, tiny icons
+          // Exclude obvious non-content images: form elements, logos, tiny icons
           const isFormElement = alt.toLowerCase().includes('radio') || 
                                alt.toLowerCase().includes('checkbox') || 
                                src.toLowerCase().includes('radio') || 
                                src.toLowerCase().includes('check');
           const isSecLogo = src.toLowerCase().includes('logo') || 
                            src.toLowerCase().includes('seal');
-          const isTooSmall = (width > 0 && width < 100) || (height > 0 && height < 50);
           
-          // Must be either large enough OR have meaningful financial/business content in alt text
-          const hasFinancialContext = /financial|statement|chart|graph|table|revenue|cash|balance|income|data|visualization/i.test(alt);
-          const isLargeEnough = width >= 300 || height >= 200;
+          // More permissive size filtering - only exclude truly tiny images (< 50x50)
+          // If no dimensions provided, assume it's content and keep it
+          const isTooSmall = (width > 0 && height > 0 && width < 50 && height < 50);
           
-          if (!isFormElement && !isSecLogo && !isTooSmall && (isLargeEnough || hasFinancialContext)) {
+          // Keep the image if it passes basic filters
+          // This includes charts, diagrams, tables, pipeline images, etc.
+          if (!isFormElement && !isSecLogo && !isTooSmall) {
             imageUrls.push({
               url: src,
               alt: alt,
