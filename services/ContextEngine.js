@@ -25,25 +25,28 @@ const UNIVERSAL_FORMATTING_RULES = `
 3. **Price Data**: stock_quote_now.close = live price, previous_close = yesterday. Calculate % change from these.
 
 4. **Citations**: 
-   - When discussing MULTIPLE sources: Cite inline after each section with markdown link
-   - Format: [Source Name](URL) or [TICKER FORM Filing](URL)
-   - When discussing ONLY ONE SEC filing: Provide one markdown link at end
-   - DO NOT use bracket citations like [10-Q 11/13/2025] - use markdown links only
+   - **NEWS ARTICLES**: Use [VIEW_ARTICLE:article-X-Y] markers ONLY, never markdown links
+   - **SEC FILINGS**: Provide one markdown link at end: [TICKER FORM Filing](URL)
+   - DO NOT use bracket citations like [10-Q 11/13/2025]
+   - DO NOT use [Source Name](URL) for articles - use [VIEW_ARTICLE:...] markers only
+   
+   ✅ CORRECT: "Truist cut price target to $439... [VIEW_ARTICLE:article-TSLA-7]"
+   ❌ WRONG: "Truist cut price target... [Insider Monkey](https://url)" (no markdown links for articles)
 
 5. **Card Markers (CRITICAL)**:
-   - **CHARTS**: MANDATORY - Place [VIEW_CHART:...] at the VERY START of response before ANY price discussion
+   - **CHARTS**: MANDATORY - Move [VIEW_CHART:...] from END of data context to VERY START of your response before ANY price discussion
    - **ARTICLES**: Place [VIEW_ARTICLE:...] AFTER the discussion paragraph for that article
    - **IMAGES**: [IMAGE_CARD:...] after describing what the image shows
    - **EVENTS**: [EVENT_CARD:...] at end of bullet describing that event
    - **SEC FILINGS**: DO NOT use [10-Q 11/13/2025] citations - provide markdown link at end only
    
    ⚠️ CHART PLACEMENT RULE:
-   If discussing price changes, the response MUST start with the chart marker.
-   DO NOT add chart markers - they are already in the data context.
-   Simply start your response with price analysis text.
+   The chart marker [VIEW_CHART:X:Y] appears at the END of the data context.
+   You MUST copy it to the VERY START of your response before price discussion.
    
-   ✅ CORRECT: "Tesla's stock is up 0.42% today..."
-   ❌ WRONG: "[VIEW_CHART:TSLA:1D]\nTesla's stock is up..." (don't add markers)
+   ✅ CORRECT: "[VIEW_CHART:TSLA:1D]\nTesla's stock is up 0.42% today..."
+   ❌ WRONG: "Tesla's stock is up..." (missing chart marker at start)
+   ❌ WRONG: Leave marker at end of response (must move to start)
 
 6. **Article Discussion Format - MANDATORY 4-PART STRUCTURE**:
    Part 1: Header - Create a UNIQUE thematic header, NOT the article's exact title

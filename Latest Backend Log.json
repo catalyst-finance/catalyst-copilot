@@ -1,591 +1,569 @@
-Jan 08 18:21:41  Processing message: Why is TMC stock down today?
-Jan 08 18:21:41  User ID: null
-Jan 08 18:21:41  Conversation ID: null
-Jan 08 18:21:41  User Timezone: America/New_York
-Jan 08 18:21:41  📡 SSE headers sent immediately - streaming enabled
-Jan 08 18:21:41  🤖 Using AI-Native Query Engine...
-Jan 08 18:21:41  📅 User timezone: America/New_York, Today: 2026-01-08
-Jan 08 18:21:55  🤖 AI-Generated Queries: {
-Jan 08 18:21:55    "queries": [
-Jan 08 18:21:55      {
-Jan 08 18:21:55        "database": "supabase",
-Jan 08 18:21:55        "collection": "finnhub_quote_snapshots",
-Jan 08 18:21:55        "query": {
-Jan 08 18:21:55          "symbol": "TMC"
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "sort": {
-Jan 08 18:21:55          "timestamp": "desc"
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "limit": 1,
-Jan 08 18:21:55        "reasoning": "Get the most recent stock price for TMC to understand today's price movement."
-Jan 08 18:21:55      },
-Jan 08 18:21:55      {
-Jan 08 18:21:55        "database": "mongodb",
-Jan 08 18:21:55        "collection": "news",
-Jan 08 18:21:55        "query": {
-Jan 08 18:21:55          "ticker": "TMC"
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "sort": {
-Jan 08 18:21:55          "published_at": -1
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "limit": 10,
-Jan 08 18:21:55        "reasoning": "Get recent news articles about TMC to identify any relevant events or sentiment that may explain the stock's decline."
-Jan 08 18:21:55      },
-Jan 08 18:21:55      {
-Jan 08 18:21:55        "database": "mongodb",
-Jan 08 18:21:55        "collection": "sec_filings",
-Jan 08 18:21:55        "query": {
-Jan 08 18:21:55          "ticker": "TMC",
-Jan 08 18:21:55          "publication_date": {
-Jan 08 18:21:55            "$gte": "2026-01-01"
-Jan 08 18:21:55          }
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "sort": {
-Jan 08 18:21:55          "publication_date": -1
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "limit": 5,
-Jan 08 18:21:55        "reasoning": "Check for recent SEC filings that may have impacted TMC's stock price."
-Jan 08 18:21:55      },
-Jan 08 18:21:55      {
-Jan 08 18:21:55        "database": "mongodb",
-Jan 08 18:21:55        "collection": "price_targets",
-Jan 08 18:21:55        "query": {
-Jan 08 18:21:55          "ticker": "TMC",
-Jan 08 18:21:55          "date": {
-Jan 08 18:21:55            "$gte": "2026-01-01"
-Jan 08 18:21:55          }
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "sort": {
-Jan 08 18:21:55          "date": -1
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "limit": 5,
-Jan 08 18:21:55        "reasoning": "Look for any recent analyst ratings or price target changes that could influence investor sentiment."
-Jan 08 18:21:55      }
-Jan 08 18:21:55    ],
-Jan 08 18:21:55    "extractCompanies": false,
-Jan 08 18:21:55    "needsChart": true,
-Jan 08 18:21:55    "needsDeepAnalysis": true,
-Jan 08 18:21:55    "analysisKeywords": [
-Jan 08 18:21:55      "decline",
-Jan 08 18:21:55      "news",
-Jan 08 18:21:55      "filings",
-Jan 08 18:21:55      "analyst",
-Jan 08 18:21:55      "price target"
-Jan 08 18:21:55    ],
-Jan 08 18:21:55    "chartConfig": {
-Jan 08 18:21:55      "symbol": "TMC",
-Jan 08 18:21:55      "timeRange": "1D",
-Jan 08 18:21:55      "highlightDate": "2026-01-08"
-Jan 08 18:21:55    },
-Jan 08 18:21:55    "intent": "Analyze the reasons behind TMC's stock decline today."
-Jan 08 18:21:55  }
-Jan 08 18:21:55  💭 Thinking: Analyzing question
-Jan 08 18:21:55  📋 Query Plan: {
-Jan 08 18:21:55    "queries": [
-Jan 08 18:21:55      {
-Jan 08 18:21:55        "database": "supabase",
-Jan 08 18:21:55        "collection": "finnhub_quote_snapshots",
-Jan 08 18:21:55        "query": {
-Jan 08 18:21:55          "symbol": "TMC"
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "sort": {
-Jan 08 18:21:55          "timestamp": "desc"
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "limit": 1,
-Jan 08 18:21:55        "reasoning": "Get the most recent stock price for TMC to understand today's price movement."
-Jan 08 18:21:55      },
-Jan 08 18:21:55      {
-Jan 08 18:21:55        "database": "mongodb",
-Jan 08 18:21:55        "collection": "news",
-Jan 08 18:21:55        "query": {
-Jan 08 18:21:55          "ticker": "TMC"
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "sort": {
-Jan 08 18:21:55          "published_at": -1
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "limit": 10,
-Jan 08 18:21:55        "reasoning": "Get recent news articles about TMC to identify any relevant events or sentiment that may explain the stock's decline."
-Jan 08 18:21:55      },
-Jan 08 18:21:55      {
-Jan 08 18:21:55        "database": "mongodb",
-Jan 08 18:21:55        "collection": "sec_filings",
-Jan 08 18:21:55        "query": {
-Jan 08 18:21:55          "ticker": "TMC",
-Jan 08 18:21:55          "publication_date": {
-Jan 08 18:21:55            "$gte": "2026-01-01"
-Jan 08 18:21:55          }
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "sort": {
-Jan 08 18:21:55          "publication_date": -1
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "limit": 5,
-Jan 08 18:21:55        "reasoning": "Check for recent SEC filings that may have impacted TMC's stock price."
-Jan 08 18:21:55      },
-Jan 08 18:21:55      {
-Jan 08 18:21:55        "database": "mongodb",
-Jan 08 18:21:55        "collection": "price_targets",
-Jan 08 18:21:55        "query": {
-Jan 08 18:21:55          "ticker": "TMC",
-Jan 08 18:21:55          "date": {
-Jan 08 18:21:55            "$gte": "2026-01-01"
-Jan 08 18:21:55          }
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "sort": {
-Jan 08 18:21:55          "date": -1
-Jan 08 18:21:55        },
-Jan 08 18:21:55        "limit": 5,
-Jan 08 18:21:55        "reasoning": "Look for any recent analyst ratings or price target changes that could influence investor sentiment."
-Jan 08 18:21:55      }
-Jan 08 18:21:55    ],
-Jan 08 18:21:55    "extractCompanies": false,
-Jan 08 18:21:55    "needsChart": true,
-Jan 08 18:21:55    "needsDeepAnalysis": true,
-Jan 08 18:21:55    "analysisKeywords": [
-Jan 08 18:21:55      "decline",
-Jan 08 18:21:55      "news",
-Jan 08 18:21:55      "filings",
-Jan 08 18:21:55      "analyst",
-Jan 08 18:21:55      "price target"
-Jan 08 18:21:55    ],
-Jan 08 18:21:55    "chartConfig": {
-Jan 08 18:21:55      "symbol": "TMC",
-Jan 08 18:21:55      "timeRange": "1D",
-Jan 08 18:21:55      "highlightDate": "2026-01-08"
-Jan 08 18:21:55    },
-Jan 08 18:21:55    "intent": "Analyze the reasons behind TMC's stock decline today."
-Jan 08 18:21:55  }
-Jan 08 18:21:58  🎯 AI Token Allocation: detailed tier - 12000/1500/1200 tokens
-Jan 08 18:21:58     Reasoning: Detailed analysis required with multiple sources, including news and SEC filings, necessitating a deeper dive into the reasons for TMC stock's decline.
-Jan 08 18:21:58  📊 Executing supabase.finnhub_quote_snapshots...
-Jan 08 18:21:58     Query: {
-Jan 08 18:21:58    "symbol": "TMC"
-Jan 08 18:21:58  }
-Jan 08 18:21:59  📊 Quote for TMC: $7.36 (-2.90%) [baseline: $7.58] session: regular
-Jan 08 18:21:59     ✅ Found 1 quote snapshots (source: stock_quote_now)
-Jan 08 18:21:59  📊 Executing mongodb.news...
-Jan 08 18:21:59     Query: {
-Jan 08 18:21:59    "ticker": "TMC"
-Jan 08 18:21:59  }
-Jan 08 18:21:59  🔍 Raw query on news: {
-Jan 08 18:21:59    "ticker": "TMC"
-Jan 08 18:21:59  }
-Jan 08 18:21:59     Found 9 documents in news
-Jan 08 18:21:59     ✅ Found 9 documents
-Jan 08 18:21:59  📊 Executing mongodb.sec_filings...
-Jan 08 18:21:59     Query: {
-Jan 08 18:21:59    "ticker": "TMC",
-Jan 08 18:21:59    "publication_date": {
-Jan 08 18:21:59      "$gte": "2026-01-01"
-Jan 08 18:21:59    }
-Jan 08 18:21:59  }
-Jan 08 18:21:59  🔍 Raw query on sec_filings: {
-Jan 08 18:21:59    "ticker": "TMC",
-Jan 08 18:21:59    "publication_date": {
-Jan 08 18:21:59      "$gte": "2026-01-01"
-Jan 08 18:21:59    }
-Jan 08 18:21:59  }
-Jan 08 18:21:59     Found 1 documents in sec_filings
-Jan 08 18:21:59     ✅ Found 1 documents
-Jan 08 18:21:59  📊 Executing mongodb.price_targets...
-Jan 08 18:21:59     Query: {
-Jan 08 18:21:59    "ticker": "TMC",
-Jan 08 18:21:59    "date": {
-Jan 08 18:21:59      "$gte": "2026-01-01"
-Jan 08 18:21:59    }
-Jan 08 18:21:59  }
-Jan 08 18:21:59  🔍 Raw query on price_targets: {
-Jan 08 18:21:59    "ticker": "TMC",
-Jan 08 18:21:59    "date": {
-Jan 08 18:21:59      "$gte": "2026-01-01"
-Jan 08 18:21:59    }
-Jan 08 18:21:59  }
-Jan 08 18:21:59     Found 0 documents in price_targets
-Jan 08 18:21:59     ✅ Found 0 documents
-Jan 08 18:21:59  ✅ Retrieved data from 4 source(s)
-Jan 08 18:21:59  📝 Building data context from AI query results...
-Jan 08 18:21:59  🎨 Heuristic Formatting Plan: {
-Jan 08 18:21:59    "formattingPlan": [
-Jan 08 18:21:59      {
-Jan 08 18:21:59        "collection": "sec_filings",
-Jan 08 18:21:59        "priority": 5,
-Jan 08 18:21:59        "detailLevel": "full",
-Jan 08 18:21:59        "fetchExternalContent": true,
-Jan 08 18:21:59        "fieldsToShow": [
-Jan 08 18:21:59          "all"
-Jan 08 18:21:59        ],
-Jan 08 18:21:59        "maxItems": 1,
-Jan 08 18:21:59        "formattingNotes": "Heuristic: detailed_breakdown"
-Jan 08 18:21:59      },
-Jan 08 18:21:59      {
-Jan 08 18:21:59        "collection": "finnhub_quote_snapshots",
-Jan 08 18:21:59        "priority": 3,
-Jan 08 18:21:59        "detailLevel": "moderate",
-Jan 08 18:21:59        "fetchExternalContent": false,
-Jan 08 18:21:59        "fieldsToShow": [
-Jan 08 18:21:59          "all"
-Jan 08 18:21:59        ],
-Jan 08 18:21:59        "maxItems": 1,
-Jan 08 18:21:59        "formattingNotes": "Heuristic: detailed_breakdown"
-Jan 08 18:21:59      },
-Jan 08 18:21:59      {
-Jan 08 18:21:59        "collection": "news",
-Jan 08 18:21:59        "priority": 3,
-Jan 08 18:21:59        "detailLevel": "detailed",
-Jan 08 18:21:59        "fetchExternalContent": false,
-Jan 08 18:21:59        "fieldsToShow": [
-Jan 08 18:21:59          "all"
-Jan 08 18:21:59        ],
-Jan 08 18:21:59        "maxItems": 8,
-Jan 08 18:21:59        "formattingNotes": "Heuristic: detailed_breakdown"
-Jan 08 18:21:59      },
-Jan 08 18:21:59      {
-Jan 08 18:21:59        "collection": "price_targets",
-Jan 08 18:21:59        "priority": 2,
-Jan 08 18:21:59        "detailLevel": "moderate",
-Jan 08 18:21:59        "fetchExternalContent": false,
-Jan 08 18:21:59        "fieldsToShow": [
-Jan 08 18:21:59          "all"
-Jan 08 18:21:59        ],
-Jan 08 18:21:59        "maxItems": 10,
-Jan 08 18:21:59        "formattingNotes": "Heuristic: detailed_breakdown"
-Jan 08 18:21:59      }
-Jan 08 18:21:59    ],
-Jan 08 18:21:59    "overallStrategy": "Using detailed_breakdown style for this Analyze the reasons behind TMC's stock decline today. query",
-Jan 08 18:21:59    "responseStyle": {
-Jan 08 18:21:59      "format": "detailed_breakdown",
-Jan 08 18:21:59      "tone": "analytical + comprehensive",
-Jan 08 18:21:59      "instructions": "Provide in-depth analysis with sections and subsections."
-Jan 08 18:21:59    }
-Jan 08 18:21:59  }
-Jan 08 18:21:59  💭 Thinking: Organizing 4 sources
-Jan 08 18:21:59  📋 Formatting sec_filings with full detail (priority: 5)
-Jan 08 18:21:59  💭 Thinking: Reviewing TMC (1)
-Jan 08 18:21:59  💭 Thinking: Reading 8-K...
-Jan 08 18:21:59  💭 Thinking: Searching TMC 8-K filings
-Jan 08 18:21:59  💭 Thinking: Analyzing TMC 8-K
-Jan 08 18:21:59  Fetching SEC filing content from: https://www.sec.gov/Archives/edgar/data/1798562/000110465926000247/tm2534530d1_8k.htm
-Jan 08 18:21:59  Found 0 images in SEC filing
-Jan 08 18:21:59  Fetched 4588 characters of content
-Jan 08 18:21:59    📄 Creating filing reference card: filing-TMC-8-K-0
-Jan 08 18:21:59  📋 Formatting finnhub_quote_snapshots with moderate detail (priority: 3)
-Jan 08 18:21:59  📋 Formatting news with detailed detail (priority: 3)
-Jan 08 18:21:59  💭 Thinking: Reading 9 TMC articles
-Jan 08 18:21:59  
-Jan 08 18:21:59  🔍 PHASE 1: Building article data array from 8 items
-Jan 08 18:21:59    [0] Mapping: "TMC Chief Development Officer Was Highly Active wi..." from fool.com
-Jan 08 18:21:59    [0] needsMetadataFetch: true (hasImage: false, domain: fool.com)
-Jan 08 18:21:59    [1] Mapping: "3 Growth Companies With High Insider Ownership And..." from finance.yahoo.com
-Jan 08 18:21:59    [1] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
-Jan 08 18:21:59    [2] Mapping: "Quiet Excellence: 3 Stocks That Have Beaten the Ma..." from 247wallst.com
-Jan 08 18:21:59    [2] needsMetadataFetch: true (hasImage: false, domain: 247wallst.com)
-Jan 08 18:21:59    [3] Mapping: "Is TMC the metals (TMC) NOAA Review the Catalyst D..." from finance.yahoo.com
-Jan 08 18:21:59    [3] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
-Jan 08 18:21:59    [4] Mapping: "TMC the metals company: A Quasi U.S.-Backed Critic..." from seekingalpha.com
-Jan 08 18:21:59    [4] needsMetadataFetch: false (hasImage: false, domain: seekingalpha.com)
-Jan 08 18:21:59    [5] Mapping: "Nickel Miners News For The Month Of December 2025..." from seekingalpha.com
-Jan 08 18:21:59    [5] needsMetadataFetch: false (hasImage: false, domain: seekingalpha.com)
-Jan 08 18:21:59    [6] Mapping: "Vulnerability Summary for the Week of December 22,..." from cisa.gov
-Jan 08 18:21:59    [6] needsMetadataFetch: true (hasImage: false, domain: cisa.gov)
-Jan 08 18:21:59    [7] Mapping: "Cobalt Miners News For The Month Of December 2025..." from seekingalpha.com
-Jan 08 18:21:59    [7] needsMetadataFetch: false (hasImage: false, domain: seekingalpha.com)
-Jan 08 18:21:59  ✅ Article data array built with 8 articles
-Jan 08 18:21:59  💭 Thinking: Reading 8 TMC articles
-Jan 08 18:21:59  
-Jan 08 18:21:59  🔍 PHASE 2: Filtering articles that need metadata fetch
-Jan 08 18:21:59    Found 5 articles needing metadata fetch:
-Jan 08 18:21:59      [Original Index 0] "TMC Chief Development Officer Was Highly Active wi..."
-Jan 08 18:21:59      [Original Index 1] "3 Growth Companies With High Insider Ownership And..."
-Jan 08 18:21:59      [Original Index 2] "Quiet Excellence: 3 Stocks That Have Beaten the Ma..."
-Jan 08 18:21:59      [Original Index 3] "Is TMC the metals (TMC) NOAA Review the Catalyst D..."
-Jan 08 18:21:59      [Original Index 6] "Vulnerability Summary for the Week of December 22,..."
-Jan 08 18:21:59    🌐 Fetching metadata for article [0]: "TMC Chief Development Officer Was Highly Active wi..."
-Jan 08 18:21:59  💭 Thinking: Reading TMC Chief Development Officer Was Highly...
-Jan 08 18:21:59  🌐 Fetching web content from: https://www.fool.com/coverage/filings/2026/01/05/tmc-chief-development-officer-was-highly-active-with-insider-shares-in-2025/
-Jan 08 18:21:59  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
-Jan 08 18:21:59     Node.js maxHttpHeaderSize: 65536
-Jan 08 18:21:59    🌐 Fetching metadata for article [1]: "3 Growth Companies With High Insider Ownership And..."
-Jan 08 18:21:59  💭 Thinking: Reading 3 Growth Companies With High Insider Own...
-Jan 08 18:21:59  🌐 Fetching web content from: https://finance.yahoo.com/news/3-growth-companies-high-insider-173609839.html
-Jan 08 18:21:59  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
-Jan 08 18:21:59     Node.js maxHttpHeaderSize: 65536
-Jan 08 18:21:59    🌐 Fetching metadata for article [2]: "Quiet Excellence: 3 Stocks That Have Beaten the Ma..."
-Jan 08 18:21:59  💭 Thinking: Reading Quiet Excellence: 3 Stocks That Have Bea...
-Jan 08 18:21:59  🌐 Fetching web content from: https://247wallst.com/investing/2026/01/05/quiet-excellence-3-stocks-that-have-beaten-the-market-and-no-one-has-heard-of-them/
-Jan 08 18:21:59  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
-Jan 08 18:21:59     Node.js maxHttpHeaderSize: 65536
-Jan 08 18:21:59    🌐 Fetching metadata for article [3]: "Is TMC the metals (TMC) NOAA Review the Catalyst D..."
-Jan 08 18:21:59  🌐 Fetching web content from: https://finance.yahoo.com/news/tmc-metals-tmc-noaa-review-090908162.html
-Jan 08 18:21:59  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
-Jan 08 18:21:59     Node.js maxHttpHeaderSize: 65536
-Jan 08 18:21:59    🌐 Fetching metadata for article [6]: "Vulnerability Summary for the Week of December 22,..."
-Jan 08 18:21:59  🌐 Fetching web content from: https://www.cisa.gov/news-events/bulletins/sb25-363
-Jan 08 18:21:59  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
-Jan 08 18:21:59     Node.js maxHttpHeaderSize: 65536
-Jan 08 18:21:59  ✅ Response received: 200 OK
-Jan 08 18:21:59     Response headers count: 21
-Jan 08 18:21:59     Content-Type: text/html; charset=UTF-8
-Jan 08 18:21:59     Content-Length: chunked
-Jan 08 18:21:59     Approximate header size: 855 bytes (0.83 KB)
-Jan 08 18:21:59     Top 5 largest headers: referrer-policy (79b), strict-transport-security (79b), x-bigscoots-cache-control (71b), cache-control (59b), content-security-policy (47b)
-Jan 08 18:21:59     📸 Found og:image: https://247wallst.com/wp-content/uploads/2025/12/shutterstock-2713202999-huge-licensed-scaled.jpg
-Jan 08 18:21:59     Metadata only mode - skipping content extraction
-Jan 08 18:21:59      ✅ [2] Metadata fetched: provider=null, hasImage=true
-Jan 08 18:21:59  ✅ Response received: 200 OK
-Jan 08 18:21:59     Response headers count: 20
-Jan 08 18:21:59     Content-Type: text/html; charset=utf-8
-Jan 08 18:21:59     Content-Length: chunked
-Jan 08 18:21:59     Approximate header size: 1399 bytes (1.37 KB)
-Jan 08 18:21:59     Top 5 largest headers: link (498b), x-pathname (222b), vary (100b), x-kong-request-id (49b), cache-control (46b)
-Jan 08 18:22:00     📸 Found og:image: https://g.foolcdn.com/image/?url=https%3A%2F%2Fcdn.content.foolcdn.com%2Fimages%2F1umn9qeh%2Fproduct...
-Jan 08 18:22:00     Metadata only mode - skipping content extraction
-Jan 08 18:22:00      ✅ [0] Metadata fetched: provider=null, hasImage=true
-Jan 08 18:22:00  ✅ Response received: 200 OK
-Jan 08 18:22:00     Response headers count: 16
-Jan 08 18:22:00     Content-Type: text/html; charset=UTF-8
-Jan 08 18:22:00     Content-Length: chunked
-Jan 08 18:22:00     Approximate header size: 543 bytes (0.53 KB)
-Jan 08 18:22:00     Top 5 largest headers: strict-transport-security (61b), cache-control (47b), x-generator (45b), content-type (36b), expires (36b)
-Jan 08 18:22:01     Metadata only mode - skipping content extraction
-Jan 08 18:22:01      ✅ [6] Metadata fetched: provider=null, hasImage=false
-Jan 08 18:22:01  ✅ Response received: 200 OK
-Jan 08 18:22:01     Response headers count: 24
-Jan 08 18:22:01     Content-Type: text/html; charset=utf-8
-Jan 08 18:22:01     Content-Length: chunked
-Jan 08 18:22:01     Approximate header size: 37972 bytes (37.08 KB)
-Jan 08 18:22:01     Top 5 largest headers: link (28457b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (81b)
-Jan 08 18:22:03     📸 Found og:image: https://media.zenfs.com/en/simply_wall_st__316/3eb1acfa01a97be66f224c62f2ff60fd
-Jan 08 18:22:03     📰 Found Yahoo provider: Simply Wall St.
-Jan 08 18:22:03     Metadata only mode - skipping content extraction
-Jan 08 18:22:03      ✅ [3] Metadata fetched: provider=Simply Wall St., hasImage=true
-Jan 08 18:22:03  ✅ Response received: 200 OK
-Jan 08 18:22:03     Response headers count: 24
-Jan 08 18:22:03     Content-Type: text/html; charset=utf-8
-Jan 08 18:22:03     Content-Length: chunked
-Jan 08 18:22:03     Approximate header size: 37971 bytes (37.08 KB)
-Jan 08 18:22:03     Top 5 largest headers: link (28457b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (81b)
-Jan 08 18:22:04     📸 Found og:image: https://media.zenfs.com/en/simply_wall_st__316/3eb1acfa01a97be66f224c62f2ff60fd
-Jan 08 18:22:04     📰 Found Yahoo provider: Simply Wall St.
-Jan 08 18:22:04     Metadata only mode - skipping content extraction
-Jan 08 18:22:04      ✅ [1] Metadata fetched: provider=Simply Wall St., hasImage=true
-Jan 08 18:22:04  ✅ PHASE 2 complete: All metadata fetches finished
-Jan 08 18:22:04  
-Jan 08 18:22:04  🔍 PHASE 3: Building data cards and output context
-Jan 08 18:22:04  
-Jan 08 18:22:04    📝 DataCard Creation [0]:
-Jan 08 18:22:04       Title: "TMC Chief Development Officer Was Highly Active with Insider Shares in 2025"
-Jan 08 18:22:04       ID: article-TMC-0
-Jan 08 18:22:04       Source: fool.com
-Jan 08 18:22:04       URL: https://www.fool.com/coverage/filings/2026/01/05/tmc-chief-development-officer-was-highly-active-with-insider-shares-in-2025/
-Jan 08 18:22:04       Domain: fool.com
-Jan 08 18:22:04       Published: Mon Jan 05 2026 19:49:54 GMT+0000 (Coordinated Universal Time)
-Jan 08 18:22:04       ImageURL: Yes
-Jan 08 18:22:04       Output Text: **TMC Chief Development Officer Was Highly Active with Insider Shares in 2025** ...
-Jan 08 18:22:04  
-Jan 08 18:22:04    📝 DataCard Creation [1]:
-Jan 08 18:22:04       Title: "3 Growth Companies With High Insider Ownership And Up To 49% Revenue Growth"
-Jan 08 18:22:04       ID: article-TMC-1
-Jan 08 18:22:04       Source: Simply Wall St.
-Jan 08 18:22:04       URL: https://finance.yahoo.com/news/3-growth-companies-high-insider-173609839.html
-Jan 08 18:22:04       Domain: finance.yahoo.com
-Jan 08 18:22:04       Published: Mon Jan 05 2026 17:36:09 GMT+0000 (Coordinated Universal Time)
-Jan 08 18:22:04       ImageURL: Yes
-Jan 08 18:22:04       Output Text: **3 Growth Companies With High Insider Ownership And Up To 49% Revenue Growth** ...
-Jan 08 18:22:04  
-Jan 08 18:22:04    📝 DataCard Creation [2]:
-Jan 08 18:22:04       Title: "Quiet Excellence: 3 Stocks That Have Beaten the Market, and No One Has Heard of Them"
-Jan 08 18:22:04       ID: article-TMC-2
-Jan 08 18:22:04       Source: 247wallst.com
-Jan 08 18:22:04       URL: https://247wallst.com/investing/2026/01/05/quiet-excellence-3-stocks-that-have-beaten-the-market-and-no-one-has-heard-of-them/
-Jan 08 18:22:04       Domain: 247wallst.com
-Jan 08 18:22:04       Published: Mon Jan 05 2026 14:38:53 GMT+0000 (Coordinated Universal Time)
-Jan 08 18:22:04       ImageURL: Yes
-Jan 08 18:22:04       Output Text: **Quiet Excellence: 3 Stocks That Have Beaten the Market, and No One Has Heard o...
-Jan 08 18:22:04  
-Jan 08 18:22:04    📝 DataCard Creation [3]:
-Jan 08 18:22:04       Title: "Is TMC the metals (TMC) NOAA Review the Catalyst Defining Its Regulatory Moat and Timeline?"
-Jan 08 18:22:04       ID: article-TMC-3
-Jan 08 18:22:04       Source: Simply Wall St.
-Jan 08 18:22:04       URL: https://finance.yahoo.com/news/tmc-metals-tmc-noaa-review-090908162.html
-Jan 08 18:22:04       Domain: finance.yahoo.com
-Jan 08 18:22:04       Published: Mon Jan 05 2026 09:09:08 GMT+0000 (Coordinated Universal Time)
-Jan 08 18:22:04       ImageURL: Yes
-Jan 08 18:22:04       Output Text: **Is TMC the metals (TMC) NOAA Review the Catalyst Defining Its Regulatory Moat ...
-Jan 08 18:22:04  
-Jan 08 18:22:04    📝 DataCard Creation [4]:
-Jan 08 18:22:04       Title: "TMC the metals company: A Quasi U.S.-Backed Critical Mineral Supplier"
-Jan 08 18:22:04       ID: article-TMC-4
-Jan 08 18:22:04       Source: seekingalpha.com
-Jan 08 18:22:04       URL: https://seekingalpha.com/article/4856673-tmc-the-metals-company-a-quasi-us-backed-critical-mineral-supplier
-Jan 08 18:22:04       Domain: seekingalpha.com
-Jan 08 18:22:04       Published: Thu Jan 01 2026 04:57:51 GMT+0000 (Coordinated Universal Time)
-Jan 08 18:22:04       ImageURL: No
-Jan 08 18:22:04       Output Text: **TMC the metals company: A Quasi U.S.-Backed Critical Mineral Supplier** (seeki...
-Jan 08 18:22:04  
-Jan 08 18:22:04    📝 DataCard Creation [5]:
-Jan 08 18:22:04       Title: "Nickel Miners News For The Month Of December 2025"
-Jan 08 18:22:04       ID: article-TMC-5
-Jan 08 18:22:04       Source: seekingalpha.com
-Jan 08 18:22:04       URL: https://seekingalpha.com/article/4856637-nickel-miners-news-for-the-month-of-december-2025
-Jan 08 18:22:04       Domain: seekingalpha.com
-Jan 08 18:22:04       Published: Wed Dec 31 2025 22:33:48 GMT+0000 (Coordinated Universal Time)
-Jan 08 18:22:04       ImageURL: No
-Jan 08 18:22:04       Output Text: **Nickel Miners News For The Month Of December 2025** (seekingalpha.com, 12/31/2...
-Jan 08 18:22:04  
-Jan 08 18:22:04    📝 DataCard Creation [6]:
-Jan 08 18:22:04       Title: "Vulnerability Summary for the Week of December 22, 2025"
-Jan 08 18:22:04       ID: article-TMC-6
-Jan 08 18:22:04       Source: cisa.gov
-Jan 08 18:22:04       URL: https://www.cisa.gov/news-events/bulletins/sb25-363
-Jan 08 18:22:04       Domain: cisa.gov
-Jan 08 18:22:04       Published: Mon Dec 29 2025 13:28:06 GMT+0000 (Coordinated Universal Time)
-Jan 08 18:22:04       ImageURL: No
-Jan 08 18:22:04       Output Text: **Vulnerability Summary for the Week of December 22, 2025** (cisa.gov, 12/29/202...
-Jan 08 18:22:04  
-Jan 08 18:22:04    📝 DataCard Creation [7]:
-Jan 08 18:22:04       Title: "Cobalt Miners News For The Month Of December 2025"
-Jan 08 18:22:04       ID: article-TMC-7
-Jan 08 18:22:04       Source: seekingalpha.com
-Jan 08 18:22:04       URL: https://seekingalpha.com/article/4855740-cobalt-miners-news-december-2025
-Jan 08 18:22:04       Domain: seekingalpha.com
-Jan 08 18:22:04       Published: Thu Dec 25 2025 04:56:39 GMT+0000 (Coordinated Universal Time)
-Jan 08 18:22:04       ImageURL: No
-Jan 08 18:22:04       Output Text: **Cobalt Miners News For The Month Of December 2025** (seekingalpha.com, 12/25/2...
-Jan 08 18:22:04  
-Jan 08 18:22:04  ✅ PHASE 3 complete: Created 9 data cards from 8 articles
-Jan 08 18:22:04  
-Jan 08 18:22:04  📋 Final DataCards Array (9 cards):
-Jan 08 18:22:04    [0] filing-TMC-8-K-0: "8-K Filing - 1/2/2026..."
-Jan 08 18:22:04    [1] article-TMC-0: "TMC Chief Development Officer Was Highly Active wi..."
-Jan 08 18:22:04    [2] article-TMC-1: "3 Growth Companies With High Insider Ownership And..."
-Jan 08 18:22:04    [3] article-TMC-2: "Quiet Excellence: 3 Stocks That Have Beaten the Ma..."
-Jan 08 18:22:04    [4] article-TMC-3: "Is TMC the metals (TMC) NOAA Review the Catalyst D..."
-Jan 08 18:22:04    [5] article-TMC-4: "TMC the metals company: A Quasi U.S.-Backed Critic..."
-Jan 08 18:22:04    [6] article-TMC-5: "Nickel Miners News For The Month Of December 2025..."
-Jan 08 18:22:04    [7] article-TMC-6: "Vulnerability Summary for the Week of December 22,..."
-Jan 08 18:22:04    [8] article-TMC-7: "Cobalt Miners News For The Month Of December 2025..."
-Jan 08 18:22:04  
-Jan 08 18:22:04  📄 Article Order in Data Context Output:
-Jan 08 18:22:04    [0] article-TMC-0: "TMC Chief Development Officer Was Highly Active wi..."
-Jan 08 18:22:04    [1] article-TMC-1: "3 Growth Companies With High Insider Ownership And..."
-Jan 08 18:22:04    [2] article-TMC-2: "Quiet Excellence: 3 Stocks That Have Beaten the Ma..."
-Jan 08 18:22:04    [3] article-TMC-3: "Is TMC the metals (TMC) NOAA Review the Catalyst D..."
-Jan 08 18:22:04    [4] article-TMC-4: "TMC the metals company: A Quasi U.S.-Backed Critic..."
-Jan 08 18:22:04    [5] article-TMC-5: "Nickel Miners News For The Month Of December 2025..."
-Jan 08 18:22:04    [6] article-TMC-6: "Vulnerability Summary for the Week of December 22,..."
-Jan 08 18:22:04    [7] article-TMC-7: "Cobalt Miners News For The Month Of December 2025..."
-Jan 08 18:22:04  
-Jan 08 18:22:04    [0] filing-TMC-8-K-0: "8-K Filing - 1/2/2026..."
-Jan 08 18:22:04    [1] article-TMC-0: "TMC Chief Development Officer Was Highly Active wi..."
-Jan 08 18:22:04    [2] article-TMC-1: "3 Growth Companies With High Insider Ownership And..."
-Jan 08 18:22:04    [3] article-TMC-2: "Quiet Excellence: 3 Stocks That Have Beaten the Ma..."
-Jan 08 18:22:04    [4] article-TMC-3: "Is TMC the metals (TMC) NOAA Review the Catalyst D..."
-Jan 08 18:22:04    [5] article-TMC-4: "TMC the metals company: A Quasi U.S.-Backed Critic..."
-Jan 08 18:22:04    [6] article-TMC-5: "Nickel Miners News For The Month Of December 2025..."
-Jan 08 18:22:04    [7] article-TMC-6: "Vulnerability Summary for the Week of December 22,..."
-Jan 08 18:22:04    [8] article-TMC-7: "Cobalt Miners News For The Month Of December 2025..."
-Jan 08 18:22:04  
-Jan 08 18:22:04  📋 Formatting price_targets with moderate detail (priority: 2)
-Jan 08 18:22:04  💭 Thinking: Reviewing analyst ratings
-Jan 08 18:22:04  📊 Adding chart marker for TMC (1D)
-Jan 08 18:22:04  📈 Added chart marker for TMC
-Jan 08 18:22:04  📐 Response Style: detailed_breakdown - analytical + comprehensive
-Jan 08 18:22:04  ✅ AI formatting complete - 1 sources
-Jan 08 18:22:04  🖼️  Data context contains 3 VIEW_ARTICLE markers: [
-Jan 08 18:22:04    '[VIEW_ARTICLE:article-X-Y]',
-Jan 08 18:22:04    '[VIEW_ARTICLE:article-TSLA-0]',
-Jan 08 18:22:04    '[VIEW_ARTICLE:article-TSLA-1]'
-Jan 08 18:22:04  ]
-Jan 08 18:22:04  Calling OpenAI API with 6 messages
-Jan 08 18:22:04  💰 Response Budget: DETAILED tier (12000 tokens, ~$0.1352)
-Jan 08 18:22:05  
-Jan 08 18:22:05  🎯 StreamProcessor: Building expected markers from 10 dataCards
-Jan 08 18:22:05    📄 Expected filing reference: filing-TMC-8-K-0
-Jan 08 18:22:05    📰 Expected article marker: article-TMC-0 - "TMC Chief Development Officer Was Highly Active wi..."
-Jan 08 18:22:05    📰 Expected article marker: article-TMC-1 - "3 Growth Companies With High Insider Ownership And..."
-Jan 08 18:22:05    📰 Expected article marker: article-TMC-2 - "Quiet Excellence: 3 Stocks That Have Beaten the Ma..."
-Jan 08 18:22:05    📰 Expected article marker: article-TMC-3 - "Is TMC the metals (TMC) NOAA Review the Catalyst D..."
-Jan 08 18:22:05    📰 Expected article marker: article-TMC-4 - "TMC the metals company: A Quasi U.S.-Backed Critic..."
-Jan 08 18:22:05    📰 Expected article marker: article-TMC-5 - "Nickel Miners News For The Month Of December 2025..."
-Jan 08 18:22:05    📰 Expected article marker: article-TMC-6 - "Vulnerability Summary for the Week of December 22,..."
-Jan 08 18:22:05    📰 Expected article marker: article-TMC-7 - "Cobalt Miners News For The Month Of December 2025..."
-Jan 08 18:22:05  📊 StreamProcessor tracking 8 article markers, 0 image markers
-Jan 08 18:22:14  🔧 Smart Marker Injection: 8 missing article markers
-Jan 08 18:22:14    ✓ "TMC Chief Development Officer Was Highly Active with Insider Shares in 2025" appears discussed (78% match)
-Jan 08 18:22:14    ✓ "3 Growth Companies With High Insider Ownership And Up To 49% Revenue Growth" appears discussed (50% match)
-Jan 08 18:22:14    ✓ "Quiet Excellence: 3 Stocks That Have Beaten the Market, and No One Has Heard of Them" appears discussed (33% match)
-Jan 08 18:22:14    ✓ "Is TMC the metals (TMC) NOAA Review the Catalyst Defining Its Regulatory Moat and Timeline?" appears discussed (50% match)
-Jan 08 18:22:14  
-Jan 08 18:22:14  💉 SMART MARKER INJECTION: Injecting 8 missing article markers
-Jan 08 18:22:14    [0] article-TMC-0: "TMC Chief Development Officer Was Highly Active wi..."
-Jan 08 18:22:14    [1] article-TMC-1: "3 Growth Companies With High Insider Ownership And..."
-Jan 08 18:22:14    [2] article-TMC-3: "Is TMC the metals (TMC) NOAA Review the Catalyst D..."
-Jan 08 18:22:14    [3] article-TMC-2: "Quiet Excellence: 3 Stocks That Have Beaten the Ma..."
-Jan 08 18:22:14    [4] article-TMC-4: "TMC the metals company: A Quasi U.S.-Backed Critic..."
-Jan 08 18:22:14    [5] article-TMC-6: "Vulnerability Summary for the Week of December 22,..."
-Jan 08 18:22:14    [6] article-TMC-5: "Nickel Miners News For The Month Of December 2025..."
-Jan 08 18:22:14    [7] article-TMC-7: "Cobalt Miners News For The Month Of December 2025..."
-Jan 08 18:22:14    → Emitting HORIZONTAL_RULE before Related Coverage
-Jan 08 18:22:14    → Emitting Related Coverage header
-Jan 08 18:22:14    → Injected [VIEW_ARTICLE:article-TMC-0]: "TMC Chief Development Officer Was Highly..."
-Jan 08 18:22:14    → Injected [VIEW_ARTICLE:article-TMC-1]: "3 Growth Companies With High Insider Own..."
-Jan 08 18:22:14    → Injected [VIEW_ARTICLE:article-TMC-3]: "Is TMC the metals (TMC) NOAA Review the ..."
-Jan 08 18:22:14    → Injected [VIEW_ARTICLE:article-TMC-2]: "Quiet Excellence: 3 Stocks That Have Bea..."
-Jan 08 18:22:14    → Injected [VIEW_ARTICLE:article-TMC-4]: "TMC the metals company: A Quasi U.S.-Bac..."
-Jan 08 18:22:14    → Injected [VIEW_ARTICLE:article-TMC-6]: "Vulnerability Summary for the Week of De..."
-Jan 08 18:22:14    → Injected [VIEW_ARTICLE:article-TMC-5]: "Nickel Miners News For The Month Of Dece..."
-Jan 08 18:22:14    → Injected [VIEW_ARTICLE:article-TMC-7]: "Cobalt Miners News For The Month Of Dece..."
-Jan 08 18:22:14  ✅ Smart injection complete
-Jan 08 18:22:14  
-Jan 08 18:22:14  
-Jan 08 18:22:14  📄 FULL RESPONSE STRUCTURE:
-Jan 08 18:22:14  ================================================================================
-Jan 08 18:22:14  TMC's stock is experiencing a decline today, with a current price of $7.36, representing a 2.90% decrease from the previous close of $7.58. Several factors might be contributing to the stock's downward movement:
-Jan 08 18:22:14  
-Jan 08 18:22:14  ### Recent SEC Filing
-Jan 08 18:22:14  
-Jan 08 18:22:14  The latest 8-K filing from TMC, dated January 2, 2026, discusses a corporate restructuring through a vertical short-form amalgamation with its wholly-owned subsidiary, DeepGreen Metals ULC. While the filing states there will be no changes to the company's business or operations, such restructuring activities can sometimes create uncertainty among investors, potentially leading to stock price volatility. Investors might be reacting to the structural changes and their implications on the company's operational focus and financial stability.
-Jan 08 18:22:14  
-Jan 08 18:22:14  ### Insider Trading Activity
-Jan 08 18:22:14  
-Jan 08 18:22:14  A recent article highlighted insider trading activities by Anthony O'Sullivan, TMC's Chief Development Officer, who sold 100,000 shares in late 2025. This significant insider sale might have raised concerns among investors about potential future prospects or insider confidence in the company's stock, contributing to today's decline. Insider sales can sometimes be perceived negatively by the market, indicating insiders might expect challenges ahead.
-Jan 08 18:22:14  
-Jan 08 18:22:14  ### Regulatory Developments
-Jan 08 18:22:14  
-Jan 08 18:22:14  Furthermore, TMC is undergoing a regulatory review with the US government through NOAA for its deep-sea mining application. The outcome of this review is crucial for TMC's future operations and revenue generation. The uncertainty surrounding the regulatory approval process could also be weighing on investor sentiment, contributing to the current stock price decline.
-Jan 08 18:22:14  
-Jan 08 18:22:14  These elements combined suggest that investors may be cautious about TMC's short-term prospects, given the structural changes, insider sales, and regulatory review outcomes.
-Jan 08 18:22:14  
-Jan 08 18:22:14  [TMC 8-K Filing](https://www.sec.gov/Archives/edgar/data/1798562/000110465926000247/tm2534530d1_8k.htm)
-Jan 08 18:22:14  
-Jan 08 18:22:14  **Related Coverage:**
-Jan 08 18:22:14  
-Jan 08 18:22:14  [VIEW_ARTICLE:article-TMC-0]
-Jan 08 18:22:14  [VIEW_ARTICLE:article-TMC-1]
-Jan 08 18:22:14  [VIEW_ARTICLE:article-TMC-3]
-Jan 08 18:22:14  [VIEW_ARTICLE:article-TMC-2]
-Jan 08 18:22:14  [VIEW_ARTICLE:article-TMC-4]
-Jan 08 18:22:14  [VIEW_ARTICLE:article-TMC-6]
-Jan 08 18:22:14  [VIEW_ARTICLE:article-TMC-5]
-Jan 08 18:22:14  [VIEW_ARTICLE:article-TMC-7]
-Jan 08 18:22:14  
-Jan 08 18:22:14  ================================================================================
-Jan 08 18:22:14  
-Jan 08 18:22:14  📍 MARKER POSITIONS (8 total):
-Jan 08 18:22:14    1. [VIEW_ARTICLE:article-TMC-0] at char 1967
-Jan 08 18:22:14       Context: ....sec.gov/Archives/edgar/data/1798562/000110465926000247/tm2534530d1_8k.htm)  **Related Coverage:**  [VIEW_ARTICLE:articl...
-Jan 08 18:22:14    2. [VIEW_ARTICLE:article-TMC-1] at char 1996
-Jan 08 18:22:14       Context: ...1798562/000110465926000247/tm2534530d1_8k.htm)  **Related Coverage:**  [VIEW_ARTICLE:article-TMC-0] [VIEW_ARTICLE:articl...
-Jan 08 18:22:14    3. [VIEW_ARTICLE:article-TMC-3] at char 2025
-Jan 08 18:22:14       Context: ...2534530d1_8k.htm)  **Related Coverage:**  [VIEW_ARTICLE:article-TMC-0] [VIEW_ARTICLE:article-TMC-1] [VIEW_ARTICLE:articl...
-Jan 08 18:22:14    4. [VIEW_ARTICLE:article-TMC-2] at char 2054
-Jan 08 18:22:14       Context: ...Coverage:**  [VIEW_ARTICLE:article-TMC-0] [VIEW_ARTICLE:article-TMC-1] [VIEW_ARTICLE:article-TMC-3] [VIEW_ARTICLE:articl...
-Jan 08 18:22:14    5. [VIEW_ARTICLE:article-TMC-4] at char 2083
-Jan 08 18:22:14       Context: ...ticle-TMC-0] [VIEW_ARTICLE:article-TMC-1] [VIEW_ARTICLE:article-TMC-3] [VIEW_ARTICLE:article-TMC-2] [VIEW_ARTICLE:articl...
-Jan 08 18:22:14    6. [VIEW_ARTICLE:article-TMC-6] at char 2112
-Jan 08 18:22:14       Context: ...ticle-TMC-1] [VIEW_ARTICLE:article-TMC-3] [VIEW_ARTICLE:article-TMC-2] [VIEW_ARTICLE:article-TMC-4] [VIEW_ARTICLE:articl...
-Jan 08 18:22:14    7. [VIEW_ARTICLE:article-TMC-5] at char 2141
-Jan 08 18:22:14       Context: ...ticle-TMC-3] [VIEW_ARTICLE:article-TMC-2] [VIEW_ARTICLE:article-TMC-4] [VIEW_ARTICLE:article-TMC-6] [VIEW_ARTICLE:articl...
-Jan 08 18:22:14    8. [VIEW_ARTICLE:article-TMC-7] at char 2170
-Jan 08 18:22:14       Context: ...ticle-TMC-2] [VIEW_ARTICLE:article-TMC-4] [VIEW_ARTICLE:article-TMC-6] [VIEW_ARTICLE:article-TMC-5] [VIEW_ARTICLE:articl...
-Jan 08 18:22:14  ================================================================================
-Jan 08 18:22:14  ✅ GPT-4 preserved all 8 VIEW_ARTICLE markers
+Jan 08 20:45:33  
+Jan 08 20:45:33  > catalyst-ai-agent@2.0.0 start
+Jan 08 20:45:33  > node --max-http-header-size=65536 server.js
+Jan 08 20:45:33  
+Jan 08 20:45:36  ✅ Connected to MongoDB
+Jan 08 20:45:36  🚀 Catalyst AI Agent running on port 8080
+Jan 08 20:45:36  📊 Connected to Supabase: true
+Jan 08 20:45:36  🗄️  Connected to MongoDB: true
+Jan 08 20:45:36  🤖 OpenAI API configured: true
+Jan 08 21:02:55  Processing message: Why is TSLA up today?
+Jan 08 21:02:55  User ID: null
+Jan 08 21:02:55  Conversation ID: null
+Jan 08 21:02:55  User Timezone: America/New_York
+Jan 08 21:02:55  📡 SSE headers sent immediately - streaming enabled
+Jan 08 21:02:55  🤖 Using AI-Native Query Engine...
+Jan 08 21:02:55  📅 User timezone: America/New_York, Today: 2026-01-08
+Jan 08 21:03:06  🤖 AI-Generated Queries: {
+Jan 08 21:03:06    "queries": [
+Jan 08 21:03:06      {
+Jan 08 21:03:06        "database": "supabase",
+Jan 08 21:03:06        "collection": "finnhub_quote_snapshots",
+Jan 08 21:03:06        "query": {
+Jan 08 21:03:06          "symbol": "TSLA"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "sort": {
+Jan 08 21:03:06          "timestamp": "desc"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "limit": 1,
+Jan 08 21:03:06        "reasoning": "Get the most recent stock price for TSLA to understand its current movement."
+Jan 08 21:03:06      },
+Jan 08 21:03:06      {
+Jan 08 21:03:06        "database": "mongodb",
+Jan 08 21:03:06        "collection": "news",
+Jan 08 21:03:06        "query": {
+Jan 08 21:03:06          "ticker": "TSLA"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "sort": {
+Jan 08 21:03:06          "published_at": -1
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "limit": 10,
+Jan 08 21:03:06        "reasoning": "Get recent news articles about TSLA to correlate with its price movement."
+Jan 08 21:03:06      },
+Jan 08 21:03:06      {
+Jan 08 21:03:06        "database": "supabase",
+Jan 08 21:03:06        "collection": "one_minute_prices",
+Jan 08 21:03:06        "query": {
+Jan 08 21:03:06          "symbol": "TSLA",
+Jan 08 21:03:06          "timestamp_gte": "2026-01-07T00:00:00Z"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "sort": {
+Jan 08 21:03:06          "timestamp": "desc"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "limit": 60,
+Jan 08 21:03:06        "reasoning": "Get recent intraday price history to show movement alongside news."
+Jan 08 21:03:06      }
+Jan 08 21:03:06    ],
+Jan 08 21:03:06    "extractCompanies": false,
+Jan 08 21:03:06    "needsChart": true,
+Jan 08 21:03:06    "needsDeepAnalysis": true,
+Jan 08 21:03:06    "analysisKeywords": [],
+Jan 08 21:03:06    "chartConfig": {
+Jan 08 21:03:06      "symbol": "TSLA",
+Jan 08 21:03:06      "timeRange": "1D",
+Jan 08 21:03:06      "highlightDate": null
+Jan 08 21:03:06    },
+Jan 08 21:03:06    "intent": "Analyze why TSLA stock is up today by correlating news and price data."
+Jan 08 21:03:06  }
+Jan 08 21:03:06  💭 Thinking: Analyzing question
+Jan 08 21:03:06  📋 Query Plan: {
+Jan 08 21:03:06    "queries": [
+Jan 08 21:03:06      {
+Jan 08 21:03:06        "database": "supabase",
+Jan 08 21:03:06        "collection": "finnhub_quote_snapshots",
+Jan 08 21:03:06        "query": {
+Jan 08 21:03:06          "symbol": "TSLA"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "sort": {
+Jan 08 21:03:06          "timestamp": "desc"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "limit": 1,
+Jan 08 21:03:06        "reasoning": "Get the most recent stock price for TSLA to understand its current movement."
+Jan 08 21:03:06      },
+Jan 08 21:03:06      {
+Jan 08 21:03:06        "database": "mongodb",
+Jan 08 21:03:06        "collection": "news",
+Jan 08 21:03:06        "query": {
+Jan 08 21:03:06          "ticker": "TSLA"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "sort": {
+Jan 08 21:03:06          "published_at": -1
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "limit": 10,
+Jan 08 21:03:06        "reasoning": "Get recent news articles about TSLA to correlate with its price movement."
+Jan 08 21:03:06      },
+Jan 08 21:03:06      {
+Jan 08 21:03:06        "database": "supabase",
+Jan 08 21:03:06        "collection": "one_minute_prices",
+Jan 08 21:03:06        "query": {
+Jan 08 21:03:06          "symbol": "TSLA",
+Jan 08 21:03:06          "timestamp_gte": "2026-01-07T00:00:00Z"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "sort": {
+Jan 08 21:03:06          "timestamp": "desc"
+Jan 08 21:03:06        },
+Jan 08 21:03:06        "limit": 60,
+Jan 08 21:03:06        "reasoning": "Get recent intraday price history to show movement alongside news."
+Jan 08 21:03:06      }
+Jan 08 21:03:06    ],
+Jan 08 21:03:06    "extractCompanies": false,
+Jan 08 21:03:06    "needsChart": true,
+Jan 08 21:03:06    "needsDeepAnalysis": true,
+Jan 08 21:03:06    "analysisKeywords": [],
+Jan 08 21:03:06    "chartConfig": {
+Jan 08 21:03:06      "symbol": "TSLA",
+Jan 08 21:03:06      "timeRange": "1D",
+Jan 08 21:03:06      "highlightDate": null
+Jan 08 21:03:06    },
+Jan 08 21:03:06    "intent": "Analyze why TSLA stock is up today by correlating news and price data."
+Jan 08 21:03:06  }
+Jan 08 21:03:08  🎯 AI Token Allocation: standard tier - 8000/1500/1200 tokens
+Jan 08 21:03:08     Reasoning: Standard analysis with moderate depth - 3 sources, no deep filing analysis
+Jan 08 21:03:08  📊 Executing supabase.finnhub_quote_snapshots...
+Jan 08 21:03:08     Query: {
+Jan 08 21:03:08    "symbol": "TSLA"
+Jan 08 21:03:08  }
+Jan 08 21:03:08  📊 Quote for TSLA: $435.41 (+0.93%) [baseline: $431.41] session: post-market
+Jan 08 21:03:08     ✅ Found 1 quote snapshots (source: stock_quote_now)
+Jan 08 21:03:08  📊 Executing mongodb.news...
+Jan 08 21:03:08     Query: {
+Jan 08 21:03:08    "ticker": "TSLA"
+Jan 08 21:03:08  }
+Jan 08 21:03:08  🔍 Raw query on news: {
+Jan 08 21:03:08    "ticker": "TSLA"
+Jan 08 21:03:08  }
+Jan 08 21:03:08     Found 10 documents in news
+Jan 08 21:03:08     ✅ Found 10 documents
+Jan 08 21:03:08  📊 Executing supabase.one_minute_prices...
+Jan 08 21:03:08     Query: {
+Jan 08 21:03:08    "symbol": "TSLA",
+Jan 08 21:03:08    "timestamp_gte": "2026-01-07T00:00:00Z"
+Jan 08 21:03:08  }
+Jan 08 21:03:08     ✅ Found 60 price records
+Jan 08 21:03:08  ✅ Retrieved data from 3 source(s)
+Jan 08 21:03:08  📝 Building data context from AI query results...
+Jan 08 21:03:08  🎨 Heuristic Formatting Plan: {
+Jan 08 21:03:08    "formattingPlan": [
+Jan 08 21:03:08      {
+Jan 08 21:03:08        "collection": "finnhub_quote_snapshots",
+Jan 08 21:03:08        "priority": 3,
+Jan 08 21:03:08        "detailLevel": "moderate",
+Jan 08 21:03:08        "fetchExternalContent": false,
+Jan 08 21:03:08        "fieldsToShow": [
+Jan 08 21:03:08          "all"
+Jan 08 21:03:08        ],
+Jan 08 21:03:08        "maxItems": 1,
+Jan 08 21:03:08        "formattingNotes": "Heuristic: detailed_breakdown"
+Jan 08 21:03:08      },
+Jan 08 21:03:08      {
+Jan 08 21:03:08        "collection": "news",
+Jan 08 21:03:08        "priority": 3,
+Jan 08 21:03:08        "detailLevel": "detailed",
+Jan 08 21:03:08        "fetchExternalContent": false,
+Jan 08 21:03:08        "fieldsToShow": [
+Jan 08 21:03:08          "all"
+Jan 08 21:03:08        ],
+Jan 08 21:03:08        "maxItems": 8,
+Jan 08 21:03:08        "formattingNotes": "Heuristic: detailed_breakdown"
+Jan 08 21:03:08      },
+Jan 08 21:03:08      {
+Jan 08 21:03:08        "collection": "one_minute_prices",
+Jan 08 21:03:08        "priority": 3,
+Jan 08 21:03:08        "detailLevel": "moderate",
+Jan 08 21:03:08        "fetchExternalContent": false,
+Jan 08 21:03:08        "fieldsToShow": [
+Jan 08 21:03:08          "all"
+Jan 08 21:03:08        ],
+Jan 08 21:03:08        "maxItems": 10,
+Jan 08 21:03:08        "formattingNotes": "Heuristic: detailed_breakdown"
+Jan 08 21:03:08      }
+Jan 08 21:03:08    ],
+Jan 08 21:03:08    "overallStrategy": "Using detailed_breakdown style for this Analyze why TSLA stock is up today by correlating news and price data. query",
+Jan 08 21:03:08    "responseStyle": {
+Jan 08 21:03:08      "format": "detailed_breakdown",
+Jan 08 21:03:08      "tone": "analytical + comprehensive",
+Jan 08 21:03:08      "instructions": "Provide in-depth analysis with sections and subsections."
+Jan 08 21:03:08    }
+Jan 08 21:03:08  }
+Jan 08 21:03:08  💭 Thinking: Organizing 3 sources
+Jan 08 21:03:08  📋 Formatting finnhub_quote_snapshots with moderate detail (priority: 3)
+Jan 08 21:03:08  📋 Formatting news with detailed detail (priority: 3)
+Jan 08 21:03:08  💭 Thinking: Reading 10 TSLA articles
+Jan 08 21:03:08  
+Jan 08 21:03:08  🔍 PHASE 1: Building article data array from 8 items
+Jan 08 21:03:08    [0] Mapping: "Nvidia’s new Alpamayo project: What it means for T..." from finance.yahoo.com
+Jan 08 21:03:08    [0] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
+Jan 08 21:03:08    [1] Mapping: "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,'..." from finance.yahoo.com
+Jan 08 21:03:08    [1] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
+Jan 08 21:03:08    [2] Mapping: "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will..." from finance.yahoo.com
+Jan 08 21:03:08    [2] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
+Jan 08 21:03:08    [3] Mapping: "This Analyst Explains Why Tesla Is Not A Typical '..." from finance.yahoo.com
+Jan 08 21:03:08    [3] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
+Jan 08 21:03:08    [4] Mapping: "Cathie Wood Dumps $12.7 Million Worth of Meta Stoc..." from finance.yahoo.com
+Jan 08 21:03:08    [4] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
+Jan 08 21:03:08    [5] Mapping: "Uber Surges on Robo-Taxi Optimism as Tesla Slips..." from finance.yahoo.com
+Jan 08 21:03:08    [5] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
+Jan 08 21:03:08    [6] Mapping: "Tesla 'Faces Increased Competition' In Autonomy Ra..." from finance.yahoo.com
+Jan 08 21:03:08    [6] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
+Jan 08 21:03:08    [7] Mapping: "Truist Cuts Tesla (TSLA) PT to $439 as Record Ener..." from finance.yahoo.com
+Jan 08 21:03:08    [7] needsMetadataFetch: true (hasImage: false, domain: finance.yahoo.com)
+Jan 08 21:03:08  ✅ Article data array built with 8 articles
+Jan 08 21:03:08  
+Jan 08 21:03:08  🎯 PHASE 1.5: Scoring article relevance to query
+Jan 08 21:03:08     Query: "Why is TSLA up today?..."
+Jan 08 21:03:10  
+Jan 08 21:03:10  📊 Article Relevance Ranking:
+Jan 08 21:03:10     1. [Score: 0.836] "Uber Surges on Robo-Taxi Optimism as Tesla Slips..."
+Jan 08 21:03:10        → Semantic: 0.569, Recency: 1.00, Source: 0.70, 6h ago
+Jan 08 21:03:10     2. [Score: 0.811] "This Analyst Explains Why Tesla Is Not A Typical 'Meme Stock..."
+Jan 08 21:03:10        → Semantic: 0.535, Recency: 1.00, Source: 0.70, 5h ago
+Jan 08 21:03:10     3. [Score: 0.796] "Truist Cuts Tesla (TSLA) PT to $439 as Record Energy Storage..."
+Jan 08 21:03:10        → Semantic: 0.539, Recency: 0.90, Source: 0.70, 7h ago
+Jan 08 21:03:10     4. [Score: 0.768] "Tesla 'Faces Increased Competition' In Autonomy Race With Nv..."
+Jan 08 21:03:10        → Semantic: 0.476, Recency: 1.00, Source: 0.70, 6h ago
+Jan 08 21:03:10     5. [Score: 0.755] "Nvidia’s new Alpamayo project: What it means for Tesla?..."
+Jan 08 21:03:10        → Semantic: 0.458, Recency: 1.00, Source: 0.70, 4h ago
+Jan 08 21:03:10     6. [Score: 0.699] "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,' Explains ..."
+Jan 08 21:03:10        → Semantic: 0.380, Recency: 1.00, Source: 0.70, 5h ago
+Jan 08 21:03:10     7. [Score: 0.689] "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will Fly Air T..."
+Jan 08 21:03:10        → Semantic: 0.366, Recency: 1.00, Source: 0.70, 5h ago
+Jan 08 21:03:10     8. [Score: 0.683] "Cathie Wood Dumps $12.7 Million Worth of Meta Stock Amid Ray..."
+Jan 08 21:03:10        → Semantic: 0.357, Recency: 1.00, Source: 0.70, 6h ago
+Jan 08 21:03:10  
+Jan 08 21:03:10  ✅ Relevance-based routing: 5 for analysis, 3 for related coverage
+Jan 08 21:03:10  💭 Thinking: Reading 8 TSLA articles
+Jan 08 21:03:10  
+Jan 08 21:03:10  🔍 PHASE 2: Filtering articles that need metadata fetch
+Jan 08 21:03:10    Found 8 articles needing metadata fetch:
+Jan 08 21:03:10      [Original Index 5] "Uber Surges on Robo-Taxi Optimism as Tesla Slips..."
+Jan 08 21:03:10      [Original Index 3] "This Analyst Explains Why Tesla Is Not A Typical '..."
+Jan 08 21:03:10      [Original Index 7] "Truist Cuts Tesla (TSLA) PT to $439 as Record Ener..."
+Jan 08 21:03:10      [Original Index 6] "Tesla 'Faces Increased Competition' In Autonomy Ra..."
+Jan 08 21:03:10      [Original Index 0] "Nvidia’s new Alpamayo project: What it means for T..."
+Jan 08 21:03:10      [Original Index 1] "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,'..."
+Jan 08 21:03:10      [Original Index 2] "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will..."
+Jan 08 21:03:10      [Original Index 4] "Cathie Wood Dumps $12.7 Million Worth of Meta Stoc..."
+Jan 08 21:03:10    🌐 Fetching metadata for article [5]: "Uber Surges on Robo-Taxi Optimism as Tesla Slips..."
+Jan 08 21:03:10  💭 Thinking: Reading TSLA news
+Jan 08 21:03:10  🌐 Fetching web content from: https://finance.yahoo.com/m/dfcb805e-5ef2-36cc-865a-6051670aaf81/uber-surges-on-robo-taxi.html
+Jan 08 21:03:10  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
+Jan 08 21:03:10     Node.js maxHttpHeaderSize: 65536
+Jan 08 21:03:10    🌐 Fetching metadata for article [3]: "This Analyst Explains Why Tesla Is Not A Typical '..."
+Jan 08 21:03:10  💭 Thinking: Reading TSLA news
+Jan 08 21:03:10  🌐 Fetching web content from: https://finance.yahoo.com/news/analyst-explains-why-tesla-not-160106807.html
+Jan 08 21:03:10  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
+Jan 08 21:03:10     Node.js maxHttpHeaderSize: 65536
+Jan 08 21:03:10    🌐 Fetching metadata for article [7]: "Truist Cuts Tesla (TSLA) PT to $439 as Record Ener..."
+Jan 08 21:03:10  💭 Thinking: Reading TSLA news
+Jan 08 21:03:10  🌐 Fetching web content from: https://finance.yahoo.com/news/truist-cuts-tesla-tsla-pt-141305096.html
+Jan 08 21:03:10  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
+Jan 08 21:03:10     Node.js maxHttpHeaderSize: 65536
+Jan 08 21:03:10    🌐 Fetching metadata for article [6]: "Tesla 'Faces Increased Competition' In Autonomy Ra..."
+Jan 08 21:03:10  🌐 Fetching web content from: https://finance.yahoo.com/m/50e38bd3-0324-32dc-a9d8-38a3d079d6b7/tesla-%27faces-increased.html
+Jan 08 21:03:10  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
+Jan 08 21:03:10     Node.js maxHttpHeaderSize: 65536
+Jan 08 21:03:10    🌐 Fetching metadata for article [0]: "Nvidia’s new Alpamayo project: What it means for T..."
+Jan 08 21:03:10  🌐 Fetching web content from: https://finance.yahoo.com/news/nvidia-alpamayo-project-means-tesla-163956001.html
+Jan 08 21:03:10  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
+Jan 08 21:03:10     Node.js maxHttpHeaderSize: 65536
+Jan 08 21:03:10    🌐 Fetching metadata for article [1]: "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,'..."
+Jan 08 21:03:10  🌐 Fetching web content from: https://finance.yahoo.com/news/jensen-huang-says-tesla-fsd-163142795.html
+Jan 08 21:03:10  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
+Jan 08 21:03:10     Node.js maxHttpHeaderSize: 65536
+Jan 08 21:03:10    🌐 Fetching metadata for article [2]: "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will..."
+Jan 08 21:03:10  🌐 Fetching web content from: https://finance.yahoo.com/m/8e698955-c0bf-30dd-a8ed-7eb2e8795ad7/archer-aviation-stock-pops..html
+Jan 08 21:03:10  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
+Jan 08 21:03:10     Node.js maxHttpHeaderSize: 65536
+Jan 08 21:03:10    🌐 Fetching metadata for article [4]: "Cathie Wood Dumps $12.7 Million Worth of Meta Stoc..."
+Jan 08 21:03:10  🌐 Fetching web content from: https://finance.yahoo.com/news/cathie-wood-dumps-12-7-153107190.html
+Jan 08 21:03:10  📡 Making axios request with maxHeaderSize: 65536, timeout: 10000ms
+Jan 08 21:03:10     Node.js maxHttpHeaderSize: 65536
+Jan 08 21:03:11  ✅ Response received: 200 OK
+Jan 08 21:03:11     Response headers count: 24
+Jan 08 21:03:11     Content-Type: text/html; charset=utf-8
+Jan 08 21:03:11     Content-Length: chunked
+Jan 08 21:03:11     Approximate header size: 38875 bytes (37.96 KB)
+Jan 08 21:03:11     Top 5 largest headers: link (29360b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (81b)
+Jan 08 21:03:12     📸 Found og:image: https://media.zenfs.com/en/ibd.com/1b0614b4f746f975248168fd42b05bd1
+Jan 08 21:03:12     📰 Found Yahoo provider: Investor's Business Daily
+Jan 08 21:03:12     Metadata only mode - skipping content extraction
+Jan 08 21:03:12      ✅ [6] Metadata fetched: provider=Investor's Business Daily, hasImage=true
+Jan 08 21:03:13  ✅ Response received: 200 OK
+Jan 08 21:03:13     Response headers count: 24
+Jan 08 21:03:13     Content-Type: text/html; charset=utf-8
+Jan 08 21:03:13     Content-Length: chunked
+Jan 08 21:03:13     Approximate header size: 37971 bytes (37.08 KB)
+Jan 08 21:03:13     Top 5 largest headers: link (28457b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (81b)
+Jan 08 21:03:15     📸 Found og:image: https://media.zenfs.com/en/Benzinga/d98f1af5a59556d110d4e6295d91ca68
+Jan 08 21:03:15     📰 Found Yahoo provider: Benzinga
+Jan 08 21:03:15     Metadata only mode - skipping content extraction
+Jan 08 21:03:15      ✅ [1] Metadata fetched: provider=Benzinga, hasImage=true
+Jan 08 21:03:15  ✅ Response received: 200 OK
+Jan 08 21:03:15     Response headers count: 24
+Jan 08 21:03:15     Content-Type: text/html; charset=utf-8
+Jan 08 21:03:15     Content-Length: chunked
+Jan 08 21:03:15     Approximate header size: 37979 bytes (37.09 KB)
+Jan 08 21:03:15     Top 5 largest headers: link (28457b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (89b)
+Jan 08 21:03:16     📸 Found og:image: https://s.yimg.com/cv/apiv2/cv/apiv2/social/images/yahoo-finance-default-logo.png
+Jan 08 21:03:16     📰 Found Yahoo provider: Investing.com
+Jan 08 21:03:16     Metadata only mode - skipping content extraction
+Jan 08 21:03:16      ✅ [0] Metadata fetched: provider=Investing.com, hasImage=true
+Jan 08 21:03:16  ✅ Response received: 200 OK
+Jan 08 21:03:16     Response headers count: 24
+Jan 08 21:03:16     Content-Type: text/html; charset=utf-8
+Jan 08 21:03:16     Content-Length: chunked
+Jan 08 21:03:16     Approximate header size: 38884 bytes (37.97 KB)
+Jan 08 21:03:16     Top 5 largest headers: link (29360b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (90b)
+Jan 08 21:03:17     📸 Found og:image: https://s.yimg.com/ny/api/res/1.2/UOExuzu36sTsP0qSaaAcHw--/YXBwaWQ9aGlnaGxhbmRlcjt3PTEyMDA7aD02MDA-/...
+Jan 08 21:03:17     📰 Found Yahoo provider: Barrons.com
+Jan 08 21:03:17     Metadata only mode - skipping content extraction
+Jan 08 21:03:17      ✅ [2] Metadata fetched: provider=Barrons.com, hasImage=true
+Jan 08 21:03:17  ✅ Response received: 200 OK
+Jan 08 21:03:17     Response headers count: 24
+Jan 08 21:03:17     Content-Type: text/html; charset=utf-8
+Jan 08 21:03:17     Content-Length: chunked
+Jan 08 21:03:17     Approximate header size: 38874 bytes (37.96 KB)
+Jan 08 21:03:17     Top 5 largest headers: link (29360b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (81b)
+Jan 08 21:03:18     📸 Found og:image: https://s.yimg.com/ny/api/res/1.2/caA_o2BYV0jEwBvYidTTNA--/YXBwaWQ9aGlnaGxhbmRlcjt3PTEyMDA7aD02MDA-/...
+Jan 08 21:03:18     📰 Found Yahoo provider: Barrons.com
+Jan 08 21:03:18     Metadata only mode - skipping content extraction
+Jan 08 21:03:18      ✅ [5] Metadata fetched: provider=Barrons.com, hasImage=true
+Jan 08 21:03:18  ✅ Response received: 200 OK
+Jan 08 21:03:18     Response headers count: 24
+Jan 08 21:03:18     Content-Type: text/html; charset=utf-8
+Jan 08 21:03:18     Content-Length: chunked
+Jan 08 21:03:18     Approximate header size: 37972 bytes (37.08 KB)
+Jan 08 21:03:18     Top 5 largest headers: link (28457b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (81b)
+Jan 08 21:03:19     📸 Found og:image: https://s.yimg.com/ny/api/res/1.2/R3DsTXHuX1Up50du0B.awA--/YXBwaWQ9aGlnaGxhbmRlcjt3PTEyMDA7aD02NzM-/...
+Jan 08 21:03:19     📰 Found Yahoo provider: Insider Monkey
+Jan 08 21:03:19     Metadata only mode - skipping content extraction
+Jan 08 21:03:19      ✅ [7] Metadata fetched: provider=Insider Monkey, hasImage=true
+Jan 08 21:03:20  ✅ Response received: 200 OK
+Jan 08 21:03:20     Response headers count: 24
+Jan 08 21:03:20     Content-Type: text/html; charset=utf-8
+Jan 08 21:03:20     Content-Length: chunked
+Jan 08 21:03:20     Approximate header size: 37971 bytes (37.08 KB)
+Jan 08 21:03:20     Top 5 largest headers: link (28457b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (81b)
+Jan 08 21:03:21     📸 Found og:image: https://media.zenfs.com/en/Benzinga/65aa1711d276cf94609465ca949a7f60
+Jan 08 21:03:21     📰 Found Yahoo provider: Benzinga
+Jan 08 21:03:21     Metadata only mode - skipping content extraction
+Jan 08 21:03:21      ✅ [4] Metadata fetched: provider=Benzinga, hasImage=true
+Jan 08 21:03:21  ✅ Response received: 200 OK
+Jan 08 21:03:21     Response headers count: 24
+Jan 08 21:03:21     Content-Type: text/html; charset=utf-8
+Jan 08 21:03:21     Content-Length: chunked
+Jan 08 21:03:21     Approximate header size: 37971 bytes (37.08 KB)
+Jan 08 21:03:21     Top 5 largest headers: link (28457b), content-security-policy (8589b), report-to (126b), expect-ct (105b), x-envoy-decorator-operation (81b)
+Jan 08 21:03:22     📸 Found og:image: https://media.zenfs.com/en/Benzinga/37ec564bb35f6e4219450612e612c57b
+Jan 08 21:03:22     📰 Found Yahoo provider: Benzinga
+Jan 08 21:03:22     Metadata only mode - skipping content extraction
+Jan 08 21:03:22      ✅ [3] Metadata fetched: provider=Benzinga, hasImage=true
+Jan 08 21:03:22  ✅ PHASE 2 complete: All metadata fetches finished
+Jan 08 21:03:22  
+Jan 08 21:03:22  🔍 PHASE 3: Building data cards and output context
+Jan 08 21:03:22  
+Jan 08 21:03:22    📝 DataCard Creation [5]:
+Jan 08 21:03:22       Title: "Uber Surges on Robo-Taxi Optimism as Tesla Slips"
+Jan 08 21:03:22       ID: article-TSLA-5
+Jan 08 21:03:22       Source: Barrons.com
+Jan 08 21:03:22       URL: https://finance.yahoo.com/m/dfcb805e-5ef2-36cc-865a-6051670aaf81/uber-surges-on-robo-taxi.html
+Jan 08 21:03:22       Domain: finance.yahoo.com
+Jan 08 21:03:22       Published: Thu Jan 08 2026 15:22:00 GMT+0000 (Coordinated Universal Time)
+Jan 08 21:03:22       ImageURL: Yes
+Jan 08 21:03:22       Output Text: **Uber Surges on Robo-Taxi Optimism as Tesla Slips** (Barrons.com, 1/8/2026)...
+Jan 08 21:03:22  
+Jan 08 21:03:22    📝 DataCard Creation [3]:
+Jan 08 21:03:22       Title: "This Analyst Explains Why Tesla Is Not A Typical 'Meme Stock' And Which Sectors Will Drive The Next Frenzy"
+Jan 08 21:03:22       ID: article-TSLA-3
+Jan 08 21:03:22       Source: Benzinga
+Jan 08 21:03:22       URL: https://finance.yahoo.com/news/analyst-explains-why-tesla-not-160106807.html
+Jan 08 21:03:22       Domain: finance.yahoo.com
+Jan 08 21:03:22       Published: Thu Jan 08 2026 16:01:06 GMT+0000 (Coordinated Universal Time)
+Jan 08 21:03:22       ImageURL: Yes
+Jan 08 21:03:22       Output Text: **This Analyst Explains Why Tesla Is Not A Typical 'Meme Stock' And Which Sector...
+Jan 08 21:03:22  
+Jan 08 21:03:22    📝 DataCard Creation [7]:
+Jan 08 21:03:22       Title: "Truist Cuts Tesla (TSLA) PT to $439 as Record Energy Storage Offsets Q4 Delivery Miss"
+Jan 08 21:03:22       ID: article-TSLA-7
+Jan 08 21:03:22       Source: Insider Monkey
+Jan 08 21:03:22       URL: https://finance.yahoo.com/news/truist-cuts-tesla-tsla-pt-141305096.html
+Jan 08 21:03:22       Domain: finance.yahoo.com
+Jan 08 21:03:22       Published: Thu Jan 08 2026 14:13:05 GMT+0000 (Coordinated Universal Time)
+Jan 08 21:03:22       ImageURL: Yes
+Jan 08 21:03:22       Output Text: **Truist Cuts Tesla (TSLA) PT to $439 as Record Energy Storage Offsets Q4 Delive...
+Jan 08 21:03:22  
+Jan 08 21:03:22    📝 DataCard Creation [6]:
+Jan 08 21:03:22       Title: "Tesla 'Faces Increased Competition' In Autonomy Race With Nvidia Entering Market"
+Jan 08 21:03:22       ID: article-TSLA-6
+Jan 08 21:03:22       Source: Investor's Business Daily
+Jan 08 21:03:22       URL: https://finance.yahoo.com/m/50e38bd3-0324-32dc-a9d8-38a3d079d6b7/tesla-%27faces-increased.html
+Jan 08 21:03:22       Domain: finance.yahoo.com
+Jan 08 21:03:22       Published: Thu Jan 08 2026 15:20:47 GMT+0000 (Coordinated Universal Time)
+Jan 08 21:03:22       ImageURL: Yes
+Jan 08 21:03:22       Output Text: **Tesla 'Faces Increased Competition' In Autonomy Race With Nvidia Entering Mark...
+Jan 08 21:03:22  
+Jan 08 21:03:22    📝 DataCard Creation [0]:
+Jan 08 21:03:22       Title: "Nvidia’s new Alpamayo project: What it means for Tesla?"
+Jan 08 21:03:22       ID: article-TSLA-0
+Jan 08 21:03:22       Source: Investing.com
+Jan 08 21:03:22       URL: https://finance.yahoo.com/news/nvidia-alpamayo-project-means-tesla-163956001.html
+Jan 08 21:03:22       Domain: finance.yahoo.com
+Jan 08 21:03:22       Published: Thu Jan 08 2026 16:39:56 GMT+0000 (Coordinated Universal Time)
+Jan 08 21:03:22       ImageURL: Yes
+Jan 08 21:03:22       Output Text: **Nvidia’s new Alpamayo project: What it means for Tesla?** (Investing.com, 1/8/...
+Jan 08 21:03:22  
+Jan 08 21:03:22    📝 DataCard Creation [1]:
+Jan 08 21:03:22       Title: "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,' Explains How Nvidia's Alpamayo Is Different"
+Jan 08 21:03:22       ID: article-TSLA-1
+Jan 08 21:03:22       Source: Benzinga
+Jan 08 21:03:22       URL: https://finance.yahoo.com/news/jensen-huang-says-tesla-fsd-163142795.html
+Jan 08 21:03:22       Domain: finance.yahoo.com
+Jan 08 21:03:22       Published: Thu Jan 08 2026 16:31:42 GMT+0000 (Coordinated Universal Time)
+Jan 08 21:03:22       ImageURL: Yes
+Jan 08 21:03:22       Output Text: **Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,' Explains How Nvidia's Alpam...
+Jan 08 21:03:22  
+Jan 08 21:03:22    📝 DataCard Creation [2]:
+Jan 08 21:03:22       Title: "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will Fly Air Taxis."
+Jan 08 21:03:22       ID: article-TSLA-2
+Jan 08 21:03:22       Source: Barrons.com
+Jan 08 21:03:22       URL: https://finance.yahoo.com/m/8e698955-c0bf-30dd-a8ed-7eb2e8795ad7/archer-aviation-stock-pops..html
+Jan 08 21:03:22       Domain: finance.yahoo.com
+Jan 08 21:03:22       Published: Thu Jan 08 2026 16:23:00 GMT+0000 (Coordinated Universal Time)
+Jan 08 21:03:22       ImageURL: Yes
+Jan 08 21:03:22       Output Text: **Archer Aviation Stock Pops. Nvidia’s Ai Chips Will Fly Air Taxis.** (Barrons.c...
+Jan 08 21:03:22  
+Jan 08 21:03:22    📝 DataCard Creation [4]:
+Jan 08 21:03:22       Title: "Cathie Wood Dumps $12.7 Million Worth of Meta Stock Amid Ray-Ban Smart Glasses Delay, Ark Loads Up On This Gaming Platform"
+Jan 08 21:03:22       ID: article-TSLA-4
+Jan 08 21:03:22       Source: Benzinga
+Jan 08 21:03:22       URL: https://finance.yahoo.com/news/cathie-wood-dumps-12-7-153107190.html
+Jan 08 21:03:22       Domain: finance.yahoo.com
+Jan 08 21:03:22       Published: Thu Jan 08 2026 15:31:07 GMT+0000 (Coordinated Universal Time)
+Jan 08 21:03:22       ImageURL: Yes
+Jan 08 21:03:22       Output Text: **Cathie Wood Dumps $12.7 Million Worth of Meta Stock Amid Ray-Ban Smart Glasses...
+Jan 08 21:03:22  
+Jan 08 21:03:22  ✅ PHASE 3 complete: Created 8 data cards from 8 articles
+Jan 08 21:03:22  
+Jan 08 21:03:22  📋 Final DataCards Array (8 cards):
+Jan 08 21:03:22    [0] article-TSLA-5: "Uber Surges on Robo-Taxi Optimism as Tesla Slips..."
+Jan 08 21:03:22    [1] article-TSLA-3: "This Analyst Explains Why Tesla Is Not A Typical '..."
+Jan 08 21:03:22    [2] article-TSLA-7: "Truist Cuts Tesla (TSLA) PT to $439 as Record Ener..."
+Jan 08 21:03:22    [3] article-TSLA-6: "Tesla 'Faces Increased Competition' In Autonomy Ra..."
+Jan 08 21:03:22    [4] article-TSLA-0: "Nvidia’s new Alpamayo project: What it means for T..."
+Jan 08 21:03:22    [5] article-TSLA-1: "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,'..."
+Jan 08 21:03:22    [6] article-TSLA-2: "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will..."
+Jan 08 21:03:22    [7] article-TSLA-4: "Cathie Wood Dumps $12.7 Million Worth of Meta Stoc..."
+Jan 08 21:03:22  
+Jan 08 21:03:22  📄 Article Order in Data Context Output:
+Jan 08 21:03:22    [0] article-TSLA-5: "Uber Surges on Robo-Taxi Optimism as Tesla Slips..."
+Jan 08 21:03:22    [1] article-TSLA-3: "This Analyst Explains Why Tesla Is Not A Typical '..."
+Jan 08 21:03:22    [2] article-TSLA-7: "Truist Cuts Tesla (TSLA) PT to $439 as Record Ener..."
+Jan 08 21:03:22    [3] article-TSLA-6: "Tesla 'Faces Increased Competition' In Autonomy Ra..."
+Jan 08 21:03:22    [4] article-TSLA-0: "Nvidia’s new Alpamayo project: What it means for T..."
+Jan 08 21:03:22    [5] article-TSLA-1: "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,'..."
+Jan 08 21:03:22    [6] article-TSLA-2: "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will..."
+Jan 08 21:03:22    [7] article-TSLA-4: "Cathie Wood Dumps $12.7 Million Worth of Meta Stoc..."
+Jan 08 21:03:22  
+Jan 08 21:03:22    [0] article-TSLA-5: "Uber Surges on Robo-Taxi Optimism as Tesla Slips..."
+Jan 08 21:03:22    [1] article-TSLA-3: "This Analyst Explains Why Tesla Is Not A Typical '..."
+Jan 08 21:03:22    [2] article-TSLA-7: "Truist Cuts Tesla (TSLA) PT to $439 as Record Ener..."
+Jan 08 21:03:22    [3] article-TSLA-6: "Tesla 'Faces Increased Competition' In Autonomy Ra..."
+Jan 08 21:03:22    [4] article-TSLA-0: "Nvidia’s new Alpamayo project: What it means for T..."
+Jan 08 21:03:22    [5] article-TSLA-1: "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,'..."
+Jan 08 21:03:22    [6] article-TSLA-2: "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will..."
+Jan 08 21:03:22    [7] article-TSLA-4: "Cathie Wood Dumps $12.7 Million Worth of Meta Stoc..."
+Jan 08 21:03:22  
+Jan 08 21:03:22  📋 Formatting one_minute_prices with moderate detail (priority: 3)
+Jan 08 21:03:22  ⏭️  Skipping intraday text formatting - visual chart is being displayed
+Jan 08 21:03:22  📊 Adding chart marker for TSLA (1D)
+Jan 08 21:03:22  📈 Added chart marker for TSLA
+Jan 08 21:03:22  📐 Response Style: detailed_breakdown - analytical + comprehensive
+Jan 08 21:03:22  ✅ AI formatting complete - 0 sources
+Jan 08 21:03:22  🖼️  Data context contains 3 VIEW_ARTICLE markers: [
+Jan 08 21:03:22    '[VIEW_ARTICLE:article-X-Y]',
+Jan 08 21:03:22    '[VIEW_ARTICLE:article-TSLA-0]',
+Jan 08 21:03:22    '[VIEW_ARTICLE:article-TSLA-1]'
+Jan 08 21:03:22  ]
+Jan 08 21:03:22  Calling OpenAI API with 2 messages
+Jan 08 21:03:22  💰 Response Budget: STANDARD tier (8000 tokens, ~$0.0885)
+Jan 08 21:03:23  
+Jan 08 21:03:23  🎯 StreamProcessor: Building expected markers from 9 dataCards
+Jan 08 21:03:23    📰 Expected article marker: article-TSLA-5 - "Uber Surges on Robo-Taxi Optimism as Tesla Slips..."
+Jan 08 21:03:23    📰 Expected article marker: article-TSLA-3 - "This Analyst Explains Why Tesla Is Not A Typical '..."
+Jan 08 21:03:23    📰 Expected article marker: article-TSLA-7 - "Truist Cuts Tesla (TSLA) PT to $439 as Record Ener..."
+Jan 08 21:03:23    📰 Expected article marker: article-TSLA-6 - "Tesla 'Faces Increased Competition' In Autonomy Ra..."
+Jan 08 21:03:23    📰 Expected article marker: article-TSLA-0 - "Nvidia’s new Alpamayo project: What it means for T..."
+Jan 08 21:03:23    📰 Expected article marker: article-TSLA-1 - "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,'..."
+Jan 08 21:03:23    📰 Expected article marker: article-TSLA-2 - "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will..."
+Jan 08 21:03:23    📰 Expected article marker: article-TSLA-4 - "Cathie Wood Dumps $12.7 Million Worth of Meta Stoc..."
+Jan 08 21:03:23  📊 StreamProcessor tracking 8 article markers, 0 image markers
+Jan 08 21:03:30  🔧 Smart Marker Injection: 8 missing article markers
+Jan 08 21:03:30    ✓ "This Analyst Explains Why Tesla Is Not A Typical 'Meme Stock' And Which Sectors Will Drive The Next Frenzy" appears discussed (38% match)
+Jan 08 21:03:30    ✓ "Truist Cuts Tesla (TSLA) PT to $439 as Record Energy Storage Offsets Q4 Delivery Miss" appears discussed (70% match)
+Jan 08 21:03:30    ✓ "Tesla 'Faces Increased Competition' In Autonomy Race With Nvidia Entering Market" appears discussed (50% match)
+Jan 08 21:03:30    ✓ "Nvidia’s new Alpamayo project: What it means for Tesla?" appears discussed (33% match)
+Jan 08 21:03:30  
+Jan 08 21:03:30  💉 SMART MARKER INJECTION: Injecting 8 missing article markers
+Jan 08 21:03:30    [0] article-TSLA-7: "Truist Cuts Tesla (TSLA) PT to $439 as Record Ener..."
+Jan 08 21:03:30    [1] article-TSLA-6: "Tesla 'Faces Increased Competition' In Autonomy Ra..."
+Jan 08 21:03:30    [2] article-TSLA-3: "This Analyst Explains Why Tesla Is Not A Typical '..."
+Jan 08 21:03:30    [3] article-TSLA-0: "Nvidia’s new Alpamayo project: What it means for T..."
+Jan 08 21:03:30    [4] article-TSLA-1: "Jensen Huang Says Tesla FSD Is 'State-Of-The-Art,'..."
+Jan 08 21:03:30    [5] article-TSLA-5: "Uber Surges on Robo-Taxi Optimism as Tesla Slips..."
+Jan 08 21:03:30    [6] article-TSLA-2: "Archer Aviation Stock Pops. Nvidia’s Ai Chips Will..."
+Jan 08 21:03:30    [7] article-TSLA-4: "Cathie Wood Dumps $12.7 Million Worth of Meta Stoc..."
+Jan 08 21:03:30    → Emitting HORIZONTAL_RULE before Related Coverage
+Jan 08 21:03:30    → Emitting Related Coverage header
+Jan 08 21:03:30    → Injected [VIEW_ARTICLE:article-TSLA-7]: "Truist Cuts Tesla (TSLA) PT to $439 as R..."
+Jan 08 21:03:30    → Injected [VIEW_ARTICLE:article-TSLA-6]: "Tesla 'Faces Increased Competition' In A..."
+Jan 08 21:03:30    → Injected [VIEW_ARTICLE:article-TSLA-3]: "This Analyst Explains Why Tesla Is Not A..."
+Jan 08 21:03:30    → Injected [VIEW_ARTICLE:article-TSLA-0]: "Nvidia’s new Alpamayo project: What it m..."
+Jan 08 21:03:30    → Injected [VIEW_ARTICLE:article-TSLA-1]: "Jensen Huang Says Tesla FSD Is 'State-Of..."
+Jan 08 21:03:30    → Injected [VIEW_ARTICLE:article-TSLA-5]: "Uber Surges on Robo-Taxi Optimism as Tes..."
+Jan 08 21:03:30    → Injected [VIEW_ARTICLE:article-TSLA-2]: "Archer Aviation Stock Pops. Nvidia’s Ai ..."
+Jan 08 21:03:30    → Injected [VIEW_ARTICLE:article-TSLA-4]: "Cathie Wood Dumps $12.7 Million Worth of..."
+Jan 08 21:03:30  ✅ Smart injection complete
+Jan 08 21:03:30  
+Jan 08 21:03:30  
+Jan 08 21:03:30  📄 FULL RESPONSE STRUCTURE:
+Jan 08 21:03:30  ================================================================================
+Jan 08 21:03:30  Tesla's stock is up 0.93% today, closing at $435.41. Several factors could be contributing to this increase, based on recent news and analysis:
+Jan 08 21:03:30  
+Jan 08 21:03:30  1. **AI and Energy Storage Focus**: Despite a Q4 delivery miss, Tesla's record performance in energy storage deployments may be bolstering investor confidence. Truist recently adjusted Tesla's price target to $439, emphasizing the importance of Tesla's AI initiatives, specifically their Full Self-Driving (FSD) technology, as a key driver for future cash flow and stock valuation [Insider Monkey](https://www.insidermonkey.com).
+Jan 08 21:03:30  
+Jan 08 21:03:30  2. **Competitive Landscape in Autonomy**: Tesla's advancements in autonomous vehicle technology continue to be a focal point. Nvidia's entry into the market with its Alpamayo system is seen as a significant development, but it has not overshadowed Tesla's achievements. Nvidia's CEO described Tesla's FSD as "state-of-the-art," which may reinforce investor confidence in Tesla's leading position in the autonomous vehicle space [Benzinga](https://www.benzinga.com).
+Jan 08 21:03:30  
+Jan 08 21:03:30  Overall, Tesla's focus on energy storage and its strong positioning in autonomous technology seem to be contributing positively to its stock performance today.
+Jan 08 21:03:30  
+Jan 08 21:03:30  **Related Coverage:**
+Jan 08 21:03:30  
+Jan 08 21:03:30  [VIEW_ARTICLE:article-TSLA-7]
+Jan 08 21:03:30  [VIEW_ARTICLE:article-TSLA-6]
+Jan 08 21:03:30  [VIEW_ARTICLE:article-TSLA-3]
+Jan 08 21:03:30  [VIEW_ARTICLE:article-TSLA-0]
+Jan 08 21:03:30  [VIEW_ARTICLE:article-TSLA-1]
+Jan 08 21:03:30  [VIEW_ARTICLE:article-TSLA-5]
+Jan 08 21:03:30  [VIEW_ARTICLE:article-TSLA-2]
+Jan 08 21:03:30  [VIEW_ARTICLE:article-TSLA-4]
+Jan 08 21:03:30  
+Jan 08 21:03:30  ================================================================================
+Jan 08 21:03:30  
+Jan 08 21:03:30  📍 MARKER POSITIONS (8 total):
+Jan 08 21:03:30    1. [VIEW_ARTICLE:article-TSLA-7] at char 1227
+Jan 08 21:03:30       Context: ...chnology seem to be contributing positively to its stock performance today.  **Related Coverage:**  [VIEW_ARTICLE:articl...
+Jan 08 21:03:30    2. [VIEW_ARTICLE:article-TSLA-6] at char 1257
+Jan 08 21:03:30       Context: ...ng positively to its stock performance today.  **Related Coverage:**  [VIEW_ARTICLE:article-TSLA-7] [VIEW_ARTICLE:articl...
+Jan 08 21:03:30    3. [VIEW_ARTICLE:article-TSLA-3] at char 1287
+Jan 08 21:03:30       Context: ...formance today.  **Related Coverage:**  [VIEW_ARTICLE:article-TSLA-7] [VIEW_ARTICLE:article-TSLA-6] [VIEW_ARTICLE:articl...
+Jan 08 21:03:30    4. [VIEW_ARTICLE:article-TSLA-0] at char 1317
+Jan 08 21:03:30       Context: ...erage:**  [VIEW_ARTICLE:article-TSLA-7] [VIEW_ARTICLE:article-TSLA-6] [VIEW_ARTICLE:article-TSLA-3] [VIEW_ARTICLE:articl...
+Jan 08 21:03:30    5. [VIEW_ARTICLE:article-TSLA-1] at char 1347
+Jan 08 21:03:30       Context: ...e-TSLA-7] [VIEW_ARTICLE:article-TSLA-6] [VIEW_ARTICLE:article-TSLA-3] [VIEW_ARTICLE:article-TSLA-0] [VIEW_ARTICLE:articl...
+Jan 08 21:03:30    6. [VIEW_ARTICLE:article-TSLA-5] at char 1377
+Jan 08 21:03:30       Context: ...e-TSLA-6] [VIEW_ARTICLE:article-TSLA-3] [VIEW_ARTICLE:article-TSLA-0] [VIEW_ARTICLE:article-TSLA-1] [VIEW_ARTICLE:articl...
+Jan 08 21:03:30    7. [VIEW_ARTICLE:article-TSLA-2] at char 1407
+Jan 08 21:03:30       Context: ...e-TSLA-3] [VIEW_ARTICLE:article-TSLA-0] [VIEW_ARTICLE:article-TSLA-1] [VIEW_ARTICLE:article-TSLA-5] [VIEW_ARTICLE:articl...
+Jan 08 21:03:30    8. [VIEW_ARTICLE:article-TSLA-4] at char 1437
+Jan 08 21:03:30       Context: ...e-TSLA-0] [VIEW_ARTICLE:article-TSLA-1] [VIEW_ARTICLE:article-TSLA-5] [VIEW_ARTICLE:article-TSLA-2] [VIEW_ARTICLE:articl...
+Jan 08 21:03:30  ================================================================================
+Jan 08 21:03:30  ✅ GPT-4 preserved all 8 VIEW_ARTICLE markers
