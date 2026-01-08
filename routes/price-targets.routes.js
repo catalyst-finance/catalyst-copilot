@@ -60,8 +60,8 @@ router.get('/:symbol', async (req, res) => {
     const priceTargetsCollection = db.collection('price_targets');
     
     const priceTargets = await priceTargetsCollection
-      .find({ symbol: upperSymbol })
-      .sort({ published_date: -1 }) // Most recent first
+      .find({ ticker: upperSymbol })
+      .sort({ date: -1 }) // Most recent first
       .limit(limit)
       .toArray();
     
@@ -143,8 +143,8 @@ router.get('/:symbol/latest', async (req, res) => {
     
     const latestTarget = await priceTargetsCollection
       .findOne(
-        { symbol: upperSymbol },
-        { sort: { published_date: -1 } }
+        { ticker: upperSymbol },
+        { sort: { date: -1 } }
       );
     
     if (!latestTarget) {
