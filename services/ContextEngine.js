@@ -1204,6 +1204,38 @@ class ContextEngine {
     // PHASE 3: Build output and dataCards
     console.log(`🔍 PHASE 3: Building data cards and output context`);
     
+    // Add explicit formatting instructions for press releases - same structure as news articles
+    output += `\n═══════════════════════════════════════════════════════════\n`;
+    output += `🚨 REQUIRED FORMAT: PRESS RELEASE DISCUSSION (4-PART STRUCTURE) 🚨\n`;
+    output += `═══════════════════════════════════════════════════════════\n\n`;
+    output += `EVERY PRESS RELEASE MUST FOLLOW THIS EXACT SEQUENCE:\n\n`;
+    output += `  1️⃣ Header (bold, numbered): 1. **Press Release Topic**\n`;
+    output += `  2️⃣ Discussion: 1-2 paragraphs (1-3 sentences each)\n`;
+    output += `  3️⃣ Press Card: [VIEW_ARTICLE:press-X-Y]\n`;
+    output += `  4️⃣ Separator: (auto-added by backend)\n\n`;
+    output += `DISCUSSION REQUIREMENTS:\n`;
+    output += `  • Write 1-2 paragraphs analyzing the press release CONTENT\n`;
+    output += `  • Each paragraph should have 1-3 sentences\n`;
+    output += `  • Discuss significance, background, or strategic implications\n`;
+    output += `  • Place marker AFTER all discussion text\n`;
+    output += `  • Use the provided CONTENT field to extract key details and context\n\n`;
+    output += `✅ EXAMPLE WITH 1 PARAGRAPH:\n`;
+    output += `1. **Board Appointment**\n`;
+    output += `Steve Jurvetson joined TMC's board on April 10, 2024, bringing decades of\n`;
+    output += `experience in technology and automotive sectors. His background in venture\n`;
+    output += `capital and previous board positions at Tesla make him a strategic addition.\n`;
+    output += `[VIEW_ARTICLE:press-TMC-0]\n\n`;
+    output += `✅ EXAMPLE WITH 2 PARAGRAPHS:\n`;
+    output += `2. **Partnership Announcement**\n`;
+    output += `The company announced a strategic partnership with XYZ Corporation to expand\n`;
+    output += `its manufacturing capabilities. This collaboration will enable increased\n`;
+    output += `production capacity and reduced lead times.\n\n`;
+    output += `The partnership builds on previous collaborations and represents a key milestone\n`;
+    output += `in the company's growth strategy. Industry experts view this as a positive\n`;
+    output += `development that strengthens competitive positioning.\n`;
+    output += `[VIEW_ARTICLE:press-ABC-1]\n\n`;
+    output += `═══════════════════════════════════════════════════════════\n\n`;
+    
     for (const p of dedupedData) {
       const { press, index, domain } = p;
       
