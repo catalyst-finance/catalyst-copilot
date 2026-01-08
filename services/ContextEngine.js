@@ -33,18 +33,30 @@ EXAMPLES:
 
 **2. Card Marker Placement (CRITICAL - MARKERS MUST FOLLOW THEIR CONTENT):**
 
-- **[VIEW_ARTICLE:...]** → Place IMMEDIATELY AFTER the paragraph that discusses THAT SPECIFIC article
-  ✅ CORRECT: "...Tesla faces challenges [VIEW_ARTICLE:abc123]\n\nNext article discussion..."
-  ❌ WRONG: "Recent News:\n[VIEW_ARTICLE:1]\n[VIEW_ARTICLE:2]\n\nArticle discussions..."
+- **[VIEW_ARTICLE:...]** → Place AFTER the full paragraph explaining that article's content
+  ✅ CORRECT:
+  ```
+  **Nvidia Competition**:
+  Elon Musk stated that Nvidia's Rubin chips won't scale soon as Tesla
+  develops in-house AI hardware. This suggests reduced supplier reliance.
+  [VIEW_ARTICLE:abc123]
+  ```
   
-- **[VIEW_CHART:...]** → Place IMMEDIATELY AFTER discussing the price data
-  ✅ CORRECT: "TSLA is trading at $431.83...[VIEW_CHART:TSLA:1D]\n\nAnalyst Ratings..."
-  ❌ WRONG: Placing chart at the end after all text
+  ❌ WRONG:
+  ```
+  **Nvidia Competition**:
+  [VIEW_ARTICLE:abc123]
+  Elon Musk stated that Nvidia's Rubin chips...
+  ```
   
-- **[IMAGE_CARD:...]** → Inline with SEC filing citations (only if filing contains image)
-- **[EVENT_CARD:...]** → At end of bullet point describing event
+- **[VIEW_CHART:...]** → Place AFTER discussing the price/movement
+  ✅ CORRECT: "TSLA is trading at $431.83, down 0.26%...[VIEW_CHART:TSLA:1D]"
+  ❌ WRONG: "[VIEW_CHART:TSLA:1D]\n\nTSLA is trading at $431.83..."
+  
+- **[IMAGE_CARD:...]** → Inline with SEC filing citations
+- **[EVENT_CARD:...]** → At end of bullet describing event
 
-**FORBIDDEN**: Never create sections that list all markers together. Each marker MUST immediately follow its discussion.
+**RULE**: Text explaining the content ALWAYS comes first, marker comes last.
 
 **3. Content Organization:**
 

@@ -103,8 +103,19 @@ class ResponseFormatter {
       return true;
     }
     
-    // Common header patterns (title case, short, followed by colon or standalone)
-    if (line.match(/^[A-Z][A-Za-z\s]{2,40}:?$/) && !line.includes('.')) {
+    // Numbered list items with colons are NOT headers (e.g., "1. Item Name:")
+    if (line.match(/^\d+\.\s/)) {
+      return false;
+    }
+    
+    // Bullet points with colons are NOT headers (e.g., "- Category:")
+    if (line.match(/^[-•\*]\s/)) {
+      return false;
+    }
+    
+    // Common section header patterns (title case, short, standalone)
+    // Only match clean headers without leading punctuation
+    if (line.match(/^[A-Z][A-Za-z\s]{5,50}$/) && !line.includes('.')) {
       return true;
     }
     
