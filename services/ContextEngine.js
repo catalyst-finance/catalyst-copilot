@@ -38,7 +38,7 @@ const UNIVERSAL_FORMATTING_RULES = `
    ✅ CORRECT: Title → Discussion paragraph(s) → [VIEW_ARTICLE:X]
    
    Example:
-   **Tesla Announces Breakthrough** (Reuters, 1/8/2026)
+   **Tesla Announces Breakthrough**
    Tesla's new battery technology represents a major advancement in EV range, potentially increasing...
    [VIEW_ARTICLE:article-TSLA-0]
 
@@ -710,17 +710,19 @@ class ContextEngine {
 
     // PHASE 3: Build output and dataCards sequentially (for correct ordering)
     
-    // Add explicit marker placement instruction
-    output += `\n⚠️ CRITICAL MARKER PLACEMENT FOR ARTICLES:\n`;
-    output += `REQUIRED STRUCTURE FOR EACH ARTICLE:\n`;
-    output += `1. Write article header (title, source, date)\n`;
-    output += `2. Write 1-3 paragraphs analyzing this specific article's content\n`;
-    output += `3. THEN place the [VIEW_ARTICLE:...] marker at the end\n`;
-    output += `\nEXAMPLE CORRECT FORMAT:\n`;
+    // Add explicit marker placement instruction WITHOUT using actual marker syntax (to avoid confusing the parser)
+    output += `\n⚠️ CRITICAL INSTRUCTION - ARTICLE MARKER PLACEMENT:\n`;
+    output += `\nREQUIRED PATTERN FOR EVERY ARTICLE:\n`;
+    output += `Step 1: Article header with title, source, and date\n`;
+    output += `Step 2: Write 1-3 paragraphs of analysis about this specific article\n`;
+    output += `Step 3: Place the VIEW_ARTICLE marker immediately after your analysis\n`;
+    output += `\n✅ CORRECT STRUCTURE:\n`;
     output += `**Article Title** (Source, Date)\n`;
-    output += `This article discusses... [your analysis paragraph].\n`;
-    output += `[VIEW_ARTICLE:article-X-0]\n`;
-    output += `\n⚠️ DO NOT place [VIEW_ARTICLE] markers before or during the discussion - ONLY AFTER.\n\n`;
+    output += `Your analysis paragraph goes here discussing the article content...\n`;
+    output += `<-- VIEW_ARTICLE marker goes here after the analysis -->\n`;
+    output += `\n❌ WRONG: Do NOT place VIEW_ARTICLE markers before or during the article discussion.\n`;
+    output += `❌ WRONG: Do NOT place markers immediately after the header.\n`;
+    output += `✅ CORRECT: Markers come AFTER you've written your complete analysis.\n\n`;
     
     for (const a of articleData) {
       const { article, index, domain } = a;
