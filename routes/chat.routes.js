@@ -1045,8 +1045,10 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     const contextMessage = '';
 
     // STEP 5.5: INTELLIGENT ANALYSIS
-    // (No additional thinking message needed - formatting messages cover this)
+    // DISABLED: IntelligenceEngine features currently disabled to avoid noise and limitations
+    // Can be re-enabled when more sophisticated analysis is implemented
     
+    /*
     // Multi-step query decomposition
     const subQueries = IntelligenceEngine.decomposeComplexQuery(message, queryIntent);
     if (subQueries.length > 0) {
@@ -1128,10 +1130,17 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
         console.log('🔗 Entity Relationships:', entities.connections);
       }
     }
+    */
+    
+    // Simplified: Use empty placeholders for disabled intelligence features
+    const missingData = [];
+    const followUps = [];
     
     // Add intelligence insights to context
     let intelligenceContext = '';
     
+    /*
+    /*
     if (missingData.length > 0) {
       intelligenceContext += `\n\n═══ DATA GAPS IDENTIFIED ═══\n`;
       missingData.forEach(gap => {
@@ -1186,6 +1195,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
         intelligenceContext += `${i + 1}. ${q}\n`;
       });
     }
+    */
 
     // STEP 6: PREPARE SYSTEM PROMPT (truncated for brevity - full prompt in original)
     const systemPrompt = buildSystemPrompt(contextMessage, dataContext, upcomingDatesContext, eventCardsContext, intelligenceContext, responseStyleGuidelines);
@@ -1230,21 +1240,14 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
       }
     }
 
-    // Send metadata with intelligence insights
+    // Send metadata (intelligence features disabled)
     res.write(`data: ${JSON.stringify({
       type: 'metadata',
       dataCards,
       eventData,
       conversationId: finalConversationId,
       newConversation: newConversation,
-      timestamp: new Date().toISOString(),
-      intelligence: {
-        missingData,
-        anomalies: intelligenceMetadata.anomalies,
-        followUps,
-        sentiments: intelligenceMetadata.sentimentData,
-        entityRelationships: intelligenceMetadata.entityRelationships
-      }
+      timestamp: new Date().toISOString()
     })}\n\n`);
 
     // Call OpenAI with text-only streaming (SEC.gov blocks image downloads)
