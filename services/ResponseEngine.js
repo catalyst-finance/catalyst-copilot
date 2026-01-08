@@ -6,9 +6,167 @@
 
 const openai = require('../config/openai');
 const { RESPONSE_SCHEMA_CONTEXT, getCollectionTitle, getCollectionFriendlyName } = require('../config/prompts/schema-context');
-const { buildFormattingPlanPrompt } = require('../config/prompts/formatting-rules');
 const { generateThinkingMessage } = require('../config/thinking-messages');
 const { getTokenBudget, getTierInfo } = require('../config/token-allocation');
+
+/**
+ * Universal formatting rules that apply to ALL responses
+ * These are prepended to every responseStyle.instructions
+ */
+const UNIVERSAL_FORMATTING_RULES = `
+**UNIVERSAL FORMATTING RULES:**
+
+**1. Citation Format (CRITICAL - ALWAYS CITE SOURCES):**
+
+ABSOLUTELY FORBIDDEN:
+❌ Creating "Citations:", "Sources:", or "References:" sections at the end
+❌ Listing filings in bullet points at the bottom
+❌ Discussing data without immediate inline citation
+
+REQUIRED FORMAT:
+✅ Cite every claim IMMEDIATELY after the paragraph: \`[TICKER Form Type - Date](URL)\`
+✅ If filing has IMAGE_CARD: \`[TICKER Form - Date](URL) [IMAGE_CARD:sec-image-TICKER-X-X]\`
+
+EXAMPLES:
+✅ "The company completed a $258.9M offering \`[MNMD 8-K - Oct 31, 2025](https://sec.gov/...)\`"
+❌ "The company's filings show strong progress." (no citation)
+
+**2. Card Marker Placement:**
+
+- **[VIEW_ARTICLE:...]** → Own line AFTER paragraph, NEVER inline or in bullets
+- **[VIEW_CHART:...]** → After Current Price section or price discussion, no header before it
+- **[IMAGE_CARD:...]** → Inline with SEC filing citations (only if filing contains image)
+- **[EVENT_CARD:...]** → At end of bullet point describing event
+
+VIEW_ARTICLE example:
+**Headline Topic**
+
+Analysis paragraph explaining the news story.
+
+[VIEW_ARTICLE:article-TICKER-0]
+
+VIEW_CHART example:
+**Current Price**
+
+Tesla (TSLA) is currently trading at $432.02, down 4.35%...
+
+[VIEW_CHART:TSLA:1D]
+
+**3. Section Headers:**
+- Use **bold markdown** (** **) for all headers
+- ONE blank line before/after headers
+
+**4. Paragraphs vs Bullets (CRITICAL):**
+- PARAGRAPHS (2-5 sentences): Narrative analysis, explanations, context
+- BULLETS: True lists ONLY (3+ discrete items, key highlights, specifications)
+- NEVER use a bullet for a single descriptive paragraph
+- Focus on CONTENT and insights, not meta-information about sources
+`;
+
+/**
+ * Response style options for AI to recommend
+ */
+const RESPONSE_STYLE_OPTIONS = `
+**Response Style Options:**
+- **structured_analysis**: Bold section headers with paragraphs for analysis; use bullets only for true lists (SEC filings, earnings)
+- **chronological_narrative**: Timeline format with dates (government policy, roadmap)
+- **comparison_format**: Side-by-side comparison (compare X vs Y)
+- **executive_summary**: Brief overview with key takeaways (highlights, tldr)
+- **detailed_breakdown**: In-depth sections with thorough explanation (analyze, explain)
+- **list_format**: Numbered/bulleted list when presenting actual lists (list recent, show top 5)
+- **conversational**: Natural flowing paragraphs (general questions)
+
+**Tone Options:**
+- **analytical**: Professional, data-focused, objective
+- **concise**: Brief, to-the-point, minimal elaboration
+- **comprehensive**: Detailed, thorough, includes context
+- **explanatory**: Educational, walks through concepts`;
+
+/**
+ * Formatting standards all responses must follow
+ */
+const FORMATTING_STANDARDS = `
+**FORMATTING STANDARDS (CRITICAL):**
+
+1. **Section Headers**: Use markdown bold (** **) for all headers
+   
+2. **Spacing**:
+   - ONE blank line before/after section headers
+   - ONE blank line between content blocks
+   - Never multiple consecutive blank lines
+   
+3. **Bullet Points vs Paragraphs (CRITICAL)**:
+   - Use bullets ONLY for TRUE LISTS: multiple discrete items (3+ items ideal), key highlights, metrics, quick facts
+   - Use paragraphs for narrative analysis, explanations, single points, or descriptions
+   - NEVER use a bullet for a single descriptive paragraph - just write the paragraph
+   - Complete thought per bullet when bullets are appropriate
+   - Blank line before first bullet, after last bullet
+   - NO blank lines between bullets in same list
+   
+   WRONG (single paragraph as bullet):
+   • Regulatory Developments: This is a long paragraph with multiple sentences explaining one topic in narrative form. It continues with more analysis and implications.
+   
+   CORRECT (paragraph format):
+   **Regulatory Developments**
+   
+   This is a paragraph with multiple sentences explaining one topic. It continues with more analysis and implications.
+   
+   CORRECT (true list with bullets):
+   Key highlights from the filing:
+   
+   - Q1 revenue increased 15%
+   - New product launch scheduled
+   - CEO appointed to board
+   
+4. **Paragraphs (CRITICAL)**:
+   - 2-5 related sentences per paragraph (NOT single sentences)
+   - ONE blank line between paragraphs
+   - NO blank lines within a paragraph
+   
+   WRONG:
+   First sentence alone.
+   
+   Second sentence alone.
+   
+   CORRECT:
+   First sentence begins the paragraph. Second sentence continues. Third completes the idea.
+
+5. **Professional Structure**:
+   - Lead with most important information
+   - Group related information under clear headers
+   - Use subsections to break up long sections`;
+
+/**
+ * Detail level decision criteria
+ */
+const DETAIL_LEVEL_RULES = `
+**Detail Level Decisions:**
+
+1. **Priority** (1-5): How important to answering the question?
+2. **DetailLevel**:
+   - summary: Just titles/headlines (less relevant data)
+   - moderate: Key fields + brief excerpt (default)
+   - detailed: All important fields + longer content
+   - full: Everything including external content fetch
+3. **FetchExternalContent**: Should we fetch full content from URLs?
+4. **MaxItems**: How many items (1-30)
+
+**CRITICAL PRINCIPLE - IF YOU PLAN TO REFERENCE IT, YOU MUST ANALYZE IT:**
+
+For EVERY data source:
+- Will the AI MENTION or REFERENCE this source? → fetchExternalContent: true, detailLevel: full
+- Don't list documents without explaining their content
+
+Ask: "Will the AI need to explain WHAT'S IN this source?"
+- YES → fetchExternalContent: true, detailLevel: full
+- NO (just need existence) → fetchExternalContent: false
+
+**General Rules:**
+- "analyze" or "details" → detailLevel: full, fetchExternalContent: true
+- "highlights" or "summary" → detailLevel: moderate
+- "list" or "recent" → detailLevel: summary
+- Government policy transcripts are LONG - always limit maxItems to 5-10 max
+- Price targets/ownership → moderate (no external content)`;
 
 class ResponseEngine {
   constructor() {
@@ -124,35 +282,7 @@ Also provide a "responseStyle" recommendation that tells the AI how to structure
 - **comprehensive**: Detailed, thorough, includes context
 - **explanatory**: Educational, walks through concepts
 
-**FORMATTING STANDARDS (CRITICAL):**
-ALL responses must follow these professional formatting rules:
-
-1. **Section Headers**: ALWAYS use markdown bold (** **) for all section headers and subheaders
-   - Main sections: **Section Name**
-   - Subsections: **Subsection Name**
-   
-2. **Spacing Consistency**:
-   - Always add ONE blank line before each section header
-   - Always add ONE blank line after each section header
-   - Add ONE blank line between distinct content blocks (paragraphs, bullet lists, cards)
-   - Never have multiple consecutive blank lines
-   
-3. **Bullet Point Format**:
-   - Use standard markdown bullets (- or •)
-   - Each bullet point should be a complete thought or sentence
-   - Add blank line before the first bullet
-   - Add blank line after the last bullet
-   - NO blank lines between individual bullets in the same list
-   
-4. **Paragraph Spacing (CRITICAL)**:
-   - Add ONE blank line between paragraphs (not between sentences within a paragraph)
-   - NO blank lines within a single paragraph
-   
-5. **Content Organization**:
-   - Lead with most important information
-   - Group related information under clear headers
-   - Use subsections to break up long sections
-   - Ensure logical flow from section to section
+${FORMATTING_STANDARDS}
 
 Return JSON:
 {
@@ -164,46 +294,47 @@ Return JSON:
       "fetchExternalContent": true,
       "fieldsToShow": ["form_type", "date", "url", "content"],
       "maxItems": 1,
-      "formattingNotes": "User wants detailed SEC filing analysis - fetch full content and extract financial numbers"
-    },
-    {
-      "collection": "news",
-      "priority": 2,
-      "detailLevel": "summary",
-      "fetchExternalContent": false,
-      "fieldsToShow": ["title", "published_at", "url"],
-      "maxItems": 5,
-      "formattingNotes": "Show headlines for context but don't fetch full articles"
+      "formattingNotes": "User wants detailed SEC filing analysis"
     }
   ],
-  "overallStrategy": "Lead with SEC filing deep dive, then show news headlines for market context",
+  "overallStrategy": "Lead with SEC filing analysis...",
   "responseStyle": {
     "format": "structured_analysis",
     "tone": "analytical",
-    "instructions": "Use **bold headers** for each major section. Structure: **Financial Position**, **Operational Progress**, **Risk Factors**. Start each section with ONE blank line before the header, ONE blank line after. Use bullet points for key metrics with consistent spacing (blank line before/after list, NO blank lines between bullets). Lead with most critical insights. Extract specific dollar amounts and percentages. Maintain professional spacing throughout."
+    "instructions": "Use **bold headers** for sections..."
   }
 }
 
 Return ONLY valid JSON.`;
 
     try {
-      // Use dynamic token budget based on complexity tier
-      const tier = queryIntent.complexityTier || 'standard';
-      const tokenBudget = getTokenBudget(tier, 'plan');
-      const tierInfo = getTierInfo(tier);
+      // Use AI-allocated token budget
+      const allocation = queryIntent.tokenAllocation || { responseTokens: 8000, planTokens: 1500, queryTokens: 1500, tier: 'standard' };
+      const tokenBudget = getTokenBudget(allocation, 'plan');
+      const tierInfo = getTierInfo(allocation);
       
-      console.log(`🎯 Using ${tier.toUpperCase()} tier: ${tierInfo.description} (${tokenBudget} tokens for plan)`);
+      console.log(`🎯 Token allocation: ${allocation.tier} tier (${tokenBudget} tokens for plan)`);
+      if (allocation.reasoning) console.log(`   ${allocation.reasoning}`);
       
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.2,
+        temperature: 0.5,
         max_completion_tokens: tokenBudget,  // Use max_completion_tokens with dynamic budget
         response_format: { type: "json_object" }
       });
 
       const plan = JSON.parse(response.choices[0].message.content.trim());
       console.log('🎨 AI-Generated Formatting Plan:', JSON.stringify(plan, null, 2));
+      
+      // Prepend universal formatting rules to query-specific instructions
+      if (plan.responseStyle) {
+        if (plan.responseStyle.instructions) {
+          plan.responseStyle.instructions = UNIVERSAL_FORMATTING_RULES + '\n\n' + plan.responseStyle.instructions;
+        } else {
+          plan.responseStyle.instructions = UNIVERSAL_FORMATTING_RULES;
+        }
+      }
       
       // Send contextual thinking message about the plan
       if (sendThinking) {

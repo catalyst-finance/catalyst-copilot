@@ -5,7 +5,6 @@
 
 const schemaContext = require('./schema-context');
 const systemPrompt = require('./system-prompt');
-const formattingRules = require('./formatting-rules');
 
 module.exports = {
   // Schema context
@@ -17,10 +16,5 @@ module.exports = {
   hasExternalContent: schemaContext.hasExternalContent,
   
   // System prompt
-  buildSystemPrompt: systemPrompt.buildSystemPrompt,
-  
-  // Formatting rules
-  buildFormattingPlanPrompt: formattingRules.buildFormattingPlanPrompt,
-  RESPONSE_STYLE_OPTIONS: formattingRules.RESPONSE_STYLE_OPTIONS,
-  FORMATTING_STANDARDS: formattingRules.FORMATTING_STANDARDS
+  buildSystemPrompt: systemPrompt.buildSystemPrompt
 };

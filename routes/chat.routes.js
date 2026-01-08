@@ -15,8 +15,8 @@ const ResponseEngine = require('../services/ResponseEngine');
 const { processOpenAIStream } = require('../services/StreamProcessor');
 const { optionalAuth } = require('../middleware/auth');
 const { buildSystemPrompt } = require('../config/prompts/system-prompt');
-const { UNIVERSAL_FORMATTING_RULES } = require('../config/prompts/formatting-rules');
-const { getTokenBudget, getTierInfo, estimateCost } = require('../config/token-allocation');
+
+const { allocateTokenBudget, getTokenBudget, getTierInfo, estimateCost } = require('../config/token-allocation');
 
 // Main AI chat endpoint
 router.post('/', optionalAuth, async (req, res) => {
@@ -99,6 +99,9 @@ router.post('/', optionalAuth, async (req, res) => {
       );
       console.log('📋 Query Plan:', JSON.stringify(queryPlan, null, 2));
       
+      // AI-driven token allocation
+      const tokenAllocation = await allocateTokenBudget(queryPlan, message);
+      
       // Execute the AI-generated queries
       queryResults = await QueryEngine.executeQueries(queryPlan, DataConnector);
       console.log(`✅ Retrieved data from ${queryResults.length} source(s)`);
@@ -113,7 +116,7 @@ router.post('/', optionalAuth, async (req, res) => {
         tickers: queryPlan.tickers || [],
         queries: queryPlan.queries,
         chartConfig: queryPlan.chartConfig || null,  // Pass chartConfig for VIEW_CHART marker
-        complexityTier: queryPlan.complexityTier || 'standard'  // Store complexity tier for token allocation
+        tokenAllocation: tokenAllocation  // AI-allocated token budgets
       };
       
     } catch (error) {
@@ -124,9 +127,6 @@ router.post('/', optionalAuth, async (req, res) => {
     }
 
     // STEP 2: BUILD DATA CONTEXT FROM RESULTS
-    
-    // Feature flag: Use AI-driven ResponseEngine or legacy hardcoded formatting
-    const USE_AI_FORMATTING = true;  // Toggle to false to use legacy formatting
     
     let dataContext = "";
     const dataCards = [];
@@ -158,503 +158,45 @@ router.post('/', optionalAuth, async (req, res) => {
     if (queryResults.length > 0) {
       console.log('📝 Building data context from AI query results...');
       
-      // === AI-DRIVEN FORMATTING (NEW) ===
-      if (USE_AI_FORMATTING) {
-        console.log('🎨 Using AI-Native Response Engine...');
+      try {
+        // AI generates intelligent formatting plan (with contextual thinking messages)
+        const formattingPlan = await ResponseEngine.generateFormattingPlan(
+          queryResults,
+          message,
+          queryIntent,
+          sendThinking  // Pass thinking function for context-aware messages
+        );
         
-        try {
-          // AI generates intelligent formatting plan (with contextual thinking messages)
-          const formattingPlan = await ResponseEngine.generateFormattingPlan(
-            queryResults,
-            message,
-            queryIntent,
-            sendThinking  // Pass thinking function for context-aware messages
-          );
-          
-          // Execute the AI-generated formatting plan
-          const formatted = await ResponseEngine.executeFormattingPlan(
-            formattingPlan,
-            queryResults,
-            DataConnector,
-            sendThinking,
-            queryIntent  // Pass query intent with analysisKeywords for smart filtering
-          );
-          
-          dataContext = formatted.dataContext;
-          dataCards.push(...formatted.dataCards);
-          intelligenceMetadata = { ...intelligenceMetadata, ...formatted.intelligenceMetadata };
-          
-          // Add VIEW_CHART markers if chartConfig is present and pre-fetch chart data
-          if (queryIntent.chartConfig) {
-            dataContext = await ResponseEngine.addChartMarkers(dataContext, queryIntent, dataCards, DataConnector);
-            console.log(`📈 Added chart marker for ${queryIntent.chartConfig.symbol}`);
-          }
-          
-          // Store AI-recommended response style and prepend universal formatting rules
-          if (formattingPlan.responseStyle) {
-            responseStyleGuidelines = formattingPlan.responseStyle;
-            
-            // Prepend universal formatting rules to query-specific instructions
-            if (responseStyleGuidelines.instructions) {
-              responseStyleGuidelines.instructions = UNIVERSAL_FORMATTING_RULES + '\n\n' + responseStyleGuidelines.instructions;
-            } else {
-              responseStyleGuidelines.instructions = UNIVERSAL_FORMATTING_RULES;
-            }
-            
-            console.log('📐 Response Style:', responseStyleGuidelines.format, '-', responseStyleGuidelines.tone);
-          }
-          
-          console.log(`✅ AI formatting complete - ${intelligenceMetadata.totalSources} sources`);
-        } catch (error) {
-          console.error('❌ AI formatting failed, falling back to legacy:', error);
-          // Fall through to legacy formatting below
+        // Execute the AI-generated formatting plan
+        const formatted = await ResponseEngine.executeFormattingPlan(
+          formattingPlan,
+          queryResults,
+          DataConnector,
+          sendThinking,
+          queryIntent  // Pass query intent with analysisKeywords for smart filtering
+        );
+        
+        dataContext = formatted.dataContext;
+        dataCards.push(...formatted.dataCards);
+        intelligenceMetadata = { ...intelligenceMetadata, ...formatted.intelligenceMetadata };
+        
+        // Add VIEW_CHART markers if chartConfig is present and pre-fetch chart data
+        if (queryIntent.chartConfig) {
+          dataContext = await ResponseEngine.addChartMarkers(dataContext, queryIntent, dataCards, DataConnector);
+          console.log(`📈 Added chart marker for ${queryIntent.chartConfig.symbol}`);
         }
+        
+        // Store AI-recommended response style (already includes universal formatting rules)
+        if (formattingPlan.responseStyle) {
+          responseStyleGuidelines = formattingPlan.responseStyle;
+          console.log('📐 Response Style:', responseStyleGuidelines.format, '-', responseStyleGuidelines.tone);
+        }
+        
+        console.log(`✅ AI formatting complete - ${intelligenceMetadata.totalSources} sources`);
+      } catch (error) {
+        console.error('❌ AI formatting failed:', error);
+        // Continue with empty context - system will inform user no data available
       }
-      
-      // === LEGACY HARDCODED FORMATTING (FALLBACK) ===
-      if (!USE_AI_FORMATTING || dataContext === "") {
-        console.log('📝 Using legacy hardcoded formatting...');
-      
-      for (const result of queryResults) {
-        if (result.error) {
-          console.error(`Error in ${result.collection}:`, result.error);
-          continue;
-        }
-        
-        if (result.collection === 'government_policy' && result.data.length > 0) {
-          dataContext += `\n\n═══ GOVERNMENT POLICY STATEMENTS (${result.data.length} documents) ═══\n`;
-          dataContext += `Reasoning: ${result.reasoning}\n\n`;
-          
-          result.data.forEach((doc, index) => {
-            dataContext += `${index + 1}. ${doc.title || 'Untitled'} - ${doc.date || 'No date'}\n`;
-            if (doc.participants && doc.participants.length > 0) {
-              dataContext += `   Speakers: ${doc.participants.join(', ')}\n`;
-            }
-            if (doc.source) {
-              dataContext += `   Source: ${doc.source}\n`;
-            }
-            if (doc.url) {
-              dataContext += `   URL: ${doc.url}\n`;
-            }
-            
-            // Extract transcript text if available
-            if (doc.turns && doc.turns.length > 0) {
-              const transcript = doc.turns.map(turn => `${turn.speaker}: ${turn.text}`).join('\n');
-              dataContext += `\n   === TRANSCRIPT ===\n${transcript.substring(0, 5000)}\n   === END TRANSCRIPT ===\n\n`;
-            }
-          });
-          
-          intelligenceMetadata.hasPolicyData = true;
-          intelligenceMetadata.totalSources++;
-          
-          // Extract companies if requested
-          if (queryIntent.extractCompaniesFromTranscripts) {
-            console.log('🔍 Extracting companies from transcripts...');
-            sendThinking('analyzing', 'Scanning transcripts for company mentions...');
-            
-            const transcripts = result.data
-              .filter(doc => doc.turns && doc.turns.length > 0)
-              .map(doc => doc.turns.map(t => t.text).join(' '))
-              .join(' ');
-            
-            if (transcripts.length > 0) {
-              try {
-                const companyExtractionPrompt = `Extract ALL publicly traded company names from this government policy transcript.
-
-Transcript excerpt (first 8000 chars):
-${transcripts.substring(0, 8000)}
-
-Look for companies like: Chevron, ExxonMobil, BP, Shell, Tesla, Apple, Microsoft, Amazon, Google, Meta, NVIDIA, etc.
-
-Return JSON: {"companies": ["CompanyName1", "CompanyName2"]}`;
-
-                const companyResponse = await openai.chat.completions.create({
-                  model: "gpt-4o-mini",
-                  messages: [{ role: "user", content: companyExtractionPrompt }],
-                  temperature: 0.3,
-                  max_tokens: 500,
-                  response_format: { type: "json_object" }
-                });
-                
-                const { companies } = JSON.parse(companyResponse.choices[0].message.content.trim());
-                
-                if (companies && companies.length > 0) {
-                  dataContext += `\n\n═══ COMPANIES MENTIONED ═══\n`;
-                  dataContext += `Extracted ${companies.length} company name(s): ${companies.join(', ')}\n\n`;
-                  
-                  // Look up ticker symbols
-                  for (const companyName of companies) {
-                    try {
-                      const tickerResponse = await openai.chat.completions.create({
-                        model: "gpt-4o-mini",
-                        messages: [{ role: "user", content: `What is the stock ticker symbol for ${companyName}? Return just the ticker symbol.` }],
-                        temperature: 0.1,
-                        max_tokens: 20
-                      });
-                      
-                      const ticker = tickerResponse.choices[0].message.content.trim().replace(/[^A-Z]/g, '');
-                      if (ticker.length >= 1 && ticker.length <= 5) {
-                        dataContext += `- ${companyName} (${ticker})\n`;
-                        console.log(`✅ ${companyName} → ${ticker}`);
-                      }
-                    } catch (error) {
-                      console.error(`Error looking up ticker for ${companyName}:`, error);
-                    }
-                  }
-                }
-              } catch (error) {
-                console.error('Error extracting companies:', error);
-              }
-            }
-          }
-        }
-        
-        // Handle other collection types
-        if (result.collection === 'price_targets' && result.data.length > 0) {
-          dataContext += `\n\n═══ ANALYST PRICE TARGETS (${result.data.length} ratings) ═══\n`;
-          dataContext += `Reasoning: ${result.reasoning}\n\n`;
-          
-          result.data.forEach((target, index) => {
-            const date = target.date ? new Date(target.date).toLocaleDateString() : 'Unknown date';
-            dataContext += `${index + 1}. ${target.analyst || 'Unknown Analyst'} - ${date}\n`;
-            if (target.action) {
-              dataContext += `   Action: ${target.action}\n`;
-            }
-            if (target.rating_change) {
-              dataContext += `   Rating Change: ${target.rating_change}\n`;
-            }
-            if (target.price_target_change) {
-              dataContext += `   Price Target: ${target.price_target_change}\n`;
-            }
-            dataContext += `\n`;
-          });
-          
-          intelligenceMetadata.totalSources++;
-        }
-        
-        if (result.collection === 'news' && result.data.length > 0) {
-          dataContext += `\n\n═══ NEWS ARTICLES (${result.data.length} articles) ═══\n`;
-          dataContext += `Reasoning: ${result.reasoning}\n\n`;
-          
-          // Check if we need deep analysis (fetch full article content)
-          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
-          
-          if (needsDeepAnalysis && result.data.length <= 5) {
-            sendThinking('retrieving', `Reading ${result.data.length} news article${result.data.length > 1 ? 's' : ''}...`);
-            console.log('📰 Deep analysis requested - fetching full news article content...');
-          }
-          
-          for (let index = 0; index < result.data.length; index++) {
-            const article = result.data[index];
-            const date = article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown date';
-            dataContext += `${index + 1}. ${article.title || 'Untitled'} - ${date}\n`;
-            if (article.ticker) {
-              dataContext += `   Ticker: ${article.ticker}\n`;
-            }
-            if (article.origin) {
-              dataContext += `   Source: ${article.origin}\n`;
-            }
-            
-            // If deep analysis requested and we have a URL, fetch full content
-            if (needsDeepAnalysis && article.url && result.data.length <= 5) {
-              try {
-                const contentResult = await DataConnector.fetchWebContent(article.url, 8000);
-                if (contentResult.success && contentResult.content) {
-                  dataContext += `\n   === FULL ARTICLE ===\n${contentResult.content}\n   === END ARTICLE ===\n`;
-                  console.log(`   ✅ Fetched ${contentResult.contentLength} chars from ${article.origin || 'news source'}`);
-                } else if (article.content) {
-                  // Fallback to stored content
-                  dataContext += `   Content: ${article.content.substring(0, 1000)}...\n`;
-                }
-              } catch (error) {
-                console.error(`   ❌ Error fetching article: ${error.message}`);
-                if (article.content) {
-                  dataContext += `   Content: ${article.content.substring(0, 1000)}...\n`;
-                }
-              }
-            } else if (article.content) {
-              dataContext += `   Content: ${article.content.substring(0, 300)}...\n`;
-            }
-            
-            if (article.url) {
-              dataContext += `   URL: ${article.url}\n`;
-            }
-            dataContext += `\n`;
-          }
-          
-          intelligenceMetadata.totalSources++;
-        }
-        
-        if (result.collection === 'earnings_transcripts' && result.data.length > 0) {
-          dataContext += `\n\n═══ EARNINGS TRANSCRIPTS (${result.data.length} transcripts) ═══\n`;
-          dataContext += `Reasoning: ${result.reasoning}\n\n`;
-          
-          // Earnings transcripts already have full content stored, but show more for deep analysis
-          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
-          const contentLength = needsDeepAnalysis ? 10000 : 2000;
-          
-          result.data.forEach((transcript, index) => {
-            const date = transcript.report_date ? new Date(transcript.report_date).toLocaleDateString() : 'Unknown date';
-            dataContext += `${index + 1}. ${transcript.ticker} Q${transcript.quarter} ${transcript.year} - ${date}\n`;
-            if (transcript.content) {
-              dataContext += `   Content: ${transcript.content.substring(0, contentLength)}${transcript.content.length > contentLength ? '...' : ''}\n`;
-            }
-            dataContext += `\n`;
-          });
-          
-          intelligenceMetadata.totalSources++;
-        }
-        
-        if (result.collection === 'macro_economics' && result.data.length > 0) {
-          dataContext += `\n\n═══ ECONOMIC DATA (${result.data.length} items) ═══\n`;
-          dataContext += `Reasoning: ${result.reasoning}\n\n`;
-          
-          // Check if we need deep analysis (fetch full content from URL)
-          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
-          
-          if (needsDeepAnalysis && result.data.length <= 5) {
-            sendThinking('retrieving', `Reviewing ${result.data.length} economic report${result.data.length > 1 ? 's' : ''}...`);
-            console.log('📊 Deep analysis requested - fetching full economic data content...');
-          }
-          
-          for (let index = 0; index < result.data.length; index++) {
-            const item = result.data[index];
-            const date = item.date ? new Date(item.date).toLocaleDateString() : 'Unknown date';
-            
-            // Build full URL from tradingeconomics.com base + relative path
-            const fullUrl = item.url ? `https://tradingeconomics.com${item.url}` : null;
-            
-            dataContext += `${index + 1}. ${item.title || 'Untitled'} - ${date}\n`;
-            if (item.country) {
-              dataContext += `   Country: ${item.country}\n`;
-            }
-            if (item.category) {
-              dataContext += `   Category: ${item.category}\n`;
-            }
-            
-            // If deep analysis requested and we have a URL, fetch full content
-            if (needsDeepAnalysis && fullUrl && result.data.length <= 5) {
-              try {
-                const contentResult = await DataConnector.fetchWebContent(fullUrl, 8000);
-                if (contentResult.success && contentResult.content) {
-                  dataContext += `\n   === FULL REPORT ===\n${contentResult.content}\n   === END REPORT ===\n`;
-                  console.log(`   ✅ Fetched ${contentResult.contentLength} chars from economic source`);
-                } else if (item.description) {
-                  dataContext += `   Description: ${item.description}\n`;
-                }
-              } catch (error) {
-                console.error(`   ❌ Error fetching economic content: ${error.message}`);
-                if (item.description) {
-                  dataContext += `   Description: ${item.description}\n`;
-                }
-              }
-            } else if (item.description) {
-              dataContext += `   Description: ${item.description.substring(0, 200)}...\n`;
-            }
-            
-            if (fullUrl) {
-              dataContext += `   URL: ${fullUrl}\n`;
-            }
-            dataContext += `\n`;
-          }
-          
-          intelligenceMetadata.totalSources++;
-        }
-        
-        if (result.collection === 'sec_filings' && result.data.length > 0) {
-          dataContext += `\n\n═══ SEC FILINGS (${result.data.length} filings) ═══\n`;
-          dataContext += `Reasoning: ${result.reasoning}\n\n`;
-          
-          // Check if we need deep analysis (fetch actual filing content)
-          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
-          const analysisKeywords = queryIntent.analysisKeywords || [];
-          
-          if (needsDeepAnalysis) {
-            sendThinking('retrieving', `Pulling ${result.data.length} SEC filing${result.data.length > 1 ? 's' : ''} from SEC.gov...`);
-            console.log('📄 Deep analysis requested - fetching SEC filing content...');
-          }
-          
-          for (let index = 0; index < result.data.length; index++) {
-            const filing = result.data[index];
-            const date = filing.acceptance_datetime ? new Date(filing.acceptance_datetime).toLocaleDateString() : filing.publication_date;
-            dataContext += `${index + 1}. ${filing.form_type} filed on ${date}\n`;
-            dataContext += `   Ticker: ${filing.ticker}\n`;
-            if (filing.url) {
-              dataContext += `   URL: ${filing.url}\n`;
-            }
-            
-            // If deep analysis requested, fetch the actual filing content
-            if (needsDeepAnalysis && filing.url) {
-              try {
-                const contentResult = await DataConnector.fetchSecFilingContent(
-                  filing.url,
-                  analysisKeywords,
-                  25000  // Max content length
-                );
-                
-                if (contentResult.success && contentResult.content) {
-                  // Add extraction instructions before the content
-                  dataContext += `\n   ⚠️ IMPORTANT: Extract SPECIFIC NUMBERS from the content below (cash: $X, revenue: $X, expenses: $X, trial enrollment: X patients, etc.)\n`;
-                  dataContext += `   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
-                  console.log(`   ✅ Fetched ${contentResult.contentLength} chars of content from ${filing.form_type}`);
-                  
-                  // Store filing data for sentiment and entity analysis
-                  intelligenceMetadata.secFilings.push({
-                    ticker: filing.ticker,
-                    formType: filing.form_type,
-                    date: filing.acceptance_datetime,
-                    content: contentResult.content.substring(0, 5000),
-                    url: filing.url
-                  });
-                  
-                  // Extract and add images as data cards
-                  if (contentResult.images && contentResult.images.length > 0) {
-                    console.log(`   📊 Found ${contentResult.images.length} images in ${filing.form_type}`);
-                    dataContext += `\n   === IMAGES/CHARTS IN THIS FILING ===\n`;
-                    contentResult.images.slice(0, 5).forEach((img, idx) => {
-                      const imageId = `sec-image-${filing.ticker}-${index}-${idx}`;
-                      dataCards.push({
-                        type: 'image',
-                        data: {
-                          id: imageId,
-                          ticker: filing.ticker,
-                          source: 'sec_filing',
-                          title: img.alt || `Chart/Diagram from ${filing.form_type}`,
-                          imageUrl: img.url,
-                          context: img.context || null,
-                          filingType: filing.form_type,
-                          filingDate: date,
-                          filingUrl: filing.url
-                        }
-                      });
-                      // Add image context AND marker to dataContext so GPT-4o understands what the image shows
-                      dataContext += `   IMAGE ${idx + 1}: ${img.alt || 'Chart/Diagram'}\n`;
-                      if (img.context) {
-                        dataContext += `   Context (text near image): "${img.context}"\n`;
-                      }
-                      dataContext += `   [IMAGE_CARD:${imageId}] - Use this marker AFTER discussing this image's content\n\n`;
-                    });
-                    dataContext += `   === END IMAGES ===\n`;
-                  }
-                }
-              } catch (error) {
-                console.error(`   ❌ Error fetching content from ${filing.url}:`, error.message);
-              }
-            }
-            
-            dataContext += `\n`;
-          }
-          
-          intelligenceMetadata.secFilingTypes.push(...result.data.map(f => f.form_type));
-          intelligenceMetadata.totalSources++;
-        }
-        
-        if (result.collection === 'ownership' && result.data.length > 0) {
-          dataContext += `\n\n═══ INSTITUTIONAL OWNERSHIP (${result.data.length} holdings) ═══\n`;
-          dataContext += `Reasoning: ${result.reasoning}\n\n`;
-          
-          result.data.forEach((holding, index) => {
-            const date = holding.file_date ? new Date(holding.file_date).toLocaleDateString() : 'Unknown date';
-            dataContext += `${index + 1}. ${holding.holder_name || 'Unknown Holder'} - ${date}\n`;
-            dataContext += `   Ticker: ${holding.ticker}\n`;
-            if (holding.shares) {
-              dataContext += `   Shares: ${holding.shares.toLocaleString()}\n`;
-            }
-            if (holding.shares_change) {
-              dataContext += `   Change: ${holding.shares_change > 0 ? '+' : ''}${holding.shares_change.toLocaleString()} shares\n`;
-            }
-            if (holding.total_position_value) {
-              dataContext += `   Value: $${holding.total_position_value.toLocaleString()}\n`;
-            }
-            dataContext += `\n`;
-          });
-          
-          intelligenceMetadata.hasInstitutionalData = true;
-          intelligenceMetadata.totalSources++;
-        }
-        
-        if (result.collection === 'hype' && result.data.length > 0) {
-          dataContext += `\n\n═══ SENTIMENT DATA (${result.data.length} entries) ═══\n`;
-          dataContext += `Reasoning: ${result.reasoning}\n\n`;
-          
-          result.data.forEach((hype, index) => {
-            dataContext += `${index + 1}. ${hype.ticker} - ${hype.timestamp}\n`;
-            if (hype.sentiment) {
-              dataContext += `   Bullish: ${hype.sentiment.bullishPercent}% | Bearish: ${hype.sentiment.bearishPercent}%\n`;
-            }
-            if (hype.buzz) {
-              dataContext += `   Weekly Articles: ${hype.buzz.articlesInLastWeek} | Buzz: ${hype.buzz.buzz}\n`;
-            }
-            if (hype.social_sentiment) {
-              dataContext += `   Social Score: ${hype.social_sentiment.score} | Mentions: ${hype.social_sentiment.mention}\n`;
-            }
-            dataContext += `\n`;
-          });
-          
-          intelligenceMetadata.totalSources++;
-        }
-        
-        if (result.collection === 'press_releases' && result.data.length > 0) {
-          dataContext += `\n\n═══ PRESS RELEASES (${result.data.length} releases) ═══\n`;
-          dataContext += `Reasoning: ${result.reasoning}\n\n`;
-          
-          // Check if we need deep analysis (fetch full press release content)
-          const needsDeepAnalysis = queryIntent.needsDeepAnalysis || false;
-          
-          if (needsDeepAnalysis && result.data.length <= 5) {
-            sendThinking('retrieving', `Reading ${result.data.length} press release${result.data.length > 1 ? 's' : ''}...`);
-            console.log('📢 Deep analysis requested - fetching full press release content...');
-          }
-          
-          for (let index = 0; index < result.data.length; index++) {
-            const press = result.data[index];
-            const date = press.published_date ? new Date(press.published_date).toLocaleDateString() : (press.date ? new Date(press.date).toLocaleDateString() : 'Unknown date');
-            dataContext += `${index + 1}. ${press.title || 'Untitled'} - ${date}\n`;
-            if (press.ticker) {
-              dataContext += `   Ticker: ${press.ticker}\n`;
-            }
-            
-            // If deep analysis requested and we have a URL, fetch full content
-            if (needsDeepAnalysis && press.url && result.data.length <= 5) {
-              try {
-                const contentResult = await DataConnector.fetchWebContent(press.url, 10000);
-                if (contentResult.success && contentResult.content) {
-                  dataContext += `\n   === FULL PRESS RELEASE ===\n${contentResult.content}\n   === END PRESS RELEASE ===\n`;
-                  console.log(`   ✅ Fetched ${contentResult.contentLength} chars from press release`);
-                } else if (press.content) {
-                  dataContext += `   Content: ${press.content.substring(0, 2000)}...\n`;
-                } else if (press.summary) {
-                  dataContext += `   Summary: ${press.summary}\n`;
-                }
-              } catch (error) {
-                console.error(`   ❌ Error fetching press release: ${error.message}`);
-                if (press.content) {
-                  dataContext += `   Content: ${press.content.substring(0, 2000)}...\n`;
-                } else if (press.summary) {
-                  dataContext += `   Summary: ${press.summary}\n`;
-                }
-              }
-            } else if (press.content) {
-              dataContext += `   Content: ${press.content.substring(0, 500)}...\n`;
-            } else if (press.summary) {
-              dataContext += `   Summary: ${press.summary.substring(0, 200)}...\n`;
-            }
-            
-            if (press.url) {
-              dataContext += `   URL: ${press.url}\n`;
-            }
-            dataContext += `\n`;
-          }
-          
-          intelligenceMetadata.totalSources++;
-        }
-        
-        if (result.collection === 'event_data' && result.data.length > 0) {
-          dataContext += `\n\n═══ EVENTS (${result.data.length} events) ═══\n`;
-          // Add event formatting here
-        }
-      }
-      } // End legacy formatting
     }
 
     // STEP 3: PRE-GENERATE EVENT CARDS
@@ -1260,13 +802,13 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     })}\n\n`);
 
     // Call OpenAI with text-only streaming (SEC.gov blocks image downloads)
-    // Use dynamic token budget based on complexity tier
-    const tier = queryIntent.complexityTier || 'standard';
-    const tokenBudget = getTokenBudget(tier, 'response');
-    const tierInfo = getTierInfo(tier);
-    const costEstimate = estimateCost(tier, messages.reduce((sum, m) => sum + (m.content?.length || 0) / 4, 0));
+    // Use AI-allocated token budget
+    const allocation = queryIntent.tokenAllocation || { responseTokens: 8000, planTokens: 1500, queryTokens: 1500, tier: 'standard' };
+    const tokenBudget = getTokenBudget(allocation, 'response');
+    const tierInfo = getTierInfo(allocation);
+    const costEstimate = estimateCost(allocation, messages.reduce((sum, m) => sum + (m.content?.length || 0) / 4, 0));
     
-    console.log(`💰 Response Budget: ${tier.toUpperCase()} tier (${tokenBudget} tokens, ~$${costEstimate.totalCost})`);
+    console.log(`💰 Response Budget: ${allocation.tier.toUpperCase()} tier (${tokenBudget} tokens, ~$${costEstimate.totalCost})`);
     
     const stream = await openai.chat.completions.create({
       model: "gpt-4o",

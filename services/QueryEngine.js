@@ -6,7 +6,7 @@
 const openai = require('../config/openai');
 const { QUERY_SCHEMA_CONTEXT } = require('../config/prompts/schema-context');
 const { generateThinkingMessage } = require('../config/thinking-messages');
-const { calculateComplexityTier, getTokenBudget } = require('../config/token-allocation');
+const { allocateTokenBudget, getTokenBudget } = require('../config/token-allocation');
 
 class QueryEngine {
   constructor() {
@@ -519,12 +519,9 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
 
       const result = JSON.parse(response.choices[0].message.content.trim());
       
-      // Calculate complexity tier based on the generated query plan
-      const complexityTier = calculateComplexityTier(result);
-      result.complexityTier = complexityTier;
-      
       console.log('🤖 AI-Generated Queries:', JSON.stringify(result, null, 2));
-      console.log(`🎯 Complexity Tier: ${complexityTier.toUpperCase()}`);
+      
+      // AI token allocation will be done by chat.routes.js after query generation
       
       // Send contextual thinking message based on intent (AI-generated)
       if (sendThinking && result.intent) {
