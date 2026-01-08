@@ -12,7 +12,7 @@
  * Cost impact of AI mode: ~$0.0002 per query (negligible, but latency matters more)
  * 
  * Version: 2.0
- * Used by: QueryEngine.js, ResponseEngine.js
+ * Used by: QueryEngine.js, ContextEngine.js
  */
 
 const openai = require('./openai');
@@ -45,7 +45,7 @@ async function generateThinkingMessage(phase, context = {}) {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
+      temperature: 1.0,
       max_completion_tokens: 15  // Use max_completion_tokens (excludes prompt from limit)
     });
     

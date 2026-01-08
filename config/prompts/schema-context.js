@@ -3,7 +3,7 @@
  * Single source of truth for all AI prompts about available data
  * 
  * Version: 1.0
- * Used by: QueryEngine.js, ResponseEngine.js
+ * Used by: QueryEngine.js, ContextEngine.js
  */
 
 /**
@@ -106,7 +106,7 @@ const QUERY_SCHEMA_CONTEXT = `
 `;
 
 /**
- * Simplified schema context for response formatting (ResponseEngine)
+ * Simplified schema context for response formatting (ContextEngine)
  * Focus on what fields are available and how to use them
  */
 const RESPONSE_SCHEMA_CONTEXT = `

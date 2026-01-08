@@ -11,10 +11,10 @@ const { getTokenBudget, getTierInfo } = require('../config/token-allocation');
 
 /**
  * Universal formatting rules that apply to ALL responses
- * These are prepended to every responseStyle.instructions
+ * SEMANTIC ONLY - mechanical formatting handled by ResponseFormatter
  */
 const UNIVERSAL_FORMATTING_RULES = `
-**UNIVERSAL FORMATTING RULES:**
+**SEMANTIC FORMATTING GUIDELINES:**
 
 **1. Citation Format (CRITICAL - ALWAYS CITE SOURCES):**
 
@@ -33,108 +33,39 @@ EXAMPLES:
 
 **2. Card Marker Placement:**
 
-- **[VIEW_ARTICLE:...]** → Own line AFTER paragraph, NEVER inline or in bullets
-- **[VIEW_CHART:...]** → After Current Price section or price discussion, no header before it
+- **[VIEW_ARTICLE:...]** → Own line AFTER paragraph discussing the article
+- **[VIEW_CHART:...]** → After discussing current price or price movement
 - **[IMAGE_CARD:...]** → Inline with SEC filing citations (only if filing contains image)
 - **[EVENT_CARD:...]** → At end of bullet point describing event
 
-VIEW_ARTICLE example:
-**Headline Topic**
+**3. Content Organization:**
 
-Analysis paragraph explaining the news story.
-
-[VIEW_ARTICLE:article-TICKER-0]
-
-VIEW_CHART example:
-**Current Price**
-
-Tesla (TSLA) is currently trading at $432.02, down 4.35%...
-
-[VIEW_CHART:TSLA:1D]
-
-**3. Section Headers:**
-- Use **bold markdown** (** **) for all headers
-- ONE blank line before/after headers
-
-**4. Paragraphs vs Bullets (CRITICAL):**
-- PARAGRAPHS (2-5 sentences): Narrative analysis, explanations, context
-- BULLETS: True lists ONLY (3+ discrete items, key highlights, specifications)
-- NEVER use a bullet for a single descriptive paragraph
-- Focus on CONTENT and insights, not meta-information about sources
+- Use natural section headers to organize topics
+- Write in paragraphs for narrative analysis and explanations
+- Use bullet lists when presenting multiple discrete items (3+ items ideal)
+- Lead with most important information
+- Focus on INSIGHTS and CONTENT, not meta-information about sources
 `;
 
 /**
- * Response style options for AI to recommend
+ * Response style options for AI to recommend  
+ * Focus on content approach, not mechanical formatting
  */
 const RESPONSE_STYLE_OPTIONS = `
 **Response Style Options:**
-- **structured_analysis**: Bold section headers with paragraphs for analysis; use bullets only for true lists (SEC filings, earnings)
+- **structured_analysis**: Organized sections with clear headers (SEC filings, earnings analysis)
 - **chronological_narrative**: Timeline format with dates (government policy, roadmap)
 - **comparison_format**: Side-by-side comparison (compare X vs Y)
 - **executive_summary**: Brief overview with key takeaways (highlights, tldr)
-- **detailed_breakdown**: In-depth sections with thorough explanation (analyze, explain)
-- **list_format**: Numbered/bulleted list when presenting actual lists (list recent, show top 5)
-- **conversational**: Natural flowing paragraphs (general questions)
+- **detailed_breakdown**: In-depth explanation with subsections (analyze, explain)
+- **list_format**: Present as a list of items (list recent, show top 5)
+- **conversational**: Natural flowing narrative (general questions)
 
 **Tone Options:**
 - **analytical**: Professional, data-focused, objective
-- **concise**: Brief, to-the-point, minimal elaboration
+- **concise**: Brief, to-the-point
 - **comprehensive**: Detailed, thorough, includes context
 - **explanatory**: Educational, walks through concepts`;
-
-/**
- * Formatting standards all responses must follow
- */
-const FORMATTING_STANDARDS = `
-**FORMATTING STANDARDS (CRITICAL):**
-
-1. **Section Headers**: Use markdown bold (** **) for all headers
-   
-2. **Spacing**:
-   - ONE blank line before/after section headers
-   - ONE blank line between content blocks
-   - Never multiple consecutive blank lines
-   
-3. **Bullet Points vs Paragraphs (CRITICAL)**:
-   - Use bullets ONLY for TRUE LISTS: multiple discrete items (3+ items ideal), key highlights, metrics, quick facts
-   - Use paragraphs for narrative analysis, explanations, single points, or descriptions
-   - NEVER use a bullet for a single descriptive paragraph - just write the paragraph
-   - Complete thought per bullet when bullets are appropriate
-   - Blank line before first bullet, after last bullet
-   - NO blank lines between bullets in same list
-   
-   WRONG (single paragraph as bullet):
-   • Regulatory Developments: This is a long paragraph with multiple sentences explaining one topic in narrative form. It continues with more analysis and implications.
-   
-   CORRECT (paragraph format):
-   **Regulatory Developments**
-   
-   This is a paragraph with multiple sentences explaining one topic. It continues with more analysis and implications.
-   
-   CORRECT (true list with bullets):
-   Key highlights from the filing:
-   
-   - Q1 revenue increased 15%
-   - New product launch scheduled
-   - CEO appointed to board
-   
-4. **Paragraphs (CRITICAL)**:
-   - 2-5 related sentences per paragraph (NOT single sentences)
-   - ONE blank line between paragraphs
-   - NO blank lines within a paragraph
-   
-   WRONG:
-   First sentence alone.
-   
-   Second sentence alone.
-   
-   CORRECT:
-   First sentence begins the paragraph. Second sentence continues. Third completes the idea.
-
-5. **Professional Structure**:
-   - Lead with most important information
-   - Group related information under clear headers
-   - Use subsections to break up long sections`;
 
 /**
  * Detail level decision criteria
@@ -168,7 +99,7 @@ Ask: "Will the AI need to explain WHAT'S IN this source?"
 - Government policy transcripts are LONG - always limit maxItems to 5-10 max
 - Price targets/ownership → moderate (no external content)`;
 
-class ResponseEngine {
+class ContextEngine {
   constructor() {
     // Use centralized schema context
     this.dataSchemaContext = RESPONSE_SCHEMA_CONTEXT;
@@ -276,13 +207,7 @@ Also provide a "responseStyle" recommendation that tells the AI how to structure
 - **list_format**: Numbered or bulleted list of items (for "list recent", "show me top 5")
 - **conversational**: Natural flowing paragraphs with context (for general questions)
 
-**Tone Options:**
-- **analytical**: Professional, data-focused, objective
-- **concise**: Brief, to-the-point, minimal elaboration
-- **comprehensive**: Detailed, thorough, includes context
-- **explanatory**: Educational, walks through concepts
-
-${FORMATTING_STANDARDS}
+${RESPONSE_STYLE_OPTIONS}
 
 Return JSON:
 {
@@ -1134,4 +1059,4 @@ Return ONLY valid JSON.`;
   }
 }
 
-module.exports = new ResponseEngine();
+module.exports = new ContextEngine();

@@ -5,6 +5,8 @@
  * This handles marker parsing backend-side so the frontend receives clean, pre-processed events.
  */
 
+const ResponseFormatter = require('./ResponseFormatter');
+
 // Marker patterns for detecting special content in the stream
 const MARKER_PATTERNS = {
   CHART: /\[VIEW_CHART:([A-Z]+):([^\]]+)\]/,
@@ -83,6 +85,7 @@ class StreamProcessor {
     this.dataCards = dataCards;
     this.buffer = '';
     this.fullResponse = '';
+    this.formatter = new ResponseFormatter(); // Add formatter for post-processing
   }
 
   /**
@@ -95,10 +98,15 @@ class StreamProcessor {
   /**
    * Send text content as a content event (backward compatible with existing frontend)
    * Note: Using 'content' instead of 'text_delta' for compatibility
+   * Now applies mechanical formatting post-processing
    */
   emitText(text) {
     if (text) {
-      this.emit({ type: 'content', content: text });
+      // Apply mechanical formatting (spacing, bullets, headers) before emitting
+      const formattedText = this.formatter.processChunk(text);
+      if (formattedText) {
+        this.emit({ type: 'content', content: formattedText });
+      }
     }
   }
 
@@ -230,6 +238,12 @@ class StreamProcessor {
    */
   finalize() {
     this.processBuffer(true);
+    
+    // Flush any remaining buffered content in the formatter
+    const remainingFormatted = this.formatter.flush();
+    if (remainingFormatted) {
+      this.emit({ type: 'content', content: remainingFormatted });
+    }
   }
 
   /**

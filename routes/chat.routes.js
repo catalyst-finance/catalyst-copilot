@@ -11,7 +11,7 @@ const DataConnector = require('../services/DataConnector');
 const ConversationManager = require('../services/ConversationManager');
 const IntelligenceEngine = require('../services/IntelligenceEngine');
 const QueryEngine = require('../services/QueryEngine');
-const ResponseEngine = require('../services/ResponseEngine');
+const ContextEngine = require('../services/ContextEngine');
 const { processOpenAIStream } = require('../services/StreamProcessor');
 const { optionalAuth } = require('../middleware/auth');
 const { buildSystemPrompt } = require('../config/prompts/system-prompt');
@@ -160,7 +160,7 @@ router.post('/', optionalAuth, async (req, res) => {
       
       try {
         // AI generates intelligent formatting plan (with contextual thinking messages)
-        const formattingPlan = await ResponseEngine.generateFormattingPlan(
+        const formattingPlan = await ContextEngine.generateFormattingPlan(
           queryResults,
           message,
           queryIntent,
@@ -168,7 +168,7 @@ router.post('/', optionalAuth, async (req, res) => {
         );
         
         // Execute the AI-generated formatting plan
-        const formatted = await ResponseEngine.executeFormattingPlan(
+        const formatted = await ContextEngine.executeFormattingPlan(
           formattingPlan,
           queryResults,
           DataConnector,
@@ -182,7 +182,7 @@ router.post('/', optionalAuth, async (req, res) => {
         
         // Add VIEW_CHART markers if chartConfig is present and pre-fetch chart data
         if (queryIntent.chartConfig) {
-          dataContext = await ResponseEngine.addChartMarkers(dataContext, queryIntent, dataCards, DataConnector);
+          dataContext = await ContextEngine.addChartMarkers(dataContext, queryIntent, dataCards, DataConnector);
           console.log(`📈 Added chart marker for ${queryIntent.chartConfig.symbol}`);
         }
         

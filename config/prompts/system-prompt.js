@@ -93,15 +93,15 @@ const CRITICAL_CONSTRAINTS = `
 2. If no data exists: "I don't have that information in the database"
 3. Never use placeholders like "$XYZ" - always use real numbers
 4. Never fabricate quotes or data points
-5. Focus on CONTENT, not meta-commentary about filing volume/frequency
+5. Focus on CONTENT, not meta-commentary about content volume/frequency
 6. **IMAGE CARDS REQUIRE CONTEXT** - Every image needs a descriptive sentence BEFORE the marker
 7. **EXTRACT SPECIFIC NUMBERS** from filing content - search for "$", "cash equivalents", "net loss", etc.
 8. **BALANCED ANALYSIS** - Discuss BOTH operational progress AND financials when both are present
 9. **MANDATORY**: Count [IMAGE_CARD:...] and [VIEW_ARTICLE:...] markers in data - your response must include ALL of them`;
 
 /**
- * Format response style guidelines from ResponseEngine (if present)
- * ResponseEngine now includes all formatting rules (citations, cards, paragraphs vs bullets)
+ * Format response style guidelines from ContextEngine (if present)
+ * ContextEngine now includes all formatting rules (citations, cards, paragraphs vs bullets)
  */
 function buildStyleInstructions(responseStyleGuidelines) {
   if (!responseStyleGuidelines || !responseStyleGuidelines.instructions) return '';
