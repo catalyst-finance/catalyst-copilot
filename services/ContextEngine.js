@@ -79,7 +79,6 @@ For EVERY data source:
 **FetchExternalContent Decision:**
 - Does the database already have the full text content? → fetchExternalContent: false (use existing content)
 - Database only has URL/metadata, but content is needed for analysis? → fetchExternalContent: true
-- Just need title/metadata? → fetchExternalContent: false, detailLevel: summary
 
 **General Rules:**
 - "analyze" or "details" → detailLevel: full, fetchExternalContent: true

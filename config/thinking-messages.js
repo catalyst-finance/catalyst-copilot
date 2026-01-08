@@ -250,6 +250,13 @@ function getFallbackMessage(phase, context) {
         return null; // Skip message for price data
       }
       
+      // News collection: the actual work is fetching metadata, not formatting
+      if (context.collection === 'news') {
+        if (ticker && count > 0) return `Loading ${count} ${ticker} articles`;
+        if (count > 0) return `Loading ${count} articles`;
+        return 'Loading articles';
+      }
+      
       if (ticker && count > 0) return `Formatting ${ticker} (${count})`;
       if (count > 0 && collection) return `Formatting ${count} ${collection}`;
       if (collection) return `Formatting ${collection}`;
