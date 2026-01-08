@@ -242,7 +242,7 @@ class ContextEngine {
       press_releases: {
         priority: /press|release|announce/i.test(userMessage) ? 5 : 3,
         detailLevel: needsDeep ? 'detailed' : 'moderate',
-        fetchExternalContent: false,
+        fetchExternalContent: true, // Fetch metadata and images for article cards
         maxItems: 8
       },
       institutional_ownership: {
@@ -465,7 +465,7 @@ class ContextEngine {
         return this.formatEarningsTranscripts(itemsToShow, detailLevel, output, sendThinking);
       
       case 'press_releases':
-        return await this.formatPressReleases(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, sendThinking);
+        return await this.formatPressReleases(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards, sendThinking);
       
       case 'macro_economics':
         return await this.formatMacroEconomics(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards, sendThinking);
@@ -1112,30 +1112,126 @@ class ContextEngine {
   /**
    * Format press releases
    */
-  async formatPressReleases(items, detailLevel, fetchExternal, DataConnector, output, sendThinking) {
+  async formatPressReleases(items, detailLevel, fetchExternal, DataConnector, output, dataCards, sendThinking) {
     // Send thinking message about press releases
     if (sendThinking && items.length > 0) {
       const ticker = items[0]?.ticker || 'company';
       sendThinking('retrieving', `Reading ${ticker} press releases`);
     }
-    
-    for (let index = 0; index < items.length; index++) {
-      const press = items[index];
-      const date = press.published_date ? new Date(press.published_date).toLocaleDateString() : (press.date ? new Date(press.date).toLocaleDateString() : 'Unknown date');
-      
-      output += `${index + 1}. ${press.title || 'Untitled'} - ${date}\n`;
-      if (press.ticker) output += `   Ticker: ${press.ticker}\n`;
 
-      // Press releases: rely on stored content/summary field only
-      if (press.content && detailLevel !== 'summary') {
-        output += `   Content: ${press.content.substring(0, detailLevel === 'detailed' ? 2000 : 500)}...\n`;
-      } else if (press.summary && detailLevel !== 'summary') {
-        output += `   Summary: ${press.summary}\n`;
+    // PHASE 1: Build press release data array
+    console.log(`\n🔍 PHASE 1: Building press release data array from ${items.length} items`);
+    const pressData = items.map((press, index) => {
+      const domain = press.url ? new URL(press.url).hostname : 'unknown';
+      console.log(`  [${index}] Mapping: "${press.title?.substring(0, 50)}..." from ${domain}`);
+      
+      return {
+        press,
+        index,
+        domain,
+        logoUrl: `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
+        imageUrl: null,
+        extractedProvider: null,
+        needsMetadataFetch: press.url && fetchExternal && domain.includes('nasdaq')
+      };
+    });
+    console.log(`✅ Press release data array built with ${pressData.length} items\n`);
+
+    // PHASE 2: Fetch metadata in parallel (images from Nasdaq/GlobeNewswire)
+    if (fetchExternal) {
+      console.log(`🔍 PHASE 2: Filtering press releases that need metadata fetch`);
+      const toFetch = pressData.filter(p => p.needsMetadataFetch);
+      console.log(`  Found ${toFetch.length} press releases needing metadata fetch:`);
+      toFetch.forEach(p => {
+        console.log(`    [Original Index ${p.index}] "${p.press.title?.substring(0, 50)}..."`);
+      });
+
+      const metadataPromises = toFetch.map(async (p) => {
+        console.log(`  🌐 Fetching metadata for press release [${p.index}]: "${p.press.title?.substring(0, 50)}..."`);
+        try {
+          const metadata = await DataConnector.fetchWebMetadata(p.press.url);
+          
+          // Look for GlobeNewswire image: <img src="https://ml.globenewswire.com/media/..."
+          if (metadata.htmlContent) {
+            const globeNewsMatch = metadata.htmlContent.match(/<img[^>]+src="(https:\/\/ml\.globenewswire\.com\/media\/[^"]+)"/i);
+            if (globeNewsMatch) {
+              p.imageUrl = globeNewsMatch[1];
+              console.log(`    📸 Found GlobeNewswire image: ${p.imageUrl}`);
+            }
+          }
+          
+          // Fallback to og:image if no GlobeNewswire image
+          if (!p.imageUrl && metadata.og_image) {
+            p.imageUrl = metadata.og_image;
+            console.log(`    📸 Using og:image: ${p.imageUrl}`);
+          }
+          
+          // Provider from Nasdaq page
+          if (metadata.provider) {
+            p.extractedProvider = metadata.provider;
+            console.log(`    📰 Found provider: ${p.extractedProvider}`);
+          }
+          
+          console.log(`    ✅ [${p.index}] Metadata fetched: provider=${p.extractedProvider || 'N/A'}, hasImage=${!!p.imageUrl}`);
+        } catch (error) {
+          console.log(`    ❌ [${p.index}] Metadata fetch error: ${error.message}`);
+        }
+        return p;
+      });
+
+      await Promise.all(metadataPromises);
+      console.log(`✅ PHASE 2 complete: All metadata fetches finished\n`);
+    }
+
+    // PHASE 3: Build output and dataCards
+    console.log(`🔍 PHASE 3: Building data cards and output context`);
+    
+    for (const p of pressData) {
+      const { press, index, domain } = p;
+      
+      if (press.url) {
+        const pressId = `press-${press.ticker || 'release'}-${index}`;
+        const displaySource = p.extractedProvider || (domain.includes('nasdaq') ? 'Nasdaq' : domain);
+        const date = press.date ? new Date(press.date).toLocaleDateString() : 'Unknown';
+        
+        console.log(`\n  📝 DataCard Creation [${index}]:`);
+        console.log(`     Title: "${press.title}"`);
+        console.log(`     ID: ${pressId}`);
+        console.log(`     Source: ${displaySource}`);
+        console.log(`     URL: ${press.url}`);
+        console.log(`     Published: ${press.date}`);
+        console.log(`     ImageURL: ${p.imageUrl ? 'Yes' : 'No'}`);
+        
+        dataCards.push({
+          type: 'article',
+          data: {
+            id: pressId,
+            title: press.title || 'Untitled Press Release',
+            url: press.url,
+            source: displaySource,
+            domain: domain,
+            ticker: press.ticker,
+            publishedAt: press.date,
+            logoUrl: p.logoUrl,
+            imageUrl: p.imageUrl,
+            content: press.content ? press.content.substring(0, 200) : null
+          }
+        });
+        
+        const outputLine = `\n**${press.title || 'Untitled'}** (${displaySource}, ${date})\n`;
+        console.log(`     Output Text: ${outputLine.trim().substring(0, 80)}...`);
+        output += outputLine;
       }
 
-      if (press.url) output += `   URL: ${press.url}\n`;
+      if (press.content && detailLevel !== 'summary') {
+        const contentLength = detailLevel === 'full' ? 5000 : (detailLevel === 'detailed' ? 1000 : 300);
+        output += `${press.content.substring(0, contentLength)}${press.content.length > contentLength ? '...' : ''}\n`;
+      }
+
       output += `\n`;
     }
+
+    console.log(`\n✅ PHASE 3 complete: Created ${dataCards.length} data cards from ${pressData.length} press releases\n`);
     return output;
   }
 
