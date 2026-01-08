@@ -35,23 +35,21 @@ EXAMPLES:
 
 - **[VIEW_ARTICLE:...]** → Place AFTER the full paragraph explaining that article's content
   ✅ CORRECT:
-  ```
+  
   **Nvidia Competition**:
   Elon Musk stated that Nvidia's Rubin chips won't scale soon as Tesla
   develops in-house AI hardware. This suggests reduced supplier reliance.
   [VIEW_ARTICLE:abc123]
-  ```
   
   ❌ WRONG:
-  ```
+  
   **Nvidia Competition**:
   [VIEW_ARTICLE:abc123]
   Elon Musk stated that Nvidia's Rubin chips...
-  ```
   
 - **[VIEW_CHART:...]** → Place AFTER discussing the price/movement
   ✅ CORRECT: "TSLA is trading at $431.83, down 0.26%...[VIEW_CHART:TSLA:1D]"
-  ❌ WRONG: "[VIEW_CHART:TSLA:1D]\n\nTSLA is trading at $431.83..."
+  ❌ WRONG: "[VIEW_CHART:TSLA:1D]\\n\\nTSLA is trading at $431.83..."
   
 - **[IMAGE_CARD:...]** → Inline with SEC filing citations
 - **[EVENT_CARD:...]** → At end of bullet describing event
@@ -141,7 +139,8 @@ class ContextEngine {
   }
 
   /**
-   * Generate intelligent formatting plan for query results
+   * Generate formatting plan using fast heuristics instead of AI
+   * This saves ~7 seconds compared to the AI-based approach
    */
   async generateFormattingPlan(queryResults, userMessage, queryIntent, sendThinking) {
     // Send contextual thinking message
@@ -156,147 +155,152 @@ class ContextEngine {
       if (thinkingMsg) sendThinking('analyzing', thinkingMsg);
     }
     
-    const prompt = `You are a data presentation optimizer. Based on the user's question and available data, decide how to format and present the information most effectively.
-
-**User's Question:** "${userMessage}"
-**Query Intent:** ${queryIntent.intent}
-**Query Analysis Flags:**
-- needsDeepAnalysis: ${queryIntent.needsDeepAnalysis !== false}  // Default true
-- analysisKeywords: ${(queryIntent.analysisKeywords || []).join(', ')}
-
-**Available Data Results:**
-${JSON.stringify(queryResults.map(r => ({
-  collection: r.collection,
-  count: r.count,
-  reasoning: r.reasoning,
-  sampleFields: r.data[0] ? Object.keys(r.data[0]).slice(0, 10) : []
-})), null, 2)}
-
-${this.dataSchemaContext}
-
-**Your Task:**
-Determine the optimal way to present this data to answer the user's question. For each collection, decide:
-
-1. **Priority** (1-5): How important is this data to answering the question?
-2. **DetailLevel** (summary | moderate | detailed | full):
-   - summary: Just titles/headlines (use for less relevant data)
-   - moderate: Key fields + brief excerpt (default for most data)
-   - detailed: All important fields + longer content
-   - full: Everything including full content from database
-3. **FetchExternalContent** (true/false): Should we fetch full content from source URLs?
-   - true: Fetch full content from external URLs (sec.gov, news sites, etc.)
-   - false: Use only stored content/metadata in database
-   - Collections that support external fetching: sec_filings, news, press_releases, macro_economics
-4. **FieldsToShow** (array): Which specific fields are most relevant?
-5. **MaxItems** (number): How many items to show (1-30)
-6. **FormattingNotes** (string): Special formatting instructions
-
-**CRITICAL PRINCIPLE - fetchExternalContent USAGE:**
-
-Set fetchExternalContent: true when:
-- User asks substantive questions requiring full source analysis ("Why is TSLA up?", "What happened?", "Analyze...")
-- The answer requires explaining what's IN the source document
-- Need to analyze news article content beyond just headlines
-- Need to read full SEC filings (10-K, 10-Q, 8-K) for details
-- DEFAULT for needsDeepAnalysis=true queries
-
-Set fetchExternalContent: false when:
-- User only wants headlines/titles/metadata
-- Simple list queries ("recent filings", "latest news")
-- Data already has sufficient content in database
-- Government policy: IMPORTANT - transcripts are very long! 
-  * detailLevel: full is OK, but ALWAYS limit maxItems to 5-10 maximum to avoid token overflow
-  * The system will intelligently filter to show only relevant turns from transcripts
-- Price targets/ownership: moderate (no external content needed)
-
-**CRITICAL TOKEN LIMITS:**
-- Government policy transcripts are VERY long (often 50,000+ tokens per transcript)
-- When using detailLevel: "full" for government_policy, NEVER set maxItems > 10
-- Prefer maxItems: 3-5 for government_policy with full detail
-- System will auto-filter to show only relevant portions of transcripts
-
-**CRITICAL - RESPONSE STYLE RECOMMENDATION:**
-Also provide a "responseStyle" recommendation that tells the AI how to structure and present the final response:
-
-**Response Style Options:**
-- **structured_analysis**: Use bold section headers, bullet points, clear organization (for SEC filings, earnings analysis)
-- **chronological_narrative**: Timeline format with dates, sequential events (for government policy, roadmap questions)
-- **comparison_format**: Side-by-side comparison with clear distinctions (for "compare X vs Y" questions)
-- **executive_summary**: Brief, high-level overview with key takeaways (for "highlights" or "tldr" questions)
-- **detailed_breakdown**: In-depth sections with subsections and thorough explanation (for "analyze" or "explain" questions)
-- **list_format**: Numbered or bulleted list of items (for "list recent", "show me top 5")
-- **conversational**: Natural flowing paragraphs with context (for general questions)
-
-${RESPONSE_STYLE_OPTIONS}
-
-Return JSON:
-{
-  "formattingPlan": [
-    {
-      "collection": "sec_filings",
-      "priority": 5,
-      "detailLevel": "full",
-      "fetchExternalContent": true,
-      "fieldsToShow": ["form_type", "date", "url", "content"],
-      "maxItems": 1,
-      "formattingNotes": "User wants detailed SEC filing analysis"
-    }
-  ],
-  "overallStrategy": "Lead with SEC filing analysis...",
-  "responseStyle": {
-    "format": "structured_analysis",
-    "tone": "analytical",
-    "instructions": "Use **bold headers** for sections..."
-  }
-}
-
-Return ONLY valid JSON.`;
-
-    try {
-      // Use AI-allocated token budget
-      const allocation = queryIntent.tokenAllocation || { responseTokens: 8000, planTokens: 1500, queryTokens: 1500, tier: 'standard' };
-      const tokenBudget = getTokenBudget(allocation, 'plan');
-      const tierInfo = getTierInfo(allocation);
-      
-      console.log(`🎯 Token allocation: ${allocation.tier} tier (${tokenBudget} tokens for plan)`);
-      if (allocation.reasoning) console.log(`   ${allocation.reasoning}`);
-      
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.5,
-        max_completion_tokens: tokenBudget,  // Use max_completion_tokens with dynamic budget
-        response_format: { type: "json_object" }
-      });
-
-      const plan = JSON.parse(response.choices[0].message.content.trim());
-      console.log('🎨 AI-Generated Formatting Plan:', JSON.stringify(plan, null, 2));
-      
-      // Prepend universal formatting rules to query-specific instructions
-      if (plan.responseStyle) {
-        if (plan.responseStyle.instructions) {
-          plan.responseStyle.instructions = UNIVERSAL_FORMATTING_RULES + '\n\n' + plan.responseStyle.instructions;
-        } else {
-          plan.responseStyle.instructions = UNIVERSAL_FORMATTING_RULES;
-        }
+    // Use fast heuristics instead of AI call
+    const plan = this.generateHeuristicPlan(queryResults, userMessage, queryIntent);
+    
+    console.log('🎨 Heuristic Formatting Plan:', JSON.stringify(plan, null, 2));
+    
+    // Prepend universal formatting rules to query-specific instructions
+    if (plan.responseStyle) {
+      if (plan.responseStyle.instructions) {
+        plan.responseStyle.instructions = UNIVERSAL_FORMATTING_RULES + '\n\n' + plan.responseStyle.instructions;
+      } else {
+        plan.responseStyle.instructions = UNIVERSAL_FORMATTING_RULES;
       }
-      
-      // Send contextual thinking message about the plan
-      if (sendThinking) {
-        const thinkingMsg = await this.generateThinkingMessage('plan_generated', { plan });
-        if (thinkingMsg) sendThinking('formatting', thinkingMsg);
-      }
-      
-      return plan;
-    } catch (error) {
-      console.error('❌ Formatting plan generation failed:', error);
-      // Fallback to simple plan
-      return this.generateFallbackPlan(queryResults, queryIntent);
     }
+    
+    // Send contextual thinking message about the plan
+    if (sendThinking) {
+      const thinkingMsg = await this.generateThinkingMessage('plan_generated', { plan });
+      if (thinkingMsg) sendThinking('formatting', thinkingMsg);
+    }
+    
+    return plan;
   }
 
   /**
-   * Fallback plan if AI formatting fails
+   * Fast heuristic-based formatting plan
+   */
+  generateHeuristicPlan(queryResults, userMessage, queryIntent) {
+    const needsDeep = queryIntent.needsDeepAnalysis !== false; // Default true
+    const msgLower = userMessage.toLowerCase();
+    
+    // Detect query patterns
+    const isListQuery = /\b(list|show|recent|latest|top \d+|last \d+)\b/i.test(userMessage);
+    const isAnalysisQuery = /\b(why|analyze|explain|what happened|impact|cause|reason)\b/i.test(userMessage);
+    const isCompareQuery = /\b(compare|vs|versus|difference|between)\b/i.test(userMessage);
+    const isSummaryQuery = /\b(summary|highlights|overview|tldr|brief)\b/i.test(userMessage);
+    
+    // Determine response style based on query type
+    let responseStyle = {
+      format: 'structured_analysis',
+      tone: 'analytical',
+      instructions: ''
+    };
+    
+    if (isCompareQuery) {
+      responseStyle.format = 'comparison_format';
+      responseStyle.instructions = 'Use side-by-side comparisons with clear distinctions.';
+    } else if (isSummaryQuery) {
+      responseStyle.format = 'executive_summary';
+      responseStyle.instructions = 'Provide brief, high-level overview with key takeaways.';
+    } else if (isListQuery && !isAnalysisQuery) {
+      responseStyle.format = 'list_format';
+      responseStyle.instructions = 'Use clear numbered or bulleted lists.';
+    } else if (isAnalysisQuery) {
+      responseStyle.format = 'detailed_breakdown';
+      responseStyle.instructions = 'Provide in-depth analysis with sections and subsections.';
+    }
+    
+    // Collection-specific config
+    const collectionConfig = {
+      sec_filings: {
+        priority: isAnalysisQuery ? 5 : 3,
+        detailLevel: needsDeep && !isListQuery ? 'full' : 'moderate',
+        fetchExternalContent: needsDeep && !isListQuery,
+        maxItems: isListQuery ? 10 : 3
+      },
+      news: {
+        priority: /news|article|press/i.test(userMessage) ? 5 : 3,
+        detailLevel: isAnalysisQuery ? 'detailed' : 'moderate',
+        fetchExternalContent: false, // Metadata only for news (cards show articles)
+        maxItems: isListQuery ? 15 : 8
+      },
+      government_policy: {
+        priority: /fed|fomc|policy|rate|powell|inflation/i.test(userMessage) ? 5 : 3,
+        detailLevel: needsDeep ? 'full' : 'moderate',
+        fetchExternalContent: false,
+        maxItems: Math.min(5, queryResults.find(r => r.collection === 'government_policy')?.count || 5) // Limit transcript items
+      },
+      price_targets: {
+        priority: /target|analyst|rating|upgrade|downgrade/i.test(userMessage) ? 5 : 2,
+        detailLevel: 'moderate',
+        fetchExternalContent: false,
+        maxItems: 10
+      },
+      press_releases: {
+        priority: /press|release|announce/i.test(userMessage) ? 5 : 3,
+        detailLevel: needsDeep ? 'detailed' : 'moderate',
+        fetchExternalContent: false,
+        maxItems: 8
+      },
+      institutional_ownership: {
+        priority: /ownership|institutional|holdings|13f/i.test(userMessage) ? 5 : 2,
+        detailLevel: 'moderate',
+        fetchExternalContent: false,
+        maxItems: 15
+      },
+      insider_trading: {
+        priority: /insider|executive|buy|sell|trading/i.test(userMessage) ? 5 : 2,
+        detailLevel: 'moderate',
+        fetchExternalContent: false,
+        maxItems: 15
+      },
+      earnings: {
+        priority: /earning|quarter|revenue|profit|eps/i.test(userMessage) ? 5 : 3,
+        detailLevel: needsDeep ? 'detailed' : 'moderate',
+        fetchExternalContent: false,
+        maxItems: 8
+      },
+      macro_economics: {
+        priority: /economy|gdp|employment|inflation|economic/i.test(userMessage) ? 5 : 2,
+        detailLevel: needsDeep ? 'detailed' : 'moderate',
+        fetchExternalContent: needsDeep && !isListQuery,
+        maxItems: 5
+      }
+    };
+    
+    const formattingPlan = queryResults.map(result => {
+      const config = collectionConfig[result.collection] || {
+        priority: 3,
+        detailLevel: 'moderate',
+        fetchExternalContent: false,
+        maxItems: 10
+      };
+      
+      return {
+        collection: result.collection,
+        priority: config.priority,
+        detailLevel: config.detailLevel,
+        fetchExternalContent: config.fetchExternalContent,
+        fieldsToShow: ['all'],
+        maxItems: Math.min(config.maxItems, result.count || config.maxItems),
+        formattingNotes: `Heuristic: ${responseStyle.format}`
+      };
+    });
+    
+    // Sort by priority (highest first)
+    formattingPlan.sort((a, b) => b.priority - a.priority);
+    
+    return {
+      formattingPlan,
+      overallStrategy: `Using ${responseStyle.format} style for this ${queryIntent.intent} query`,
+      responseStyle
+    };
+  }
+
+  /**
+   * Fallback plan if formatting fails
    */
   generateFallbackPlan(queryResults, queryIntent) {
     const needsDeep = queryIntent.needsDeepAnalysis !== false; // Default true
@@ -522,7 +526,6 @@ Return ONLY valid JSON.`;
             output += `   • TABLE DATA: Numbers in "(in thousands)" tables - multiply by 1000 for actual value\n`;
             output += `   • Example: "15,634" in thousands = $15.6 million\n`;
             output += `   • Example: "(133,357)" = negative $133.4 million (loss)\n`;
-            output += `   FAILURE TO EXTRACT NUMBERS = FAILED RESPONSE\n`;
             output += `   === ${filing.form_type} CONTENT ===\n${contentResult.content}\n   === END CONTENT ===\n`;
             
             intelligenceMetadata.secFilings.push({
@@ -642,91 +645,97 @@ Return ONLY valid JSON.`;
   }
 
   /**
-   * Format news articles
+   * Format news articles - OPTIMIZED with parallel metadata fetching
    */
   async formatNews(items, detailLevel, fetchExternal, DataConnector, output, dataCards) {
-    for (let index = 0; index < items.length; index++) {
-      const article = items[index];
+    // Domains that block requests (403/paywall) - skip fetching metadata
+    const BLOCKED_DOMAINS = ['seekingalpha.com', 'wsj.com', 'ft.com', 'barrons.com'];
+    
+    // Provider domain mapping for logo resolution
+    const PROVIDER_DOMAINS = {
+      "Barron's": 'barrons.com',
+      'Zacks': 'zacks.com',
+      'Simply Wall St': 'simplywall.st',
+      'Benzinga': 'benzinga.com',
+      'Motley Fool': 'fool.com',
+      'The Motley Fool': 'fool.com',
+      'InvestorPlace': 'investorplace.com',
+      'Seeking Alpha': 'seekingalpha.com',
+      'MarketWatch': 'marketwatch.com',
+      'TheStreet': 'thestreet.com',
+      'TipRanks': 'tipranks.com',
+      '24/7 Wall St.': '247wallst.com',
+      'Investor\'s Business Daily': 'investors.com',
+      'IBD': 'investors.com'
+    };
+
+    // PHASE 1: Prepare article data and identify which need metadata fetches
+    const articleData = items.map((article, index) => {
       const date = article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown date';
-      
-      // Extract actual source from URL (prioritize domain over aggregator like "Yahoo")
       const domain = article.url ? this.extractDomain(article.url) : null;
       
-      // For Yahoo Finance articles, try to extract the real source from the title or stored data
+      // Determine actual source
       let actualSource = domain || article.origin || 'Unknown';
       if (domain === 'finance.yahoo.com') {
-        // Check if article has a source field from MongoDB
         if (article.source && article.source !== 'Yahoo Finance' && article.source !== 'finance.yahoo.com') {
           actualSource = article.source;
         } else if (article.title) {
-          // Try to extract source from title patterns like "Title - Source Name" or "Source: Title"
-          // Pattern 1: "Article Title - Barron's" or "Article Title - Simply Wall St"
           const dashPattern = article.title.match(/\s+[-–—]\s+([A-Z][A-Za-z\s&.']+)$/);
           if (dashPattern && dashPattern[1]) {
             const potentialSource = dashPattern[1].trim();
-            // Validate it's likely a source name (not just a subtitle)
             if (potentialSource.length < 50 && !potentialSource.match(/\d{4}$/)) {
               actualSource = potentialSource;
             }
           }
         }
       }
-      
-      // Create article card with image/logo for visual display
-      // NOTE: We skip adding title/date/source as plain text to avoid duplication
-      // The VIEW_ARTICLE marker will render all this information in the card
-      if (article.url) {
-        const articleId = `article-${article.ticker || 'news'}-${index}`;
-        
-        // Use Google's favicon service for site logo (fallback)
-        let logoUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null;
-        
-        // ALWAYS try to fetch og:image and provider for article preview (metadata only)
-        // This ensures we get article images and correct source attribution
-        let imageUrl = article.image || null; // Start with stored image from MongoDB
-        let extractedProvider = null; // Provider extracted from Yahoo Finance HTML
-        
-        if (article.url && items.length <= 10 && !imageUrl) {
-          try {
-            // metadataOnly = true: only extract og:image and provider, no article content
-            const contentResult = await DataConnector.fetchWebContent(article.url, 8000, true);
-            if (contentResult.success) {
-              if (contentResult.imageUrl) {
-                imageUrl = contentResult.imageUrl;
-              }
-              // Use extracted provider name for Yahoo articles
-              if (contentResult.providerName) {
-                extractedProvider = contentResult.providerName;
-                // Update logo to use provider's domain favicon
-                const providerDomains = {
-                  "Barron's": 'barrons.com',
-                  'Zacks': 'zacks.com',
-                  'Simply Wall St': 'simplywall.st',
-                  'Benzinga': 'benzinga.com',
-                  'Motley Fool': 'fool.com',
-                  'The Motley Fool': 'fool.com',
-                  'InvestorPlace': 'investorplace.com',
-                  'Seeking Alpha': 'seekingalpha.com',
-                  'MarketWatch': 'marketwatch.com',
-                  'TheStreet': 'thestreet.com',
-                  'TipRanks': 'tipranks.com',
-                  '24/7 Wall St.': '247wallst.com',
-                  'Investor\'s Business Daily': 'investors.com',
-                  'IBD': 'investors.com'
-                };
-                const providerDomain = providerDomains[extractedProvider];
-                if (providerDomain) {
-                  logoUrl = `https://www.google.com/s2/favicons?domain=${providerDomain}&sz=128`;
-                }
+
+      return {
+        article,
+        index,
+        date,
+        domain,
+        actualSource,
+        logoUrl: domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null,
+        imageUrl: article.image || null,
+        extractedProvider: null,
+        needsMetadataFetch: article.url && items.length <= 10 && !article.image && 
+          domain && !BLOCKED_DOMAINS.some(blocked => domain.includes(blocked))
+      };
+    });
+
+    // PHASE 2: Fetch metadata in PARALLEL for articles that need it
+    const metadataPromises = articleData
+      .filter(a => a.needsMetadataFetch)
+      .map(async (a) => {
+        try {
+          const contentResult = await DataConnector.fetchWebContent(a.article.url, 8000, true);
+          if (contentResult.success) {
+            if (contentResult.imageUrl) a.imageUrl = contentResult.imageUrl;
+            if (contentResult.providerName) {
+              a.extractedProvider = contentResult.providerName;
+              const providerDomain = PROVIDER_DOMAINS[contentResult.providerName];
+              if (providerDomain) {
+                a.logoUrl = `https://www.google.com/s2/favicons?domain=${providerDomain}&sz=128`;
               }
             }
-          } catch (error) {
-            // Silently fail - will use logo fallback
           }
+        } catch (error) {
+          // Silently fail - will use fallback values
         }
-        
-        // Use extracted provider if available, otherwise fall back to title parsing or domain
-        const displaySource = extractedProvider || actualSource;
+        return a;
+      });
+
+    // Wait for ALL metadata fetches to complete in parallel
+    await Promise.all(metadataPromises);
+
+    // PHASE 3: Build output and dataCards sequentially (for correct ordering)
+    for (const a of articleData) {
+      const { article, index, domain } = a;
+      
+      if (article.url) {
+        const articleId = `article-${article.ticker || 'news'}-${index}`;
+        const displaySource = a.extractedProvider || a.actualSource;
         
         dataCards.push({
           type: 'article',
@@ -738,17 +747,15 @@ Return ONLY valid JSON.`;
             domain: domain,
             ticker: article.ticker,
             publishedAt: article.published_at,
-            logoUrl: logoUrl,
-            imageUrl: imageUrl,
+            logoUrl: a.logoUrl,
+            imageUrl: a.imageUrl,
             content: article.content ? article.content.substring(0, 200) : null
           }
         });
         
-        // Only output the VIEW_ARTICLE marker - no plain text metadata
         output += `${index + 1}. [VIEW_ARTICLE:${articleId}]\n`;
       }
 
-      // Show article content for AI analysis - ONLY use stored 'content' field from MongoDB
       if (article.content && detailLevel !== 'summary') {
         const contentLength = detailLevel === 'full' ? 5000 : (detailLevel === 'detailed' ? 1000 : 300);
         output += `   Content: ${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
