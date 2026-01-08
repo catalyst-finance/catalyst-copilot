@@ -200,10 +200,14 @@ class StreamProcessor {
         break;
       }
 
-      // No partial marker - emit everything immediately for smooth streaming
+      // No partial marker - emit in smaller chunks for smooth streaming
+      // But not too aggressive to avoid excessive events
       if (!flush) {
-        this.emitText(this.buffer);
-        this.buffer = '';
+        // Emit when we have at least 50 chars or a natural break point
+        if (this.buffer.length > 50 || this.buffer.includes('\n')) {
+          this.emitText(this.buffer);
+          this.buffer = '';
+        }
         break;
       } else {
         // Flush: emit everything

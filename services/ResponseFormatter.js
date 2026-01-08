@@ -16,34 +16,23 @@ class ResponseFormatter {
 
   /**
    * Process a chunk of streaming text
-   * Applies formatting rules in real-time
-   * Passes through incomplete text immediately for smooth streaming
+   * Buffers until complete lines, applies formatting, emits formatted text only
    */
   processChunk(chunk) {
-    // Check if chunk contains newlines (complete lines)
-    if (!chunk.includes('\n')) {
-      // No complete lines - pass through immediately for smooth streaming
-      this.buffer += chunk;
-      return chunk;
-    }
-    
-    // Has newlines - process complete lines, emit incomplete immediately
     this.buffer += chunk;
     
     // Process complete lines only
     const lines = this.buffer.split('\n');
     
-    // Keep incomplete line, emit it immediately (unformatted)
-    const incompleteLine = lines.pop() || '';
-    this.buffer = '';
+    // Keep incomplete line in buffer
+    this.buffer = lines.pop() || '';
     
-    // Format complete lines
+    // Format complete lines and filter out nulls (removed blank lines)
     const formatted = lines.map((line, index) => {
       return this.formatLine(line, index === 0);
     }).filter(l => l !== null).join('\n');
     
-    // Return formatted lines + incomplete line (passes through for smooth streaming)
-    return (formatted ? formatted + '\n' : '') + incompleteLine;
+    return formatted ? formatted + '\n' : '';
   }
 
   /**
