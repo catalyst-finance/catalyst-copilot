@@ -31,12 +31,20 @@ EXAMPLES:
 ✅ "The company completed a $258.9M offering \`[MNMD 8-K - Oct 31, 2025](https://sec.gov/...)\`"
 ❌ "The company's filings show strong progress." (no citation)
 
-**2. Card Marker Placement:**
+**2. Card Marker Placement (CRITICAL - MARKERS MUST FOLLOW THEIR CONTENT):**
 
-- **[VIEW_ARTICLE:...]** → Own line AFTER paragraph discussing the article
-- **[VIEW_CHART:...]** → After discussing current price or price movement
+- **[VIEW_ARTICLE:...]** → Place IMMEDIATELY AFTER the paragraph that discusses THAT SPECIFIC article
+  ✅ CORRECT: "...Tesla faces challenges [VIEW_ARTICLE:abc123]\n\nNext article discussion..."
+  ❌ WRONG: "Recent News:\n[VIEW_ARTICLE:1]\n[VIEW_ARTICLE:2]\n\nArticle discussions..."
+  
+- **[VIEW_CHART:...]** → Place IMMEDIATELY AFTER discussing the price data
+  ✅ CORRECT: "TSLA is trading at $431.83...[VIEW_CHART:TSLA:1D]\n\nAnalyst Ratings..."
+  ❌ WRONG: Placing chart at the end after all text
+  
 - **[IMAGE_CARD:...]** → Inline with SEC filing citations (only if filing contains image)
 - **[EVENT_CARD:...]** → At end of bullet point describing event
+
+**FORBIDDEN**: Never create sections that list all markers together. Each marker MUST immediately follow its discussion.
 
 **3. Content Organization:**
 
