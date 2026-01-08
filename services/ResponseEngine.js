@@ -52,7 +52,7 @@ class ResponseEngine {
 **User's Question:** "${userMessage}"
 **Query Intent:** ${queryIntent.intent}
 **Query Analysis Flags:**
-- needsDeepAnalysis: ${queryIntent.needsDeepAnalysis || false}
+- needsDeepAnalysis: ${queryIntent.needsDeepAnalysis !== false}  // Default true
 - analysisKeywords: ${(queryIntent.analysisKeywords || []).join(', ')}
 
 **Available Data Results:**
@@ -73,27 +73,28 @@ Determine the optimal way to present this data to answer the user's question. Fo
    - summary: Just titles/headlines (use for less relevant data)
    - moderate: Key fields + brief excerpt (default for most data)
    - detailed: All important fields + longer content
-   - full: Everything including fetching external content
-3. **FetchExternalContent** (true/false): Should we fetch full content from URLs?
+   - full: Everything including full content from database
+3. **FetchExternalContent** (true/false): Should we fetch full content from source URLs?
+   - true: Fetch full content from external URLs (sec.gov, news sites, etc.)
+   - false: Use only stored content/metadata in database
+   - Collections that support external fetching: sec_filings, news, press_releases, macro_economics
 4. **FieldsToShow** (array): Which specific fields are most relevant?
 5. **MaxItems** (number): How many items to show (1-30)
 6. **FormattingNotes** (string): Special formatting instructions
 
-**CRITICAL PRINCIPLE - IF YOU PLAN TO REFERENCE IT, YOU MUST ANALYZE IT:**
+**CRITICAL PRINCIPLE - fetchExternalContent USAGE:**
 
-For EVERY data source in your formattingPlan:
-- If the final AI response will likely MENTION or REFERENCE this source → set fetchExternalContent: true, detailLevel: full
-- Don't list documents/filings/news without explaining their content
-- Questions like "Why is [stock] moving?" inherently require analyzing the content of relevant sources
+Set fetchExternalContent: true when:
+- User asks substantive questions requiring full source analysis ("Why is TSLA up?", "What happened?", "Analyze...")
+- The answer requires explaining what's IN the source document
+- Need to analyze news article content beyond just headlines
+- Need to read full SEC filings (10-K, 10-Q, 8-K) for details
+- DEFAULT for needsDeepAnalysis=true queries
 
-Ask yourself: "Will the AI need to explain WHAT'S IN this source to answer the question?"
-- YES → fetchExternalContent: true, detailLevel: full
-- NO (just need to know it exists) → fetchExternalContent: false
-
-**General rules:**
-- If user asks to "analyze" or wants "details" → detailLevel: full, fetchExternalContent: true
-- If user wants "highlights" or "summary" → detailLevel: moderate  
-- If user wants "list" or "recent" → detailLevel: summary
+Set fetchExternalContent: false when:
+- User only wants headlines/titles/metadata
+- Simple list queries ("recent filings", "latest news")
+- Data already has sufficient content in database
 - Government policy: IMPORTANT - transcripts are very long! 
   * detailLevel: full is OK, but ALWAYS limit maxItems to 5-10 maximum to avoid token overflow
   * The system will intelligently filter to show only relevant turns from transcripts
@@ -144,42 +145,10 @@ ALL responses must follow these professional formatting rules:
    - NO blank lines between individual bullets in the same list
    
 4. **Paragraph Spacing (CRITICAL)**:
-   - Each paragraph MUST contain 2-5 related sentences (NOT single sentences)
    - Add ONE blank line between paragraphs (not between sentences within a paragraph)
    - NO blank lines within a single paragraph
-   - Do NOT treat every sentence as its own paragraph
    
-   WRONG approach:
-   First sentence alone.
-   
-   Second sentence alone.
-   
-   CORRECT approach:
-   First sentence begins the paragraph. Second sentence continues the thought. Third sentence completes the idea.
-   
-   Next paragraph starts here with multiple sentences together.
-
-5. **Professional Structure Example**:
-   
-   [Example Format]
-   **Main Section Header**
-   
-   This is the first paragraph with multiple sentences working together. Each sentence adds relevant information. The paragraph flows naturally from one thought to the next.
-   
-   **Subsection Header**
-   
-   - First key point with complete information
-   - Second key point with complete information
-   - Third key point with complete information
-   
-   This paragraph follows the bullets and provides context. It contains several related sentences. Together they explain the significance of the bullet points above.
-   
-   **Next Section Header**
-   
-   Content continues with multiple sentences per paragraph. Each paragraph groups related thoughts together. This creates professional, readable responses.
-   [End Example]
-
-6. **Content Organization**:
+5. **Content Organization**:
    - Lead with most important information
    - Group related information under clear headers
    - Use subsections to break up long sections
@@ -254,7 +223,7 @@ Return ONLY valid JSON.`;
    * Fallback plan if AI formatting fails
    */
   generateFallbackPlan(queryResults, queryIntent) {
-    const needsDeep = queryIntent.needsDeepAnalysis || false;
+    const needsDeep = queryIntent.needsDeepAnalysis !== false; // Default true
     
     return {
       formattingPlan: queryResults.map(result => ({
@@ -627,11 +596,9 @@ Return ONLY valid JSON.`;
         }
       }
       
-      output += `${index + 1}. ${article.title || 'Untitled'} - ${date}\n`;
-      if (article.ticker) output += `   Ticker: ${article.ticker}\n`;
-      output += `   Source: ${actualSource}\n`;
-
       // Create article card with image/logo for visual display
+      // NOTE: We skip adding title/date/source as plain text to avoid duplication
+      // The VIEW_ARTICLE marker will render all this information in the card
       if (article.url) {
         const articleId = `article-${article.ticker || 'news'}-${index}`;
         
@@ -701,17 +668,16 @@ Return ONLY valid JSON.`;
           }
         });
         
-        output += `   **Source:**\n`;
-        output += `   [VIEW_ARTICLE:${articleId}]\n`;
+        // Only output the VIEW_ARTICLE marker - no plain text metadata
+        output += `${index + 1}. [VIEW_ARTICLE:${articleId}]\n`;
       }
 
-      // Show article content - ONLY use stored 'content' field from MongoDB
+      // Show article content for AI analysis - ONLY use stored 'content' field from MongoDB
       if (article.content && detailLevel !== 'summary') {
         const contentLength = detailLevel === 'full' ? 5000 : (detailLevel === 'detailed' ? 1000 : 300);
         output += `   Content: ${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
       }
 
-      if (article.url) output += `   URL: ${article.url}\n`;
       output += `\n`;
     }
 

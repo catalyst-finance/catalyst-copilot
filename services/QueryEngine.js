@@ -68,7 +68,7 @@ class QueryEngine {
     const todayInUserTimezone = this.getTodayInTimezone(timezone);
     console.log(`📅 User timezone: ${timezone}, Today: ${todayInUserTimezone}`);
     
-    const prompt = `You are a database query generator. Based on the user's question, generate the appropriate database queries to answer it.
+    const prompt = `You are a database query generator. Based on the user's question, generate the appropriate database queries to find the information that another AI model will then analyze to answer the user's question.
 
 ${this.schemaContext}
 
@@ -79,12 +79,11 @@ ${this.schemaContext}
 
 **Your Task:**
 1. Understand what the user is asking
-2. Determine which database(s) and collection(s) to query
+2. Determine which database(s), table(s) and collection(s) to query
 3. Generate the exact query object(s) needed
-4. Explain your reasoning
 
 **CRITICAL RULES:**
-- For government policy queries about politicians, ALWAYS query government_policy collection
+- For government policy queries about politicians, prioritize querying government_policy collection in MongoDB
 - Extract semantic synonyms for concepts (e.g., "take a stake" → ["stake", "investment", "invest", "acquire", ...])
 - Use $or to match ANY keyword when searching transcripts
 - Map speaker names correctly (Trump → search for "trump" OR "hassett")
@@ -105,12 +104,11 @@ When users ask about news, price movements, or "why" questions, ALWAYS query BOT
 
 3. **Correlation analysis:**
    - If news is overwhelmingly positive/negative, speculate it may have caused recent price movement
-   - Always include price data when discussing news to show actual market reaction
    - Set needsChart=true when discussing price movements so a mini chart can be included
 
 4. **Time-based correlation queries:**
    - For "why did X happen on [date]" → query all sources (news, price_targets, sec_filings, press_releases) filtered to that date range
-   - For "what caused the spike/drop" → first identify when the spike occurred from price data, then query news from ±1-2 days
+   - For "what caused the spike/drop" → first identify when the spike occurred from price data, then query news from ±1-2 days.
 
 Return JSON with this structure:
 {
@@ -126,7 +124,7 @@ Return JSON with this structure:
   ],
   "extractCompanies": true | false,
   "needsChart": true | false,
-  "needsDeepAnalysis": true | false,  // Set true for SEC filing analysis, detailed content examination
+  "needsDeepAnalysis": true | false,  // DEFAULT: true - Should be true for almost all questions
   "analysisKeywords": ["keyword1", "keyword2"],  // Keywords to search for in SEC filing content
   "chartConfig": {  // Optional - specify chart parameters when needsChart is true
     "symbol": "TSLA",
@@ -137,23 +135,23 @@ Return JSON with this structure:
 }
 
 **CRITICAL: needsDeepAnalysis flag**
-This flag tells the system to fetch full content from source URLs, not just use stored metadata/summaries.
+This should be TRUE by default for almost all questions. It enables comprehensive AI analysis.
 
-Set needsDeepAnalysis=true when:
-- User says "analyze", "examine", "review", "look at", "what does it say", "tell me about", "explain"
+Set needsDeepAnalysis=true (DEFAULT) when:
+- User asks any substantive question requiring analysis
+- User wants to understand news, filings, data, or market movements
+- User says "analyze", "examine", "review", "look at", "what does it say", "tell me about", "explain", "why"
 - User wants detailed information from SEC filings (financials, R&D, products, risks)
-- User wants to read/understand news articles in depth
-- User wants full press release content (not just titles)
-- User wants detailed economic data/reports
-- User asks about specific details that require reading the full source
+- User wants to understand news articles and their implications
+- User wants full press release or economic report content
+- User asks about specific details, trends, or insights
 - User asks about financial figures, revenue, cash position, expenses
 - User asks about product development, trials, pipeline, research
+- User asks "why" questions ("why is TSLA up?", "why did it drop?")
 
-Set needsDeepAnalysis=false when:
-- User just wants a list/overview (recent filings, recent news headlines)
-- User asks "when was the last 10-Q filed?" (just needs date)
-- Simple metadata queries (counts, dates, names)
-- User wants a quick summary, not detailed analysis
+Set needsDeepAnalysis=false (RARE) when:
+- Simple metadata queries ("when was the last 10-Q filed?")
+- User explicitly wants just a list/headlines without analysis
 
 **Collections that support deep analysis (URL content fetching):**
 - sec_filings: Fetches full filing content from SEC.gov
@@ -197,7 +195,7 @@ Response:
   ],
   "extractCompanies": true,
   "needsChart": false,
-  "needsDeepAnalysis": false,
+  "needsDeepAnalysis": true,
   "analysisKeywords": ["stake", "investment", "invest", "acquire", "company", "companies"],
   "intent": "Find companies mentioned by Trump administration in context of taking stakes/investments"
 }
@@ -226,7 +224,7 @@ Response:
   ],
   "extractCompanies": false,
   "needsChart": false,
-  "needsDeepAnalysis": false,
+  "needsDeepAnalysis": true,
   "analysisKeywords": [],
   "intent": "Analyst sentiment and ratings for TSLA"
 }
@@ -247,7 +245,7 @@ Response:
   ],
   "extractCompanies": false,
   "needsChart": false,
-  "needsDeepAnalysis": false,
+  "needsDeepAnalysis": true,
   "analysisKeywords": [],
   "intent": "Find CEO statements from TMC's latest earnings call"
 }
@@ -291,7 +289,7 @@ Response:
   "needsChart": false,
   "needsDeepAnalysis": false,
   "analysisKeywords": [],
-  "intent": "Find filing date of AAPL's most recent 10-K"
+  "intent": "Find filing date of AAPL's most recent 10-K (metadata query only)"
 }
 
 **EXAMPLE 6 (Company Information - Supabase):**
