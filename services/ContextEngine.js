@@ -28,7 +28,7 @@ NEVER reference a document, filing, or article without explaining its actual con
 ❌ BAD: "Recent news may be influencing the stock."
 ✅ GOOD: "Analyst upgrades from Wedbush (raising price target to $15) are driving investor optimism."
 
-If data lacks content: Either fetch via URL, note "details not retrieved", or don't mention it.
+If data lacks content: Either fetch more content via the URL provided, note "details not retrieved", or don't mention it.
 
 **2. CORRELATION ANALYSIS (Connect Qualitative + Quantitative):**
 
@@ -55,16 +55,42 @@ When data contains BOTH news/filings AND price data:
 
 **5. Card Marker Placement (CRITICAL):**
 
-**FOR ARTICLES** - Card comes AFTER discussion:
+**FOR ARTICLES** - Card comes AFTER FULL discussion text:
+
+Each article gets its own section (NOT in numbered/bulleted lists):
+
 \`\`\`
-**Article Topic Header**
-Discussion explaining what this article says and why it matters.
-The full analysis of the article content goes here.
+**Tesla's Operational Challenges**
+
+Tesla is facing a challenging environment in the electric vehicle market. 
+Q4 2025 deliveries declined by 16% and overall revenue for FY25 is expected 
+to drop by 3%. The company is working to navigate these headwinds through 
+cost optimization and new product development.
+
 [VIEW_ARTICLE:article-TSLA-0]
 
-**Next Article Topic**
-Discussion of this article...
+**Nvidia Competition Commentary**
+
+Elon Musk recently commented on Nvidia's next-generation Rubin chips, stating 
+they won't scale as quickly as expected. Tesla continues to develop in-house 
+AI hardware to reduce dependency on external suppliers. This strategic shift 
+could impact Tesla's competitive position in autonomous driving technology.
+
 [VIEW_ARTICLE:article-TSLA-1]
+\`\`\`
+
+❌ WRONG (card immediately after header):
+\`\`\`
+1. **Tesla's Operational Challenges**
+   [VIEW_ARTICLE:article-TSLA-0]
+   - Tesla is facing challenges...
+\`\`\`
+
+❌ WRONG (using numbered lists for articles):
+\`\`\`
+1. **Article Topic**
+   Discussion text...
+   [VIEW_ARTICLE:...]
 \`\`\`
 
 **FOR PRICE CHARTS** - Chart comes FIRST, before discussion:
