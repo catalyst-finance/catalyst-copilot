@@ -32,7 +32,15 @@ const UNIVERSAL_FORMATTING_RULES = `
    - **IMAGES**: [IMAGE_CARD:...] inline with SEC filing citations
    - **EVENTS**: [EVENT_CARD:...] at end of bullet describing that event
 
-6. **Article Structure**: Each article gets Header → Paragraph(s) of analysis → [VIEW_ARTICLE:...] marker. NO numbered or bulleted lists for article analysis, unless 3 or more critical, key points must be listed.
+6. **Article Structure - FOLLOW THIS EXACT PATTERN**:
+   ❌ WRONG: [VIEW_ARTICLE:X] then discussion
+   ❌ WRONG: Title [VIEW_ARTICLE:X] then discussion  
+   ✅ CORRECT: Title → Discussion paragraph(s) → [VIEW_ARTICLE:X]
+   
+   Example:
+   **Tesla Announces Breakthrough** (Reuters, 1/8/2026)
+   Tesla's new battery technology represents a major advancement in EV range, potentially increasing...
+   [VIEW_ARTICLE:article-TSLA-0]
 
 7. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
 `;
@@ -701,6 +709,19 @@ class ContextEngine {
     await Promise.all(metadataPromises);
 
     // PHASE 3: Build output and dataCards sequentially (for correct ordering)
+    
+    // Add explicit marker placement instruction
+    output += `\n⚠️ CRITICAL MARKER PLACEMENT FOR ARTICLES:\n`;
+    output += `REQUIRED STRUCTURE FOR EACH ARTICLE:\n`;
+    output += `1. Write article header (title, source, date)\n`;
+    output += `2. Write 1-3 paragraphs analyzing this specific article's content\n`;
+    output += `3. THEN place the [VIEW_ARTICLE:...] marker at the end\n`;
+    output += `\nEXAMPLE CORRECT FORMAT:\n`;
+    output += `**Article Title** (Source, Date)\n`;
+    output += `This article discusses... [your analysis paragraph].\n`;
+    output += `[VIEW_ARTICLE:article-X-0]\n`;
+    output += `\n⚠️ DO NOT place [VIEW_ARTICLE] markers before or during the discussion - ONLY AFTER.\n\n`;
+    
     for (const a of articleData) {
       const { article, index, domain } = a;
       
@@ -733,10 +754,10 @@ class ContextEngine {
         output += `${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
       }
       
-      // Place actual marker in data context - GPT will see the pattern and preserve it
+      // Show marker alone - GPT should write discussion BEFORE this marker
       if (article.url) {
         const articleId = `article-${article.ticker || 'news'}-${index}`;
-        output += `\n[Discussion of implications goes here]\n[VIEW_ARTICLE:${articleId}]\n`;
+        output += `[VIEW_ARTICLE:${articleId}]\n`;
       }
 
       output += `\n`;
