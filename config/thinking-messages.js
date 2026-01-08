@@ -136,9 +136,12 @@ function buildPromptForPhase(phase, context) {
     case 'fetching_content':
       const collectionName = getCollectionFriendlyName(context.collection);
       const fetchCount = context.count || 1;
-      const title = context.title ? context.title.substring(0, 30) : null;
-      if (title) {
-        description = `reading "${title}..." from ${collectionName}`;
+      const fetchTicker = context.ticker;
+      
+      if (fetchTicker && fetchCount > 1) {
+        description = `loading ${fetchCount} ${collectionName} about ${fetchTicker}`;
+      } else if (fetchTicker) {
+        description = `reading ${collectionName} about ${fetchTicker}`;
       } else if (fetchCount > 1) {
         description = `loading ${fetchCount} ${collectionName}`;
       } else {
@@ -231,9 +234,10 @@ function getFallbackMessage(phase, context) {
     case 'fetching_content': {
       const collection = getCollectionFriendlyName(context.collection || 'content');
       const count = context.count || 1;
-      const title = context.title?.substring(0, 20);
+      const ticker = context.ticker;
       
-      if (title) return `Reading ${title}...`;
+      if (ticker && count > 1) return `Reading ${count} ${ticker} ${collection}`;
+      if (ticker) return `Reading ${ticker} ${collection}`;
       if (count > 1) return `Reading ${count} ${collection}`;
       return `Reading ${collection}`;
     }
