@@ -32,7 +32,7 @@ const UNIVERSAL_FORMATTING_RULES = `
    - **IMAGES**: [IMAGE_CARD:...] inline with SEC filing citations
    - **EVENTS**: [EVENT_CARD:...] at end of bullet describing that event
 
-6. **Article Structure**: Each article gets Header → Paragraph(s) of analysis → [VIEW_ARTICLE:...] marker. NO numbered lists for articles.
+6. **Article Structure**: Each article gets Header → Paragraph(s) of analysis → [VIEW_ARTICLE:...] marker. NO numbered or bulleted lists for article analysis, unless 3 or more critical, key points must be listed.
 
 7. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
 `;
@@ -51,11 +51,8 @@ const RESPONSE_STYLE_OPTIONS = `
 - **list_format**: Present as a list of items (list recent, show top 5)
 - **conversational**: Natural flowing narrative (general questions)
 
-**Tone Options:**
-- **analytical**: Professional, data-focused, objective
-- **concise**: Brief, to-the-point
-- **comprehensive**: Detailed, thorough, includes context
-- **explanatory**: Educational, walks through concepts`;
+**Tone:**
+- **analytical + comprehensive**: Professional, data-focused, objective, detailed, thorough, includes context
 
 /**
  * Detail level decision criteria
@@ -167,7 +164,7 @@ class ContextEngine {
     // Determine response style based on query type
     let responseStyle = {
       format: 'structured_analysis',
-      tone: 'analytical',
+      tone: 'analytical + comprehensive',
       instructions: ''
     };
     
