@@ -437,7 +437,7 @@ class ContextEngine {
           count: itemsToShow.length,
           contentType,
           collection: collection,
-          title: itemsToShow[0]?.title || itemsToShow[0]?.form_type || null
+          ticker: itemsToShow[0]?.ticker || null
         });
         if (thinkingMsg) sendThinking('retrieving', thinkingMsg);
       }
@@ -774,8 +774,8 @@ class ContextEngine {
           
           // Send granular thinking message for each article
           if (sendThinking && idx < 3) { // Show thinking for first 3 articles to avoid spam
-            const titlePreview = a.article.title?.substring(0, 40) || 'article';
-            sendThinking('retrieving', `Reading ${titlePreview}...`);
+            const ticker = a.article.ticker || 'company';
+            sendThinking('retrieving', `Reading ${ticker} news`);
           }
           
           const contentResult = await DataConnector.fetchWebContent(a.article.url, 8000, true);
