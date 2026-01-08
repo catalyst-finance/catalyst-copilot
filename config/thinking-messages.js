@@ -193,7 +193,7 @@ function getFallbackMessage(phase, context) {
     case 'sec_filings': {
       const ticker = context.ticker || 'company';
       const formType = context.formType;
-      return formType ? `Checking ${ticker} ${formType}` : `Checking ${ticker} filings`;
+      return formType ? `Reviewing ${ticker} ${formType}` : `Reviewing ${ticker} filings`;
     }
     
     case 'news': {
@@ -203,7 +203,7 @@ function getFallbackMessage(phase, context) {
     
     case 'price_data': {
       const ticker = context.ticker || (context.tickers?.length > 0 ? context.tickers[0] : null);
-      return ticker ? `Getting ${ticker} price` : 'Getting prices';
+      return ticker ? `Checking ${ticker} price` : 'Checking prices';
     }
     
     case 'plan_start': {
@@ -220,12 +220,12 @@ function getFallbackMessage(phase, context) {
         return null; // Skip message for price data
       }
       
-      return count ? `Organizing ${count} ${collections}` : `Planning ${collections}`;
+      return count ? `Reviewing ${count} ${collections}` : `Planning ${collections}`;
     }
     
     case 'plan_generated': {
       const itemCount = context.plan?.formattingPlan?.length;
-      return itemCount ? `Structuring ${itemCount} sources` : 'Organizing analysis';
+      return itemCount ? `Organizing ${itemCount} sources` : 'Organizing analysis';
     }
     
     case 'fetching_content': {
@@ -234,7 +234,7 @@ function getFallbackMessage(phase, context) {
       const title = context.title?.substring(0, 20);
       
       if (title) return `Reading ${title}...`;
-      if (count > 1) return `Loading ${count} ${collection}`;
+      if (count > 1) return `Reading ${count} ${collection}`;
       return `Reading ${collection}`;
     }
     
@@ -252,19 +252,19 @@ function getFallbackMessage(phase, context) {
       
       // News collection: the actual work is fetching metadata, not formatting
       if (context.collection === 'news') {
-        if (ticker && count > 0) return `Loading ${count} ${ticker} articles`;
-        if (count > 0) return `Loading ${count} articles`;
-        return 'Loading articles';
+        if (ticker && count > 0) return `Reading ${count} ${ticker} articles`;
+        if (count > 0) return `Reading ${count} articles`;
+        return 'Reading articles';
       }
       
-      if (ticker && count > 0) return `Formatting ${ticker} (${count})`;
-      if (count > 0 && collection) return `Formatting ${count} ${collection}`;
-      if (collection) return `Formatting ${collection}`;
-      return 'Formatting response';
+      if (ticker && count > 0) return `Reviewing ${ticker} (${count})`;
+      if (count > 0 && collection) return `Reviewing ${count} ${collection}`;
+      if (collection) return `Reviewing ${collection}`;
+      return 'Reviewing response';
     }
     
     default:
-      return 'Processing';
+      return 'Working';
   }
 }
 
