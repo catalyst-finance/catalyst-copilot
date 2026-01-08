@@ -828,7 +828,9 @@ class ContextEngine {
         });
         
         // Show clear example structure: Header → Content → Discussion space → Marker
-        output += `\n**${article.title || 'Untitled'}** (${displaySource}, ${article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown'})\n`;
+        const outputLine = `\n**${article.title || 'Untitled'}** (${displaySource}, ${article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown'})\n`;
+        console.log(`     Output Text: ${outputLine.trim().substring(0, 80)}...`);
+        output += outputLine;
       }
 
       if (article.content && detailLevel !== 'summary') {
@@ -848,6 +850,16 @@ class ContextEngine {
 
     console.log(`\n✅ PHASE 3 complete: Created ${dataCards.length} data cards from ${articleData.length} articles\n`);
     console.log(`📋 Final DataCards Array (${dataCards.length} cards):`);
+    dataCards.forEach((card, idx) => {
+      console.log(`  [${idx}] ${card.data.id}: "${card.data.title?.substring(0, 50)}..."`);
+    });
+    console.log(`\n📄 Article Order in Data Context Output:`);
+    articleData.forEach((a, idx) => {
+      if (a.article.url) {
+        console.log(`  [${idx}] article-${a.article.ticker || 'news'}-${a.index}: "${a.article.title?.substring(0, 50)}..."`);
+      }
+    });
+    console.log(``);
     dataCards.forEach((card, idx) => {
       console.log(`  [${idx}] ${card.data.id}: "${card.data.title?.substring(0, 50)}..."`);
     });
