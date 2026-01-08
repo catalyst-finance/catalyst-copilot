@@ -724,8 +724,7 @@ class ContextEngine {
           }
         });
         
-        // Format as standalone sections, NOT numbered lists
-        // This guides GPT to write paragraphs, not list items
+        // Show clear example structure: Header → Content → Discussion space → Marker
         output += `\n**${article.title || 'Untitled'}** (${displaySource}, ${article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown'})\n`;
       }
 
@@ -734,10 +733,10 @@ class ContextEngine {
         output += `${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
       }
       
-      // Marker instruction comes LAST - after all article info
+      // Place actual marker in data context - GPT will see the pattern and preserve it
       if (article.url) {
         const articleId = `article-${article.ticker || 'news'}-${index}`;
-        output += `→ Discuss this article's implications, then place: [VIEW_ARTICLE:${articleId}]\n`;
+        output += `\n[Discussion of implications goes here]\n[VIEW_ARTICLE:${articleId}]\n`;
       }
 
       output += `\n`;
