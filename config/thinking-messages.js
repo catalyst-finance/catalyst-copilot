@@ -247,11 +247,16 @@ function getFallbackMessage(phase, context) {
       const count = context.count || 0;
       const ticker = context.ticker;
       
-      // Filter out stock price data collections
+      // Price data collections: show message without count (avoid "Reviewing 874 10-minute price data")
       if (context.collection === 'finnhub_quote_snapshots' || 
           context.collection === 'one_minute_prices' || 
-          context.collection === 'daily_prices') {
-        return null; // Skip message for price data
+          context.collection === 'ten_minute_prices' ||
+          context.collection === 'hourly_prices' ||
+          context.collection === 'daily_prices' ||
+          context.collection === 'intraday_prices' ||
+          context.collection === 'stock_quote_now') {
+        if (ticker) return `Reviewing ${ticker} price data`;
+        return 'Reviewing price data';
       }
       
       // News collection: the actual work is fetching metadata, not formatting
