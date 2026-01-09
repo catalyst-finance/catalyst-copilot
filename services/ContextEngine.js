@@ -54,42 +54,58 @@ const UNIVERSAL_FORMATTING_RULES = `
    ❌ WRONG: "Tesla's stock is up..." (missing chart marker at start)
    ❌ WRONG: Leave marker at end of response (must move to start)
 
-6. **Article Discussion Format - MANDATORY 4-PART STRUCTURE**:
-   ⚠️ THIS APPLIES TO BOTH NEWS ARTICLES AND PRESS RELEASES ⚠️
+6. **Article & Press Release Discussion Format - MANDATORY 4-PART STRUCTURE**:
+   🚨 THIS APPLIES TO ALL NEWS ARTICLES AND ALL PRESS RELEASES 🚨
    
-   Part 1: Header - Create a UNIQUE thematic header, NOT the article's exact title
-   Part 2: Discussion - 1-2 paragraphs, each with 1-3 sentences analyzing the content
-   Part 3: [VIEW_ARTICLE:article-X-Y] or [VIEW_ARTICLE:press-X-Y] marker
-   Part 4: Horizontal separator (auto-added by backend)
+   REQUIRED SEQUENCE FOR EVERY ARTICLE/PRESS RELEASE:
+   1️⃣ Header (numbered, bold): "1. **Topic Header**"
+   2️⃣ Discussion: 1-2 paragraphs analyzing the content (1-3 sentences each)
+   3️⃣ Marker: [VIEW_ARTICLE:article-X-Y] or [VIEW_ARTICLE:press-X-Y]
+   4️⃣ Separator: Horizontal rule (auto-added by backend)
    
-   ✅ HEADER RULES:
-   - Create descriptive, thematic headers: "### Insider Trading Activity" ✅
-   - DO NOT copy article title: "### TMC Chief Development Officer Was Highly..." ❌
-   - Summarize the TOPIC, not repeat the title
+   HEADER REQUIREMENTS:
+   • Use numbered, bold format: "1. **Market Analysis**" or "2. **Board Changes**"
+   • Create thematic headers, NOT article titles
+   • Summarize the TOPIC or theme of the discussion
    
-   ✅ DISCUSSION RULES:
-   - Write 1-2 analytical paragraphs (not just facts)
-   - Extract key details from the content provided
-   - Explain significance, context, or implications
-   - Place marker AFTER all discussion text
+   DISCUSSION REQUIREMENTS:
+   • Write 1-2 analytical paragraphs (NOT just listing facts)
+   • Extract insights from the content/data provided
+   • Explain significance, context, implications, or background
+   • Place [VIEW_ARTICLE:...] marker AFTER all discussion text
    
-   ✅ CORRECT STRUCTURE FOR NEWS:
-   ### Insider Trading Activity
+   ✅ CORRECT (News Article):
+   1. **Insider Trading Activity**
    Recent insider sales by TMC's Chief Development Officer raised concerns about
    leadership confidence. The executive sold 50,000 shares at an average price of
    $12.50, representing 25% of their holdings.
    [VIEW_ARTICLE:article-TMC-0]
    
-   ✅ CORRECT STRUCTURE FOR PRESS RELEASES:
-   ### Board Appointment
-   Steve Jurvetson joined TMC's board on April 10, 2024, bringing decades of
-   experience in technology and automotive sectors. His background in venture
-   capital and previous board positions at Tesla make him a strategic addition
+   ✅ CORRECT (Press Release - 1 Paragraph):
+   1. **Board Leadership Addition**
+   Steve Jurvetson joined TMC's board on April 10, 2024, as Vice Chairman and
+   Special Advisor to the CEO. His extensive background in venture capital and
+   previous board positions at Tesla and SpaceX bring valuable strategic insight
    as TMC transitions to commercial production.
    [VIEW_ARTICLE:press-TMC-4]
    
-   ❌ WRONG (no analysis):
-   Steve Jurvetson joined TMC's board on April 10, 2024.
+   ✅ CORRECT (Press Release - 2 Paragraphs):
+   2. **Strategic Partnership Announcement**
+   The company announced a partnership with XYZ Corporation to expand manufacturing
+   capabilities. This collaboration will enable increased production capacity and
+   reduced lead times for critical components.
+
+   The partnership builds on previous collaborations and represents a key milestone
+   in the company's growth strategy. Industry experts view this as strengthening
+   competitive positioning in the domestic supply chain.
+   [VIEW_ARTICLE:press-ABC-1]
+   
+   ❌ WRONG (Plain text without structure):
+   Steve Jurvetson joined TMC's board on April 10, 2024, as Vice Chairman...
+   [VIEW_ARTICLE:press-TMC-4]
+   
+   ❌ WRONG (Using article title as header):
+   1. **Steve Jurvetson, a Renowned Silicon Valley Investor, Joins TMC's Board...**
    [VIEW_ARTICLE:press-TMC-4]
 
 7. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
