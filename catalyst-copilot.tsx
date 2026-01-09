@@ -180,8 +180,9 @@ function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: S
     }
     
     // Check for [HR] (horizontal rule) marker
-    const hrMatch = remaining.match(/^(\s*)\[HR\](\s*)/);
+    const hrMatch = remaining.match(/^\s*\[HR\]\s*/);
     if (hrMatch) {
+      console.log(`✅ [extractStreamBlocks] Creating HORIZONTAL_RULE block`);
       blocks.push({
         id: `hr-${blockId++}-${Math.random().toString(36).substr(2, 5)}`,
         type: 'horizontal_rule',
@@ -191,8 +192,8 @@ function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: S
       continue;
     }
     
-    // Look for the next marker or paragraph break
-    const nextMarkerMatch = remaining.match(/\[(?:VIEW_CHART|VIEW_ARTICLE|IMAGE_CARD|EVENT_CARD):[^\]]+\]/);
+    // Look for the next marker or paragraph break (include [HR] in the pattern)
+    const nextMarkerMatch = remaining.match(/\[(?:VIEW_CHART|VIEW_ARTICLE|IMAGE_CARD|EVENT_CARD):[^\]]+\]|\[HR\]/);
     const nextDoubleNewline = remaining.indexOf('\n\n');
     
     // Determine where to cut the text block
