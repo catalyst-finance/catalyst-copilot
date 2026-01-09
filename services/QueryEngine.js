@@ -131,7 +131,7 @@ Return JSON with this structure:
   "analysisKeywords": ["keyword1", "keyword2"],  // Keywords to search for in SEC filing content
   "chartConfig": {  // Optional - specify chart parameters when needsChart is true
     "symbol": "TSLA",
-    "timeRange": "1d" | "5d" | "1m" | "3m" | "1y",  // How much history to show
+    "timeRange": "1D" | "5D" | "1M" | "3M" | "1Y",  // How much history to show (UPPERCASE)
     "highlightDate": "2026-01-05"  // Optional - date to highlight on chart
   },
   "intent": "brief description of user's intent"
