@@ -28,7 +28,6 @@ const UNIVERSAL_FORMATTING_RULES = `
    4️⃣ Then numbered sections analyzing specific factors
    
    ✅ CORRECT EXAMPLE:
-   ```
    [VIEW_CHART:TMC:1M]
    
    Over the past month, TMC's stock has experienced volatility, declining approximately 12% from $4.80 to $4.23, with notable fluctuations around key regulatory announcements.
@@ -37,15 +36,12 @@ const UNIVERSAL_FORMATTING_RULES = `
    
    1. **Insider Trading Activity**
    The Metals Company's Chief Development Officer...
-   ```
    
    ❌ WRONG (jumping straight to numbered sections):
-   ```
    [VIEW_CHART:TMC:1M]
    
    1. **Insider Trading Activity**
    The Metals Company's Chief Development Officer...
-   ```
    
    NOTE: This applies specifically to "what's driving price" queries. Other query types can start normally.
 
