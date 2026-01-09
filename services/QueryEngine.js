@@ -57,6 +57,123 @@ class QueryEngine {
   }
 
   /**
+   * Calculate date range for chart time ranges - aligns with frontend chart logic
+   * @param {string} timeRange - Time range like '1D', '5D', '1M', '3M', '1Y', '5Y'
+   * @param {string} userTimezone - User's timezone (default: America/New_York)
+   * @returns {Object} { startDate, endDate, table, limit, timeColumn }
+   */
+  calculateDateRangeForTimeRange(timeRange, userTimezone = 'America/New_York') {
+    const now = new Date();
+    let startDate;
+    let table;
+    let limit;
+
+    switch (timeRange.toUpperCase()) {
+      case '1D':
+        // For 1D, handle early morning hours before market open
+        const nowET = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const currentHourET = nowET.getHours();
+        
+        let marketDate;
+        if (currentHourET < 4) {
+          // Before 4 AM ET - show previous day's data
+          marketDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        } else {
+          // After 4 AM ET - show today's data
+          marketDate = now;
+        }
+        
+        // Set start time to 4 AM ET of the target market date
+        const marketDateET = new Date(marketDate.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const marketStartET = new Date(
+          marketDateET.getFullYear(),
+          marketDateET.getMonth(),
+          marketDateET.getDate(),
+          4, // 4 AM ET - pre-market start
+          0, 0, 0
+        );
+        
+        startDate = marketStartET;
+        table = 'one_minute_prices';
+        limit = 720;
+        break;
+
+      case '5D':
+        startDate = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+        table = 'one_minute_prices';
+        limit = 1950;
+        break;
+
+      case '1W':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        table = 'ten_minute_prices';
+        limit = 1000;
+        break;
+
+      case '1M':
+        // For 1M, go back 30 days but start from 4 AM ET of that day
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgoET = new Date(thirtyDaysAgo.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const monthStartET = new Date(
+          thirtyDaysAgoET.getFullYear(),
+          thirtyDaysAgoET.getMonth(),
+          thirtyDaysAgoET.getDate(),
+          4, // 4 AM ET
+          0, 0, 0
+        );
+        
+        startDate = monthStartET;
+        table = 'ten_minute_prices';
+        limit = 4500;
+        break;
+
+      case '3M':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        table = 'daily_prices';
+        limit = 90;
+        break;
+
+      case '6M':
+        startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+        table = 'daily_prices';
+        limit = 180;
+        break;
+
+      case '1Y':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        table = 'daily_prices';
+        limit = 365;
+        break;
+
+      case '5Y':
+        startDate = new Date(now.getTime() - 5 * 365 * 24 * 60 * 60 * 1000);
+        table = 'daily_prices';
+        limit = 1825;
+        break;
+
+      default:
+        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        table = 'one_minute_prices';
+        limit = 500;
+    }
+
+    // Determine time column based on table type
+    const isDailyPrices = table === 'daily_prices';
+    const timeColumn = isDailyPrices ? 'date' : 'timestamp';
+
+    console.log(`📅 [calculateDateRangeForTimeRange] timeRange=${timeRange}, table=${table}, startDate=${startDate.toISOString()}, limit=${limit}`);
+
+    return { 
+      startDate, 
+      endDate: now, 
+      table, 
+      limit, 
+      timeColumn,
+      isDailyPrices 
+    };
+  }
+
+  /**
    * Generate queries using AI instead of hardcoded logic
    * @param {string} userMessage - The user's question
    * @param {string[]} userPortfolio - User's portfolio tickers
@@ -437,7 +554,7 @@ Response:
   }
 }
 
-**EXAMPLE 11 (Historical Daily Price Data - CRITICAL: Use 'date' not 'timestamp'):**
+**EXAMPLE 11 (Price Data with Chart - Backend auto-selects correct table):**
 User: "What's driving TMC's stock price over the past month?"
 Response:
 {
@@ -446,16 +563,16 @@ Response:
       "database": "supabase",
       "collection": "daily_prices",
       "query": {"symbol": "TMC"},
-      "sort": {"date": "desc"},  // MUST be 'date' not 'timestamp'
+      "sort": {"date": "asc"},
       "limit": 30,
-      "reasoning": "Get historical daily price data for TMC. Use 'date' field for sorting, not 'timestamp'"
+      "reasoning": "Get price data for TMC - backend will auto-select ten_minute_prices for 1M timeRange"
     },
     {
       "database": "supabase",
       "collection": "stock_quote_now",
       "query": {"symbol": "TMC"},
       "limit": 1,
-      "reasoning": "Get current/live price to show today's price and change alongside historical data"
+      "reasoning": "Get current/live price to show today's price and change"
     },
     {
       "database": "mongodb",
@@ -477,6 +594,10 @@ Response:
     "highlightDate": null
   }
 }
+NOTE: When chartConfig.timeRange is set, backend automatically:
+- Maps 1D/5D → one_minute_prices, 1W/1M → ten_minute_prices, 3M+ → daily_prices
+- Uses correct date filtering aligned with frontend chart
+- Sorts chronologically (ASC) for proper chart data
 
 **EXAMPLE 12 (Explaining Price Movement):**
 User: "Why did NVDA spike today?" or "What caused the drop in AAPL?"
@@ -701,62 +822,108 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
               reasoning: query.reasoning
             });
             console.log(`   ✅ Found ${formattedData.length} quote snapshots (source: ${result.data?.source || 'unknown'})`);
-          } else if (query.collection === 'one_minute_prices' || query.collection === 'daily_prices' || query.collection === 'hourly_prices' || query.collection === 'stock_quote_now') {
+          } else if (query.collection === 'one_minute_prices' || query.collection === 'daily_prices' || query.collection === 'hourly_prices' || query.collection === 'ten_minute_prices' || query.collection === 'stock_quote_now') {
             // Fetch price history from Supabase
             const { supabase } = require('../config/database');
             
-            let supabaseQuery = supabase
-              .from(query.collection)
-              .select('*');
+            // Check if we should use chart-aligned date range calculation
+            // This ensures backend queries match frontend chart data exactly
+            let actualCollection = query.collection;
+            let calculatedDateRange = null;
             
-            // Apply query filters
-            Object.keys(query.query).forEach(key => {
-              const value = query.query[key];
+            if (queryPlan.chartConfig && queryPlan.chartConfig.timeRange && query.query.symbol) {
+              // Use chart-aligned date range calculation
+              calculatedDateRange = this.calculateDateRangeForTimeRange(
+                queryPlan.chartConfig.timeRange,
+                'America/New_York'
+              );
               
-              // Handle AI-generated queries like "timestamp_gte" or "timestamp_lte"
-              // Convert them to proper Supabase filter calls
-              if (key.endsWith('_gte')) {
-                const actualKey = key.replace('_gte', '');
-                supabaseQuery = supabaseQuery.gte(actualKey, value);
-              } else if (key.endsWith('_lte')) {
-                const actualKey = key.replace('_lte', '');
-                supabaseQuery = supabaseQuery.lte(actualKey, value);
-              } else if (key.endsWith('_gt')) {
-                const actualKey = key.replace('_gt', '');
-                supabaseQuery = supabaseQuery.gt(actualKey, value);
-              } else if (key.endsWith('_lt')) {
-                const actualKey = key.replace('_lt', '');
-                supabaseQuery = supabaseQuery.lt(actualKey, value);
-              } else if (typeof value === 'object' && value !== null) {
-                // Handle nested operators like { gte: "2026-01-05T00:00:00Z" }
-                Object.keys(value).forEach(op => {
-                  if (op === 'gte') {
-                    supabaseQuery = supabaseQuery.gte(key, value[op]);
-                  } else if (op === 'lte') {
-                    supabaseQuery = supabaseQuery.lte(key, value[op]);
-                  } else if (op === 'gt') {
-                    supabaseQuery = supabaseQuery.gt(key, value[op]);
-                  } else if (op === 'lt') {
-                    supabaseQuery = supabaseQuery.lt(key, value[op]);
-                  }
-                });
-              } else {
-                // Simple equality
-                supabaseQuery = supabaseQuery.eq(key, value);
+              // Override collection with calculated table if it's a price history query
+              if (query.collection !== 'stock_quote_now') {
+                actualCollection = calculatedDateRange.table;
+                console.log(`   📊 Chart-aligned query: Using ${actualCollection} instead of ${query.collection} for ${queryPlan.chartConfig.timeRange}`);
               }
-            });
-            
-            // Apply sorting
-            if (query.sort) {
-              Object.keys(query.sort).forEach(key => {
-                const direction = query.sort[key] === 'desc' || query.sort[key] === -1 ? 'desc' : 'asc';
-                supabaseQuery = supabaseQuery.order(key, { ascending: direction === 'asc' });
-              });
             }
             
-            // Apply limit
-            if (query.limit) {
-              supabaseQuery = supabaseQuery.limit(query.limit);
+            let supabaseQuery = supabase
+              .from(actualCollection)
+              .select('*');
+            
+            // If we have calculated date range, apply it
+            if (calculatedDateRange && actualCollection !== 'stock_quote_now') {
+              const symbol = query.query.symbol;
+              const { startDate, timeColumn, isDailyPrices, limit } = calculatedDateRange;
+              
+              // Apply symbol filter
+              supabaseQuery = supabaseQuery.eq('symbol', symbol);
+              
+              // Apply date filter with correct format for the column type
+              if (isDailyPrices) {
+                // daily_prices uses 'date' column with YYYY-MM-DD format
+                supabaseQuery = supabaseQuery.gte('date', startDate.toISOString().split('T')[0]);
+              } else {
+                // Intraday tables use 'timestamp' column with full ISO format
+                supabaseQuery = supabaseQuery.gte('timestamp', startDate.toISOString());
+              }
+              
+              // Sort chronologically (ASC) for proper chart rendering
+              supabaseQuery = supabaseQuery.order(timeColumn, { ascending: true });
+              
+              // Apply calculated limit
+              supabaseQuery = supabaseQuery.limit(limit);
+              
+              console.log(`   📅 Date filter: ${timeColumn} >= ${isDailyPrices ? startDate.toISOString().split('T')[0] : startDate.toISOString()}, limit=${limit}`);
+            } else {
+              // Original query processing for non-chart or stock_quote_now queries
+              // Apply query filters
+              Object.keys(query.query).forEach(key => {
+                const value = query.query[key];
+                
+                // Handle AI-generated queries like "timestamp_gte" or "timestamp_lte"
+                // Convert them to proper Supabase filter calls
+                if (key.endsWith('_gte')) {
+                  const actualKey = key.replace('_gte', '');
+                  supabaseQuery = supabaseQuery.gte(actualKey, value);
+                } else if (key.endsWith('_lte')) {
+                  const actualKey = key.replace('_lte', '');
+                  supabaseQuery = supabaseQuery.lte(actualKey, value);
+                } else if (key.endsWith('_gt')) {
+                  const actualKey = key.replace('_gt', '');
+                  supabaseQuery = supabaseQuery.gt(actualKey, value);
+                } else if (key.endsWith('_lt')) {
+                  const actualKey = key.replace('_lt', '');
+                  supabaseQuery = supabaseQuery.lt(actualKey, value);
+                } else if (typeof value === 'object' && value !== null) {
+                  // Handle nested operators like { gte: "2026-01-05T00:00:00Z" }
+                  Object.keys(value).forEach(op => {
+                    if (op === 'gte') {
+                      supabaseQuery = supabaseQuery.gte(key, value[op]);
+                    } else if (op === 'lte') {
+                      supabaseQuery = supabaseQuery.lte(key, value[op]);
+                    } else if (op === 'gt') {
+                      supabaseQuery = supabaseQuery.gt(key, value[op]);
+                    } else if (op === 'lt') {
+                      supabaseQuery = supabaseQuery.lt(key, value[op]);
+                    }
+                  });
+                } else {
+                  // Simple equality
+                  supabaseQuery = supabaseQuery.eq(key, value);
+                }
+              });
+              
+              // Apply sorting
+              if (query.sort) {
+                Object.keys(query.sort).forEach(key => {
+                  const direction = query.sort[key] === 'desc' || query.sort[key] === -1 ? 'desc' : 'asc';
+                  supabaseQuery = supabaseQuery.order(key, { ascending: direction === 'asc' });
+                });
+              }
+              
+              // Apply limit
+              if (query.limit) {
+                supabaseQuery = supabaseQuery.limit(query.limit);
+              }
             }
             
             const { data, error } = await supabaseQuery;
@@ -765,13 +932,30 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
               throw error;
             }
             
-            results.push({
-              collection: query.collection,
+            // Add date range metadata to results for AI context
+            const resultData = {
+              collection: actualCollection,
               data: data || [],
               count: data?.length || 0,
               reasoning: query.reasoning
-            });
-            console.log(`   ✅ Found ${data?.length || 0} price records`);
+            };
+            
+            // Add price data range info for AI analysis context
+            if (calculatedDateRange && data && data.length > 0) {
+              const timeColumn = calculatedDateRange.timeColumn;
+              resultData.dataRange = {
+                startDate: data[0][timeColumn],
+                endDate: data[data.length - 1][timeColumn],
+                firstPrice: data[0].close,
+                lastPrice: data[data.length - 1].close,
+                timeRange: queryPlan.chartConfig?.timeRange
+              };
+              console.log(`   📈 Price data range: ${resultData.dataRange.startDate} to ${resultData.dataRange.endDate}`);
+              console.log(`   💰 Price range: $${resultData.dataRange.firstPrice} → $${resultData.dataRange.lastPrice}`);
+            }
+            
+            results.push(resultData);
+            console.log(`   ✅ Found ${data?.length || 0} price records from ${actualCollection}`);
           }
           // Add other Supabase collections as needed
         }

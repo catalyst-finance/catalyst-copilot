@@ -67,17 +67,21 @@ const QUERY_SCHEMA_CONTEXT = `
 
 4. **one_minute_prices** - 1-minute intraday bars
    Fields: symbol, timestamp, open, high, low, close, volume, timestamp_et, created_at, source
-   Use: Intraday charts, price analysis, volume patterns
+   Use: Intraday charts (1D, 5D), price analysis, volume patterns
 
-5. **intraday_prices** - Tick-by-tick intraday prices
+5. **ten_minute_prices** - 10-minute intraday bars  
+   Fields: symbol, timestamp, open, high, low, close, volume, timestamp_et
+   Use: Medium-term intraday charts (1W, 1M), smoother price visualization
+
+6. **intraday_prices** - Tick-by-tick intraday prices
    Fields: symbol, timestamp, timestamp_et, price, volume
    Use: Most granular intraday data, detailed price movements
 
-6. **daily_prices** - Historical daily OHLCV
+7. **daily_prices** - Historical daily OHLCV
    Fields: symbol, date, open, high, low, close, volume (NOTE: Use 'date' not 'timestamp' for sorting)
-   Use: Historical charts, long-term analysis
+   Use: Historical charts (3M, 6M, 1Y, 5Y), long-term analysis
 
-7. **stock_quote_now** - Current/real-time stock price (single row per symbol)
+8. **stock_quote_now** - Current/real-time stock price (single row per symbol)
    Fields: symbol, close, timestamp, timestamp_et, volume, session, source
    Use: Current price, live quotes, today's price (combines with daily_prices for complete picture)
 
@@ -111,6 +115,12 @@ const QUERY_SCHEMA_CONTEXT = `
    - Intraday bars → one_minute_prices (Supabase)
    - Daily history → daily_prices (Supabase)
    - Calendar events → event_data (Supabase - usually empty, use press_releases instead)
+
+6. **Chart time range to table mapping** (backend auto-applies correct table):
+   - 1D, 5D → one_minute_prices (timestamp column)
+   - 1W, 1M → ten_minute_prices (timestamp column) 
+   - 3M, 6M, 1Y, 5Y → daily_prices (date column)
+   Note: When chartConfig.timeRange is set, the backend automatically queries the correct table with proper date filtering
 
 6. **Supabase format**: .select(), .eq(), .ilike(), .gte()/.lte(), .order(), .limit()
 `;
@@ -156,6 +166,7 @@ const RESPONSE_SCHEMA_CONTEXT = `
 
 **finnhub_quote_snapshots:** symbol, timestamp, c (current), o (open), h (high), l (low), pc (previous close), d (change), dp (change %)
 **one_minute_prices:** symbol, timestamp, open, high, low, close, volume
+**ten_minute_prices:** symbol, timestamp, open, high, low, close, volume
 **intraday_prices:** symbol, timestamp, timestamp_et, price, volume
 **daily_prices:** symbol, date, open, high, low, close, volume
 **stock_quote_now:** symbol, close, timestamp, timestamp_et, volume, session (current/live price)
@@ -219,6 +230,11 @@ const COLLECTION_METADATA = {
   one_minute_prices: {
     title: 'INTRADAY PRICE DATA',
     friendlyName: 'intraday price data',
+    hasExternalContent: false
+  },
+  ten_minute_prices: {
+    title: 'INTRADAY PRICE DATA (10MIN)',
+    friendlyName: '10-minute price data',
     hasExternalContent: false
   },
   daily_prices: {
