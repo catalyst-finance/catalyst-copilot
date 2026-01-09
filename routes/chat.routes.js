@@ -814,7 +814,7 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
     const stream = await openai.chat.completions.create({
       model: "gpt-4o",
       messages,
-      temperature: 0.7,
+      temperature: 0.3,  // Lower temperature = more consistent formatting compliance
       max_completion_tokens: tokenBudget,  // Use max_completion_tokens with dynamic allocation
       stream: true
     });

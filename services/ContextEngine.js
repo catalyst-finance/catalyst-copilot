@@ -1319,6 +1319,19 @@ class ContextEngine {
       output += `\n`;
     }
 
+    // RECENCY EFFECT: Repeat critical formatting requirement at the END of context
+    // This ensures GPT-4 sees the formatting rules immediately before generating response
+    output += `\n\n═══════════════════════════════════════════════════════════\n`;
+    output += `🚨🚨🚨 FINAL REMINDER - MANDATORY 4-PART STRUCTURE 🚨🚨🚨\n`;
+    output += `═══════════════════════════════════════════════════════════\n`;
+    output += `Every press release discussion MUST follow this structure:\n\n`;
+    output += `  1️⃣ Numbered bold header: "1. **Topic**"\n`;
+    output += `  2️⃣ Analysis paragraph (1-3 sentences explaining significance)\n`;
+    output += `  3️⃣ [VIEW_ARTICLE:press-X-Y] marker AFTER the analysis\n\n`;
+    output += `❌ DO NOT write plain text responses without headers\n`;
+    output += `✅ USE THE 4-PART STRUCTURE SHOWN IN EXAMPLES ABOVE\n`;
+    output += `═══════════════════════════════════════════════════════════\n\n`;
+
     console.log(`\n✅ PHASE 3 complete: Created ${dataCards.length} data cards from ${dedupedData.length} press releases\n`);
     return output;
   }
