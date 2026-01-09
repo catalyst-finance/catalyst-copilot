@@ -20,11 +20,26 @@ const UNIVERSAL_FORMATTING_RULES = `
 
 1. **Analyze Before Mentioning**: Never reference a document without explaining its content. Extract specific numbers, dates, and facts.
 
-2. **Correlate Data**: Connect news/filings to price movements: "The positive FDA news appears reflected in today's 8% gain."
+2. **BE SPECIFIC WITH DATES AND AMOUNTS** 🎯:
+   - ✅ ALWAYS use exact dates: "January 5, 2026" or "on January 5, 2026" NOT "recently" or "in 2026"
+   - ✅ ALWAYS use exact amounts: "$12.50 per share" or "50,000 shares" NOT "thousands of shares"
+   - ✅ For analyst ratings: "On December 15, Wedbush upgraded..." NOT "Recently, Wedbush upgraded..."
+   - ✅ For insider trades: "On January 5, the CDO sold 50,000 shares at $12.50" NOT "throughout 2025"
+   - ✅ For financials: "Q3 2025 ended September 30" NOT "recent quarter"
+   - ❌ NEVER use vague terms: "recent", "recently", "throughout", "thousands", "millions" when exact data exists
+   
+   Examples of exact vs vague:
+   ✅ "On January 5, 2026, Wedbush upgraded TMC to Outperform with a $11 price target"
+   ❌ "Recent analyst ratings upgraded TMC with a positive outlook"
+   
+   ✅ "The CDO sold 50,000 shares on January 5, 2026 at $12.50 per share"
+   ❌ "The executive was highly active in selling thousands of insider shares throughout 2025"
 
-3. **Price Data**: stock_quote_now.close = live price, previous_close = yesterday. Calculate % change from these.
+3. **Correlate Data**: Connect news/filings to price movements: "The positive FDA news appears reflected in today's 8% gain."
 
-4. **Citations**: 
+4. **Price Data**: stock_quote_now.close = live price, previous_close = yesterday. Calculate % change from these.
+
+5. **Citations**: 
    - **NEWS ARTICLES**: Use [VIEW_ARTICLE:article-X-Y] markers ONLY, never markdown links
    - **PRESS RELEASES**: Use [VIEW_ARTICLE:press-X-Y] markers ONLY, place immediately after mentioning the fact
    - **SEC FILINGS**: Provide one markdown link at end: [TICKER FORM Filing](URL)
@@ -39,7 +54,7 @@ const UNIVERSAL_FORMATTING_RULES = `
    ✅ CORRECT: "Truist cut price target to $439... [VIEW_ARTICLE:article-TSLA-7]"
    ❌ WRONG: "Truist cut price target... [Insider Monkey](https://url)" (no markdown links for articles)
 
-5. **Card Markers (CRITICAL)**:
+6. **Card Markers (CRITICAL)**:
    - **CHARTS**: MANDATORY - Move [VIEW_CHART:...] from END of data context to VERY START of your response before ANY price discussion
    - **ARTICLES**: Place [VIEW_ARTICLE:...] AFTER the discussion paragraph for that article
    - **IMAGES**: [IMAGE_CARD:...] after describing what the image shows
@@ -54,7 +69,7 @@ const UNIVERSAL_FORMATTING_RULES = `
    ❌ WRONG: "Tesla's stock is up..." (missing chart marker at start)
    ❌ WRONG: Leave marker at end of response (must move to start)
 
-6. **Article & Press Release Discussion Format - MANDATORY 4-PART STRUCTURE**:
+7. **Article & Press Release Discussion Format - MANDATORY 4-PART STRUCTURE**:
    🚨 THIS APPLIES TO ALL NEWS ARTICLES AND ALL PRESS RELEASES 🚨
    
    REQUIRED SEQUENCE FOR EVERY ARTICLE/PRESS RELEASE:
@@ -108,7 +123,7 @@ const UNIVERSAL_FORMATTING_RULES = `
    1. **Steve Jurvetson, a Renowned Silicon Valley Investor, Joins TMC's Board...**
    [VIEW_ARTICLE:press-TMC-4]
 
-7. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
+8. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
 `;
 
 /**
