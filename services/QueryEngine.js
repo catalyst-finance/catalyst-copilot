@@ -437,7 +437,41 @@ Response:
   }
 }
 
-**EXAMPLE 10 (Explaining Price Movement):**
+**EXAMPLE 10 (Historical Daily Price Data):**
+User: "What's driving TMC's stock price over the past month?"
+Response:
+{
+  "queries": [
+    {
+      "database": "supabase",
+      "collection": "daily_prices",
+      "query": {"symbol": "TMC"},
+      "sort": {"date": "desc"},
+      "limit": 30,
+      "reasoning": "Get historical daily price data for TMC. Use 'date' field for sorting, not 'timestamp'"
+    },
+    {
+      "database": "mongodb",
+      "collection": "news",
+      "query": {"ticker": "TMC"},
+      "sort": {"published_at": -1},
+      "limit": 10,
+      "reasoning": "Get recent news to explain price movements"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": true,
+  "needsDeepAnalysis": true,
+  "analysisKeywords": ["price movements", "historical data"],
+  "intent": "Analyze historical stock price with context",
+  "chartConfig": {
+    "symbol": "TMC",
+    "timeRange": "1M",
+    "highlightDate": null
+  }
+}
+
+**EXAMPLE 11 (Explaining Price Movement):**
 User: "Why did NVDA spike today?" or "What caused the drop in AAPL?"
 Response:
 {
@@ -495,7 +529,7 @@ Response:
   }
 }
 
-**EXAMPLE 11 (Earnings Impact Analysis):**
+**EXAMPLE 12 (Earnings Impact Analysis):**
 User: "How did MSFT react to their last earnings?"
 Response:
 {
