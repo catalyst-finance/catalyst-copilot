@@ -7,7 +7,7 @@ const https = require('https');
 
 const complexQueries = [
   {
-    query: "What's driving TMC's stock price recently? Include news, analyst ratings, and company announcements",
+    query: "What's driving TMC's stock price over the past month? Include news, analyst ratings, and company announcements",
     expectedSources: ['news', 'press_releases', 'price_targets'],
     expectMultipleInlineMarkers: true,
     description: "Multi-source correlation analysis"

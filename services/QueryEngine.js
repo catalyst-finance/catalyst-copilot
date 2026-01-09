@@ -437,7 +437,7 @@ Response:
   }
 }
 
-**EXAMPLE 10 (Historical Daily Price Data):**
+**EXAMPLE 10 (Historical Daily Price Data - CRITICAL: Use 'date' not 'timestamp'):**
 User: "What's driving TMC's stock price over the past month?"
 Response:
 {
@@ -446,7 +446,7 @@ Response:
       "database": "supabase",
       "collection": "daily_prices",
       "query": {"symbol": "TMC"},
-      "sort": {"date": "desc"},
+      "sort": {"date": "desc"},  // MUST be 'date' not 'timestamp'
       "limit": 30,
       "reasoning": "Get historical daily price data for TMC. Use 'date' field for sorting, not 'timestamp'"
     },
@@ -554,7 +554,7 @@ Response:
       "database": "supabase",
       "collection": "daily_prices",
       "query": {"symbol": "MSFT"},
-      "sort": {"timestamp": "desc"},
+      "sort": {"date": "desc"},  // CORRECT: daily_prices uses 'date' column
       "limit": 10,
       "reasoning": "Get daily price data around earnings date to see reaction"
     }

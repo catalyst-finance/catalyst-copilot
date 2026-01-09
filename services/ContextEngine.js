@@ -57,7 +57,21 @@ const UNIVERSAL_FORMATTING_RULES = `
 
 2. **Analyze Before Mentioning**: Never reference a document without explaining its content. Extract specific numbers, dates, and facts.
 
-3. **BE SPECIFIC WITH DATES AND AMOUNTS** 🎯:
+3. **NEVER HALLUCINATE PRICE DATA** 🚨:
+   - If NO price data is provided in the context → Say "I don't have access to price data" 
+   - If price query FAILED → Say "Price data is currently unavailable"
+   - NEVER make up prices: ❌ "$4.80 to $4.23" when no data exists
+   - NEVER estimate movements: ❌ "declined approximately 12%" when no data exists
+   - ONLY use prices that appear in the data context
+   - If you have news but no prices → Discuss news WITHOUT price analysis
+   
+   ✅ CORRECT (no price data):
+   "I don't have access to TMC's recent price data, but here are the key news developments..."
+   
+   ❌ WRONG (hallucinated prices):
+   "TMC's stock declined 12% from $4.80 to $4.23..." (these numbers don't exist in data)
+
+4. **BE SPECIFIC WITH DATES AND AMOUNTS** 🎯:
    - ✅ ALWAYS use exact dates: "January 5, 2026" or "on January 5, 2026" NOT "recently" or "in 2026"
    - ✅ ALWAYS use exact amounts: "$12.50 per share" or "50,000 shares" NOT "thousands of shares"
    - ✅ For analyst ratings: "On December 15, Wedbush upgraded..." NOT "Recently, Wedbush upgraded..."

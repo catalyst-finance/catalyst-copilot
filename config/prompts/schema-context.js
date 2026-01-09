@@ -70,7 +70,7 @@ const QUERY_SCHEMA_CONTEXT = `
    Use: Intraday charts, price analysis, volume patterns
 
 5. **daily_prices** - Historical daily OHLCV
-   Fields: symbol, timestamp, open, high, low, close, volume
+   Fields: symbol, date, open, high, low, close, volume (NOTE: Use 'date' not 'timestamp' for sorting)
    Use: Historical charts, long-term analysis
 
 **QUERY GENERATION RULES:**
@@ -146,7 +146,7 @@ const RESPONSE_SCHEMA_CONTEXT = `
 
 **finnhub_quote_snapshots:** symbol, timestamp, c (current), o (open), h (high), l (low), pc (previous close), d (change), dp (change %)
 **one_minute_prices:** symbol, timestamp, open, high, low, close, volume
-**daily_prices:** symbol, timestamp, open, high, low, close, volume
+**daily_prices:** symbol, date, open, high, low, close, volume
 **company_information:** symbol, name, exchange, country, sector, industry, market_cap, shares_outstanding, ipo_date, weburl, logo
 `;
 
