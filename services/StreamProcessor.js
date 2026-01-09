@@ -283,16 +283,12 @@ class StreamProcessor {
             this.emitChart(marker.data.symbol, marker.data.timeRange);
             break;
           case 'ARTICLE':
-            // IMPORTANT: Emit article markers as TEXT content, not separate events
-            // This ensures the frontend's extractStreamBlocks processes them in correct order
-            // relative to surrounding text content (article cards appear after discussion text)
-            console.log(`   → Keeping ARTICLE marker in text stream: ${marker.data.cardId}`);
-            this.foundMarkers.add(`article:${marker.data.cardId}`);
-            // Emit the marker as text so frontend handles positioning
-            this.emitText(marker.marker);
+            // Emit article as a structured block event (not text)
+            // This ensures the HR event comes AFTER the article card block
+            console.log(`   → Emitting ARTICLE block: ${marker.data.cardId}`);
+            this.emitArticle(marker.data.cardId);
             
             // Add horizontal rule ONLY for inline articles (not stacked in Related Coverage)
-            // Use the styled horizontal_rule event, not text "---"
             if (!this.inRelatedCoverageSection) {
               console.log(`   → Adding HR after inline article`);
               this.emitHorizontalRule();
