@@ -101,6 +101,9 @@ class StreamProcessor {
     // Track expected markers from dataCards for smart injection
     this.expectedMarkers = this.buildExpectedMarkers(dataCards);
     this.foundMarkers = new Set();
+    
+    // Track if we're in the "Related Coverage" section (stacked articles, no HR needed)
+    this.inRelatedCoverageSection = false;
   }
 
   /**
@@ -180,6 +183,13 @@ class StreamProcessor {
    */
   emitText(text) {
     if (text) {
+      // Check if we're entering the "Related Coverage" section
+      // This marks where stacked articles begin (no HR needed between them)
+      if (!this.inRelatedCoverageSection && /\*\*Related Coverage:?\*\*/.test(text)) {
+        console.log(`   📌 Detected "Related Coverage" header - entering stacked article section`);
+        this.inRelatedCoverageSection = true;
+      }
+      
       // Apply mechanical formatting (spacing, bullets, headers) before emitting
       const formattedText = this.formatter.processChunk(text);
       if (formattedText) {
@@ -279,11 +289,12 @@ class StreamProcessor {
             this.emitText(marker.marker);
             
             // Add horizontal rule ONLY for inline articles (not stacked in Related Coverage)
-            // Check if next content is another article marker (stacked) vs other content (inline)
-            const nextIsArticle = /^\s*\[VIEW_ARTICLE:/.test(marker.after);
-            if (!nextIsArticle && marker.after.trim().length > 0) {
-              console.log(`   → Adding HR after inline article (next content is not an article)`);
+            // Check if "Related Coverage" header has appeared - if so, we're in stacked section
+            if (!this.inRelatedCoverageSection) {
+              console.log(`   → Adding HR after inline article`);
               this.emitText('\n\n---\n\n');
+            } else {
+              console.log(`   → Skipping HR (in Related Coverage section)`);
             }
             break;
           case 'IMAGE':
