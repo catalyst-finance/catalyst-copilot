@@ -284,7 +284,7 @@ Response:
   "intent": "Find CEO statements from TMC's latest earnings call"
 }
 
-**EXAMPLE 4 (SEC Filing Deep Analysis - IMPORTANT):**
+**EXAMPLE 5 (SEC Filing Deep Analysis - IMPORTANT):**
 User: "Analyze the last 10-Q from MNMD"
 Response:
 {
@@ -305,7 +305,7 @@ Response:
   "intent": "Deep analysis of MNMD's latest 10-Q filing including financials and product development"
 }
 
-**EXAMPLE 5 (SEC Filing List - No Deep Analysis):**
+**EXAMPLE 6 (SEC Filing List - No Deep Analysis):**
 User: "When was AAPL's last 10-K filed?"
 Response:
 {
@@ -326,7 +326,7 @@ Response:
   "intent": "Find filing date of AAPL's most recent 10-K (metadata query only)"
 }
 
-**EXAMPLE 6 (Company Information - Supabase):**
+**EXAMPLE 7 (Company Information - Supabase):**
 User: "Tell me about AAPL"
 Response:
 {
@@ -354,7 +354,7 @@ Response:
   "intent": "Get company profile and current price for AAPL"
 }
 
-**EXAMPLE 7 (Industry Query - Supabase):**
+**EXAMPLE 8 (Industry Query - Supabase):**
 User: "What biotech companies are in our database?"
 Response:
 {
@@ -374,7 +374,7 @@ Response:
   "intent": "List biotech/healthcare companies"
 }
 
-**EXAMPLE 8 (Current Prices - Supabase):**
+**EXAMPLE 9 (Current Prices - Supabase):**
 User: "What's the current price of TSLA?"
 Response:
 {
@@ -395,7 +395,7 @@ Response:
   "intent": "Get current stock price for TSLA"
 }
 
-**EXAMPLE 9 (News + Price Correlation):**
+**EXAMPLE 10 (News + Price Correlation):**
 User: "What's the latest news for TSLA stock?"
 Response:
 {
@@ -437,7 +437,7 @@ Response:
   }
 }
 
-**EXAMPLE 10 (Historical Daily Price Data - CRITICAL: Use 'date' not 'timestamp'):**
+**EXAMPLE 11 (Historical Daily Price Data - CRITICAL: Use 'date' not 'timestamp'):**
 User: "What's driving TMC's stock price over the past month?"
 Response:
 {
@@ -471,7 +471,7 @@ Response:
   }
 }
 
-**EXAMPLE 11 (Explaining Price Movement):**
+**EXAMPLE 12 (Explaining Price Movement):**
 User: "Why did NVDA spike today?" or "What caused the drop in AAPL?"
 Response:
 {
@@ -529,7 +529,7 @@ Response:
   }
 }
 
-**EXAMPLE 12 (Earnings Impact Analysis):**
+**EXAMPLE 13 (Earnings Impact Analysis):**
 User: "How did MSFT react to their last earnings?"
 Response:
 {

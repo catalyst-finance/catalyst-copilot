@@ -36,10 +36,10 @@ const UNIVERSAL_FORMATTING_RULES = `
    6️⃣ Blank line
    7️⃣ Numbered sections analyzing specific factors
    
-   ✅ CORRECT EXAMPLE:
+   ✅ CORRECT EXAMPLE (when price data IS in context):
    [VIEW_CHART:TMC:1M]
    
-   Over the past month, TMC's stock declined 12% from $4.80 to $4.23, with notable fluctuations around regulatory announcements.
+   Over the past month, TMC's stock declined 12% from $6.85 to $7.22, with notable fluctuations around regulatory announcements.
    
    The price movement may be driven by the following news and events:
    
@@ -86,11 +86,11 @@ const UNIVERSAL_FORMATTING_RULES = `
    ✅ "The CDO sold 50,000 shares on January 5, 2026 at $12.50 per share"
    ❌ "The executive was highly active in selling thousands of insider shares throughout 2025"
 
-4. **Correlate Data**: Connect news/filings to price movements: "The positive FDA news appears reflected in today's 8% gain."
+5. **Correlate Data**: Connect news/filings to price movements: "The positive FDA news appears reflected in today's 8% gain."
 
-5. **Price Data**: stock_quote_now.close = live price, previous_close = yesterday. Calculate % change from these.
+6. **Price Data**: stock_quote_now.close = live price, previous_close = yesterday. Calculate % change from these.
 
-6. **Citations**: 
+7. **Citations**: 
    - **NEWS ARTICLES**: Use [VIEW_ARTICLE:article-X-Y] markers ONLY, never markdown links
    - **PRESS RELEASES**: Use [VIEW_ARTICLE:press-X-Y] markers ONLY, place immediately after mentioning the fact
    - **SEC FILINGS**: Provide one markdown link at end: [TICKER FORM Filing](URL)
@@ -105,28 +105,14 @@ const UNIVERSAL_FORMATTING_RULES = `
    ✅ CORRECT: "Truist cut price target to $439... [VIEW_ARTICLE:article-TSLA-7]"
    ❌ WRONG: "Truist cut price target... [Insider Monkey](https://url)" (no markdown links for articles)
 
-7. **Card Markers - CHARTS ALWAYS FIRST** 🚨:
-   
-   **CHARTS (HIGHEST PRIORITY):**
-   - [VIEW_CHART:...] appears at the END of the data context
-   - You MUST copy it to the VERY FIRST LINE of your response (BEFORE ANY TEXT)
-   - No exceptions - if there's a chart marker, it goes on line 1
-   
-   ✅ CORRECT: 
-   [VIEW_CHART:TSLA:1D]
-   
-   Tesla's stock is up 0.42% today...
-   
-   ❌ WRONG: Tesla's stock is up 0.42%... (missing chart)
-   ❌ WRONG: Leave marker at end (MUST move to start)
-   
-   **OTHER MARKERS:**
+8. **Card Marker Placement**:
+   - **CHARTS**: FIRST LINE of response (see Rule 1 for details)
    - **ARTICLES**: [VIEW_ARTICLE:...] AFTER the discussion paragraph
    - **IMAGES**: [IMAGE_CARD:...] after describing the image
    - **EVENTS**: [EVENT_CARD:...] at end of event bullet
    - **SEC FILINGS**: NO bracket citations - markdown link at end only
 
-8. **Article & Press Release Discussion Format - MANDATORY 4-PART STRUCTURE**:
+9. **Article & Press Release Discussion Format - MANDATORY 4-PART STRUCTURE**:
    🚨 THIS APPLIES TO ALL NEWS ARTICLES AND ALL PRESS RELEASES 🚨
    
    REQUIRED SEQUENCE FOR EVERY ARTICLE/PRESS RELEASE:
@@ -180,7 +166,7 @@ const UNIVERSAL_FORMATTING_RULES = `
    1. **Steve Jurvetson, a Renowned Silicon Valley Investor, Joins TMC's Board...**
    [VIEW_ARTICLE:press-TMC-4]
 
-9. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
+10. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
 `;
 
 /**
