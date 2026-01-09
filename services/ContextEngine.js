@@ -18,32 +18,42 @@ const { getTokenBudget, getTierInfo } = require('../config/token-allocation');
 const UNIVERSAL_FORMATTING_RULES = `
 **RESPONSE GUIDELINES:**
 
-1. **START WITH PRICE MOVEMENT (when analyzing stock price drivers)** 📊:
-   When the query asks "What's driving [STOCK] price" or similar price analysis questions:
+1. **START WITH CHART MARKER - ALWAYS FIRST LINE** 📊:
+   🚨 CRITICAL: If the data context contains [VIEW_CHART:...], you MUST copy it to the VERY FIRST LINE of your response.
    
-   REQUIRED OPENING STRUCTURE:
-   1️⃣ Chart marker: [VIEW_CHART:SYMBOL:TIMERANGE]
-   2️⃣ Price movement summary: Brief 1-2 sentence analysis of how the stock price moved during the period
-   3️⃣ Transition statement: "The price may be driven by the following news and events:" or similar
-   4️⃣ Then numbered sections analyzing specific factors
+   The chart marker appears at the END of the data context. You MUST move it to the START.
+   
+   ✅ CORRECT: "[VIEW_CHART:TMC:1M]\n\nOver the past month..."
+   ❌ WRONG: "Over the past month..." (missing chart at start)
+   ❌ WRONG: Leaving chart at the end (must move to start)
+   
+   FOR PRICE ANALYSIS QUERIES ("What's driving [STOCK] price"), use this structure:
+   1️⃣ Chart marker: [VIEW_CHART:SYMBOL:TIMERANGE] - FIRST LINE, NO TEXT BEFORE IT
+   2️⃣ Blank line
+   3️⃣ Price movement summary: Brief 1-2 sentence analysis of how the stock moved
+   4️⃣ Blank line  
+   5️⃣ Transition: "The price movement may be driven by the following news and events:"
+   6️⃣ Blank line
+   7️⃣ Numbered sections analyzing specific factors
    
    ✅ CORRECT EXAMPLE:
    [VIEW_CHART:TMC:1M]
    
-   Over the past month, TMC's stock has experienced volatility, declining approximately 12% from $4.80 to $4.23, with notable fluctuations around key regulatory announcements.
+   Over the past month, TMC's stock declined 12% from $4.80 to $4.23, with notable fluctuations around regulatory announcements.
    
    The price movement may be driven by the following news and events:
    
    1. **Insider Trading Activity**
    The Metals Company's Chief Development Officer...
    
-   ❌ WRONG (jumping straight to numbered sections):
+   ❌ WRONG (no chart at start):
+   Over the past month, TMC's stock declined 12%...
+   
+   ❌ WRONG (no price summary before sections):
    [VIEW_CHART:TMC:1M]
    
    1. **Insider Trading Activity**
    The Metals Company's Chief Development Officer...
-   
-   NOTE: This applies specifically to "what's driving price" queries. Other query types can start normally.
 
 2. **Analyze Before Mentioning**: Never reference a document without explaining its content. Extract specific numbers, dates, and facts.
 
@@ -81,20 +91,26 @@ const UNIVERSAL_FORMATTING_RULES = `
    ✅ CORRECT: "Truist cut price target to $439... [VIEW_ARTICLE:article-TSLA-7]"
    ❌ WRONG: "Truist cut price target... [Insider Monkey](https://url)" (no markdown links for articles)
 
-7. **Card Markers (CRITICAL)**:
-   - **CHARTS**: MANDATORY - Move [VIEW_CHART:...] from END of data context to VERY START of your response before ANY price discussion
-   - **ARTICLES**: Place [VIEW_ARTICLE:...] AFTER the discussion paragraph for that article
-   - **IMAGES**: [IMAGE_CARD:...] after describing what the image shows
-   - **EVENTS**: [EVENT_CARD:...] at end of bullet describing that event
-   - **SEC FILINGS**: DO NOT use [10-Q 11/13/2025] citations - provide markdown link at end only
+7. **Card Markers - CHARTS ALWAYS FIRST** 🚨:
    
-   ⚠️ CHART PLACEMENT RULE:
-   The chart marker [VIEW_CHART:X:Y] appears at the END of the data context.
-   You MUST copy it to the VERY START of your response before price discussion.
+   **CHARTS (HIGHEST PRIORITY):**
+   - [VIEW_CHART:...] appears at the END of the data context
+   - You MUST copy it to the VERY FIRST LINE of your response (BEFORE ANY TEXT)
+   - No exceptions - if there's a chart marker, it goes on line 1
    
-   ✅ CORRECT: "[VIEW_CHART:TSLA:1D]\nTesla's stock is up 0.42% today..."
-   ❌ WRONG: "Tesla's stock is up..." (missing chart marker at start)
-   ❌ WRONG: Leave marker at end of response (must move to start)
+   ✅ CORRECT: 
+   [VIEW_CHART:TSLA:1D]
+   
+   Tesla's stock is up 0.42% today...
+   
+   ❌ WRONG: Tesla's stock is up 0.42%... (missing chart)
+   ❌ WRONG: Leave marker at end (MUST move to start)
+   
+   **OTHER MARKERS:**
+   - **ARTICLES**: [VIEW_ARTICLE:...] AFTER the discussion paragraph
+   - **IMAGES**: [IMAGE_CARD:...] after describing the image
+   - **EVENTS**: [EVENT_CARD:...] at end of event bullet
+   - **SEC FILINGS**: NO bracket citations - markdown link at end only
 
 8. **Article & Press Release Discussion Format - MANDATORY 4-PART STRUCTURE**:
    🚨 THIS APPLIES TO ALL NEWS ARTICLES AND ALL PRESS RELEASES 🚨
