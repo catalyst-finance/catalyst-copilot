@@ -277,6 +277,14 @@ class StreamProcessor {
             this.foundMarkers.add(`article:${marker.data.cardId}`);
             // Emit the marker as text so frontend handles positioning
             this.emitText(marker.marker);
+            
+            // Add horizontal rule ONLY for inline articles (not stacked in Related Coverage)
+            // Check if next content is another article marker (stacked) vs other content (inline)
+            const nextIsArticle = /^\s*\[VIEW_ARTICLE:/.test(marker.after);
+            if (!nextIsArticle && marker.after.trim().length > 0) {
+              console.log(`   → Adding HR after inline article (next content is not an article)`);
+              this.emitText('\n\n---\n\n');
+            }
             break;
           case 'IMAGE':
             this.emitImage(marker.data.cardId);
