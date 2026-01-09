@@ -113,7 +113,7 @@ class StreamProcessor {
     console.log(`\n🎯 StreamProcessor: Building expected markers from ${dataCards.length} dataCards`);
     
     const markers = {
-      articles: [],  // { cardId, ticker, title }
+      articles: [],  // { cardId, ticker, title, publishedAt }
       images: [],
       events: [],
       charts: []     // { symbol, timeRange } - from price data
@@ -122,11 +122,14 @@ class StreamProcessor {
     for (const card of dataCards) {
       // Article cards use 'id' field, not 'cardId'
       if (card.type === 'article' && card.data?.id) {
-        console.log(`  📰 Expected article marker: ${card.data.id} - "${card.data.title?.substring(0, 50)}..."`);
+        // Get date from published_at (news) or date (press releases)
+        const publishedAt = card.data.published_at || card.data.date || null;
+        console.log(`  📰 Expected article marker: ${card.data.id} - "${card.data.title?.substring(0, 50)}..." (${publishedAt ? new Date(publishedAt).toLocaleDateString() : 'no date'})`);
         markers.articles.push({
           cardId: card.data.id,
           ticker: card.data.ticker,
-          title: card.data.title || ''
+          title: card.data.title || '',
+          publishedAt: publishedAt ? new Date(publishedAt) : null
         });
       } else if (card.type === 'image' && card.data?.id) {
         console.log(`  🖼️  Expected image marker: ${card.data.id} - "${card.data.title?.substring(0, 50)}..."`);
@@ -405,8 +408,24 @@ class StreamProcessor {
       });
     }
     
-    // Sort by match score (discussed articles first) then preserve order
-    articlesToInject.sort((a, b) => b.matchScore - a.matchScore);
+    // Sort by publishedAt date (newest first) for Related Coverage section
+    articlesToInject.sort((a, b) => {
+      // If both have dates, sort newest first
+      if (a.publishedAt && b.publishedAt) {
+        return b.publishedAt.getTime() - a.publishedAt.getTime();
+      }
+      // Items with dates come before items without
+      if (a.publishedAt && !b.publishedAt) return -1;
+      if (!a.publishedAt && b.publishedAt) return 1;
+      // Both without dates - preserve original order
+      return 0;
+    });
+    
+    console.log(`📅 Related Coverage sorted by date (newest first):`);
+    articlesToInject.forEach((article, idx) => {
+      const dateStr = article.publishedAt ? article.publishedAt.toLocaleDateString() : 'no date';
+      console.log(`  [${idx}] ${dateStr}: "${article.title?.substring(0, 50)}..."`);
+    });
     
     // Inject missing markers
     if (articlesToInject.length > 0) {
