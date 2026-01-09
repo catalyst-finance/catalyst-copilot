@@ -1,13 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Sparkles, Send, ChevronDown, ChevronUp, X, Minimize2, Edit2, Check, XCircle, TrendingUp, TrendingDown, Calendar, BarChart3, AlertCircle, Target, DollarSign, Package, ShoppingCart, Presentation, Users, Landmark, Handshake, Building, Tag, Shield, Scale, Loader2, ExternalLink, FileText } from 'lucide-react';
-import { Card } from './ui/card';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { SimpleMiniChart, IntradayMiniChart } from './charts';
-import { formatCurrency, getEventTypeConfig, formatEventDateTime } from '../utils/formatting';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
-import { MarketEvent } from '../utils/supabase/events-api';
+import { Sparkles, Send, ChevronDown, ChevronUp, ChevronRight, X, Minimize2, Edit2, Check, XCircle } from 'lucide-react';
+import { Card } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { MarketEvent } from '../../utils/supabase/events-api';
+import { 
+  DataCard, 
+  ThinkingStep,
+  ContentBlock as StreamBlock,
+} from './lib/StreamBlockTypes';
+import MarkdownText from './MarkdownText';
+import InlineChartCard from './InlineChartCard';
+import DataCardComponent from './DataCardComponent';
 
 type ChatState = 'collapsed' | 'inline-expanded' | 'full-window' | 'minimized';
 
@@ -23,95 +28,10 @@ interface Message {
   thinkingDuration?: number; // Duration in seconds
 }
 
-interface ThinkingStep {
-  phase: string;
-  content: string;
-}
-
-interface DataCard {
-  type: 'stock' | 'event-list' | 'event' | 'chart' | 'image' | 'article';
-  data: any;
-}
-
-interface ImageCardData {
-  id: string;
-  ticker: string;
-  source: string;
-  title: string;
-  imageUrl: string;
-  context?: string;
-  filingType?: string;
-  filingDate?: string;
-  filingUrl?: string;
-}
-
-interface ArticleCardData {
-  id: string;
-  title: string;
-  url: string;
-  source: string;
-  domain: string;
-  ticker?: string;
-  publishedAt?: string;
-  logoUrl?: string;
-  imageUrl?: string;
-  content?: string;
-  country?: string;
-  category?: string;
-}
-
-interface ChartCardData {
-  id: string;
-  symbol: string;
-  timeRange: '1D' | '5D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y';
-  chartData?: any[]; // Pre-loaded chart data from backend
-  previousClose?: number; // Pre-loaded previous close from backend
-}
-
-interface StockCardData {
-  ticker: string;
-  company: string;
-  price: number;
-  change: number;
-  changePercent: number;
-  chartData?: any[]; // Legacy support
-  chartMetadata?: {
-    available: boolean;
-    count: number;
-    date: string;
-    endpoint: string;
-  } | null;
-  chartReference?: {
-    table: string;
-    symbol: string;
-    dateRange: {
-      start: string;
-      end: string;
-    };
-    columns: string[];
-    orderBy: string;
-  };
-  previousClose?: number;
-  open?: number;
-  high?: number;
-  low?: number;
-}
-
 interface CatalystCopilotProps {
   selectedTickers?: string[];
   onEventClick?: (event: MarketEvent) => void;
   onTickerClick?: (ticker: string) => void;
-}
-
-/**
- * StreamBlock - Represents a pre-processed, renderable unit of content
- * Each block is ready to render in its final form (text, chart, article card, etc.)
- */
-interface StreamBlock {
-  id: string;
-  type: 'text' | 'chart' | 'article' | 'image' | 'event' | 'separator';
-  content: string;  // For text blocks, the markdown content
-  data?: any;       // For cards/charts, the structured data
 }
 
 /**
@@ -122,81 +42,141 @@ function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: S
   const blocks: StreamBlock[] = [];
   let remaining = buffer;
   let blockId = 0;
+  let iterationCount = 0;
+  const maxIterations = 100; // Safety limit to prevent infinite loops
+  
+  console.log(`🔍 [extractStreamBlocks] Called with:`, {
+    bufferLength: buffer.length,
+    bufferPreview: buffer.substring(0, 200),
+    dataCardsCount: dataCards?.length || 0,
+    articleCardsAvailable: dataCards?.filter(c => c.type === 'article').map(c => c.data.id) || []
+  });
   
   // Process the buffer looking for complete blocks
   while (remaining.length > 0) {
-    // Check for VIEW_CHART marker at the start or after newlines
-    const chartMatch = remaining.match(/^(\s*)\[VIEW_CHART:([A-Z]+):([^\]]+)\](\s*)/);
-    if (chartMatch) {
-      // Found a complete chart marker - extract it as a block
-      blocks.push({
-        id: `chart-${blockId++}`,
-        type: 'chart',
-        content: '',
-        data: { symbol: chartMatch[2], timeRange: chartMatch[3] }
-      });
-      remaining = remaining.substring(chartMatch[0].length);
+    iterationCount++;
+    if (iterationCount > maxIterations) {
+      console.error('⚠️ [extractStreamBlocks] Hit maximum iteration limit! Breaking out of loop.');
+      break;
+    }
+    
+    // First, check if there are ANY markers in the buffer
+    const anyMarkerMatch = remaining.match(/\[(?:VIEW_CHART|VIEW_ARTICLE|IMAGE_CARD|EVENT_CARD):[^\]]+\]/);
+    
+    // If we have a marker that's NOT at the start, extract text before it first
+    if (anyMarkerMatch && anyMarkerMatch.index && anyMarkerMatch.index > 0) {
+      const textContent = remaining.substring(0, anyMarkerMatch.index);
+      if (textContent.trim()) {
+        blocks.push({
+          id: `text-${blockId++}-${Math.random().toString(36).substr(2, 5)}`,
+          type: 'text',
+          content: textContent
+        });
+      }
+      remaining = remaining.substring(anyMarkerMatch.index);
       continue;
     }
     
-    // Fallback: Check for malformed chart markers (e.g., [VIEW_CHART:chart-TSLA])
-    const malformedChartMatch = remaining.match(/^(\s*)\[VIEW_CHART:([^\]]+)\](\s*)/);
-    if (malformedChartMatch) {
-      console.warn('⚠️ Found malformed VIEW_CHART marker, removing:', malformedChartMatch[0]);
-      // Skip the malformed marker to prevent infinite loop
-      remaining = remaining.substring(malformedChartMatch[0].length);
+    // Check for VIEW_CHART marker at the start or after newlines
+    const chartMatch = remaining.match(/^\s*\[VIEW_CHART:([^\]]+)\]\s*/);
+    if (chartMatch) {
+      const chartData = chartMatch[1];
+      let symbol, timeRange;
+      
+      // Parse format: either "SYMBOL:TIMERANGE" or "chart-SYMBOL"
+      if (chartData.includes(':')) {
+        const parts = chartData.split(':');
+        symbol = parts[0];
+        timeRange = parts[1];
+      } else if (chartData.startsWith('chart-')) {
+        symbol = chartData.replace('chart-', '');
+        timeRange = '1D'; 
+      } else {
+        symbol = chartData;
+        timeRange = '1D';
+      }
+      
+      blocks.push({
+        id: `chart-${blockId++}-${Math.random().toString(36).substr(2, 5)}`,
+        type: 'chart',
+        content: '',
+        data: { symbol, timeRange }
+      });
+      remaining = remaining.substring(chartMatch[0].length);
       continue;
     }
     
     // Check for VIEW_ARTICLE marker
     const articleMatch = remaining.match(/^(\s*)\[VIEW_ARTICLE:([^\]]+)\](\s*)/);
     if (articleMatch) {
-      const articleId = articleMatch[2];
+      const articleId = articleMatch[2].trim();
+      console.log(`🎯 [extractStreamBlocks] Found VIEW_ARTICLE marker: ${articleId}`, {
+        dataCardsCount: dataCards?.length || 0,
+        articleCardsCount: dataCards?.filter(c => c.type === 'article').length || 0
+      });
       const articleCard = dataCards?.find(c => c.type === 'article' && c.data.id === articleId);
       if (articleCard) {
+        console.log(`✅ [extractStreamBlocks] Creating ARTICLE block for: ${articleId}`, {
+          blockType: 'article',
+          articleTitle: articleCard.data.title?.substring(0, 50)
+        });
         blocks.push({
-          id: `article-${blockId++}`,
+          id: `article-${blockId++}-${Math.random().toString(36).substr(2, 5)}`,
           type: 'article',
           content: '',
           data: articleCard.data
         });
+        remaining = remaining.substring(articleMatch[0].length);
+        continue;
+      } else {
+        // Card not found - the marker will be left in the content buffer
+        // and rendered inline by MarkdownText component which also handles these markers
+        console.log(`ℹ️ [extractStreamBlocks] Article card not found for ID: ${articleId}`, {
+          articleId,
+          availableArticleCards: dataCards?.filter(c => c.type === 'article').map(c => c.data.id),
+          totalDataCards: dataCards?.length || 0
+        });
+        // Don't break - continue processing other content
+        break;
       }
-      remaining = remaining.substring(articleMatch[0].length);
-      continue;
     }
     
     // Check for IMAGE_CARD marker
     const imageMatch = remaining.match(/^(\s*)\[IMAGE_CARD:([^\]]+)\](\s*)/);
     if (imageMatch) {
-      const imageId = imageMatch[2];
+      const imageId = imageMatch[2].trim();
       const imageCard = dataCards?.find(c => c.type === 'image' && c.data.id === imageId);
       if (imageCard) {
         blocks.push({
-          id: `image-${blockId++}`,
+          id: `image-${blockId++}-${Math.random().toString(36).substr(2, 5)}`,
           type: 'image',
           content: '',
           data: imageCard.data
         });
+        remaining = remaining.substring(imageMatch[0].length);
+        continue;
+      } else {
+        break;
       }
-      remaining = remaining.substring(imageMatch[0].length);
-      continue;
     }
     
     // Check for EVENT_CARD marker
     const eventMatch = remaining.match(/^(\s*)\[EVENT_CARD:([^\]]+)\](\s*)/);
     if (eventMatch) {
-      const eventId = eventMatch[2];
+      const eventId = eventMatch[2].trim();
       const eventCard = dataCards?.find(c => c.type === 'event' && (c.data.id === eventId || c.data.id?.toString() === eventId));
       if (eventCard) {
         blocks.push({
-          id: `event-${blockId++}`,
+          id: `event-${blockId++}-${Math.random().toString(36).substr(2, 5)}`,
           type: 'event',
           content: '',
           data: eventCard.data
         });
+        remaining = remaining.substring(eventMatch[0].length);
+        continue;
+      } else {
+        break;
       }
-      remaining = remaining.substring(eventMatch[0].length);
-      continue;
     }
     
     // Look for the next marker or paragraph break
@@ -207,33 +187,36 @@ function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: S
     let cutPoint = -1;
     
     if (nextMarkerMatch && nextMarkerMatch.index !== undefined) {
-      // There's a marker coming up
       if (nextDoubleNewline >= 0 && nextDoubleNewline < nextMarkerMatch.index) {
-        // Paragraph break comes first
         cutPoint = nextDoubleNewline + 2;
       } else if (nextMarkerMatch.index === 0) {
-        // Marker is right at the start - this shouldn't happen due to matches above
-        // but handle it just in case
-        continue;
+        break;
       } else {
-        // Text before the marker
         cutPoint = nextMarkerMatch.index;
       }
     } else if (nextDoubleNewline >= 0) {
-      // No marker, but there's a paragraph break
       cutPoint = nextDoubleNewline + 2;
     } else {
-      // No marker or paragraph break - check if we have an incomplete pattern
+      // No markers found in the remaining buffer
       const hasIncomplete = hasIncompletePattern(remaining);
       if (hasIncomplete) {
-        // Buffer the rest until more content arrives
+        // Buffer ends with incomplete pattern - keep it for next chunk
         break;
       } else {
-        // Content looks complete enough to render
-        // But wait for more if it's very short
+        // Check if buffer might start with a partial marker
+        // Keep the buffer if it's less than 20 chars or if it ends with a potential marker start
         if (remaining.trim().length < 20) {
           break;
         }
+        
+        // Check if the buffer ends with something that might be the start of a marker
+        // e.g., ends with "[", "[V", "[VI", "[VIEW", "[VIEW_", "[VIEW_A", "[VIEW_AR", etc.
+        const potentialMarkerStart = /\[V?I?E?W?_?A?R?T?I?C?L?E?$/;
+        if (potentialMarkerStart.test(remaining)) {
+          // Might be a partial marker - keep it in buffer
+          break;
+        }
+        
         cutPoint = remaining.length;
       }
     }
@@ -242,7 +225,7 @@ function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: S
       const textContent = remaining.substring(0, cutPoint);
       if (textContent.trim()) {
         blocks.push({
-          id: `text-${blockId++}`,
+          id: `text-${blockId++}-${Math.random().toString(36).substr(2, 5)}`,
           type: 'text',
           content: textContent
         });
@@ -260,19 +243,15 @@ function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: S
  * Check for incomplete markdown patterns that shouldn't be rendered yet
  */
 function hasIncompletePattern(str: string): boolean {
-  // Check for unclosed brackets (but not if it looks like a complete marker)
   const openBrackets = (str.match(/\[/g) || []).length;
   const closeBrackets = (str.match(/\]/g) || []).length;
   if (openBrackets > closeBrackets) return true;
   
-  // Check for unclosed parentheses after ]
   if (/\]\([^)]*$/.test(str)) return true;
   
-  // Check for unclosed bold markers
   const boldMarkers = (str.match(/\*\*/g) || []).length;
   if (boldMarkers % 2 !== 0) return true;
   
-  // Check for partial marker at end
   if (/\[[^\]]*$/.test(str)) return true;
   
   return false;
@@ -286,22 +265,24 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
-  const sendingRef = useRef(false); // Add ref to prevent duplicate sends
+  const sendingRef = useRef(false);
   
-  // Streaming states - using pre-processed blocks for clean inline rendering
   const [isStreaming, setIsStreaming] = useState(false);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
-  const [streamedBlocks, setStreamedBlocks] = useState<StreamBlock[]>([]);  // Pre-processed renderable blocks
+  const [streamedBlocks, setStreamedBlocks] = useState<StreamBlock[]>([]);
   const [streamingDataCards, setStreamingDataCards] = useState<DataCard[]>([]);
-  const [thinkingCollapsed, setThinkingCollapsed] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const latestMessageRef = useRef<HTMLDivElement>(null); // Add ref for latest message start
+  const latestMessageRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isRestoringScroll = useRef(false);
-  const prevIsStreamingRef = useRef(false); // Track previous streaming state
+  const prevIsStreamingRef = useRef(false);
+
+  const modalRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -375,7 +356,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     };
   }, [chatState]);
 
-  // Use requestAnimationFrame for smooth, non-blocking scrolling
   const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
     if (!isRestoringScroll.current && chatContainerRef.current) {
       requestAnimationFrame(() => {
@@ -397,28 +377,18 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     }
   };
 
-  // Progressive scroll that follows streaming text smoothly
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const contentBufferRef = useRef<string>('');  // Buffer for incoming content before block extraction
+  const contentBufferRef = useRef<string>('');
   const contentFlushTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     if (!isRestoringScroll.current) {
-      // Check if streaming just finished (was true, now false)
       if (prevIsStreamingRef.current && !isStreaming) {
-        // Streaming just completed - immediate instant scroll to bottom
         scrollToBottom('auto');
-      } else if (isStreaming) {
-        // Still streaming - progressively follow with smooth scroll on every update
-        // Browser's smooth scroll animation naturally throttles excessive calls
-        scrollToBottom('smooth');
       }
-      // Update previous streaming state
       prevIsStreamingRef.current = isStreaming;
     }
-  }, [messages, streamedBlocks, thinkingSteps, isStreaming]);
+  }, [isStreaming]);
 
-  // Handle ESC key to close fullscreen image
   useEffect(() => {
     const handleEscKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && fullscreenImage) {
@@ -436,77 +406,46 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     "Explain today's market in simple terms"
   ];
 
-  // Centralized function to process SSE data with robust error handling
   const processSSEData = (rawData: string): any | null => {
     try {
-      // Handle potential "data: " prefix variations and strip them
       let cleanData = rawData.trim();
-      
-      // Remove "data: " prefix(es) - handles buffering edge cases
       while (cleanData.startsWith('data: ')) {
         cleanData = cleanData.substring(6).trim();
       }
-      
-      // Skip empty data
-      if (!cleanData) {
-        return null;
-      }
-      
-      // Validate JSON format before parsing
-      if (!cleanData.startsWith('{') && !cleanData.startsWith('[')) {
-        console.warn('⚠️ Non-JSON SSE data:', cleanData.substring(0, 50));
-        return null;
-      }
-
+      if (!cleanData) return null;
+      if (!cleanData.startsWith('{') && !cleanData.startsWith('[')) return null;
       return JSON.parse(cleanData);
     } catch (error) {
-      console.error('❌ SSE JSON parse error:', error);
-      console.error('📝 Raw message (first 200 chars):', rawData.substring(0, 200));
-      console.error('🧹 After cleaning (first 200 chars):', cleanData.substring(0, 200));
-      console.error('📏 Raw length:', rawData.length, 'Clean length:', cleanData.length);
-      console.error('🔍 Full raw message:', rawData);
-      console.error('🔍 Full clean message:', cleanData);
       return null;
     }
   };
 
-  // Helper function to parse SSE stream - split on double newlines
   const parseSSEStream = (buffer: string): { messages: string[], remaining: string } => {
     const messages: string[] = [];
     let currentBuffer = buffer;
-    
-    // Keep finding and extracting complete messages until we can't find more
     while (true) {
       const doubleNewlineIndex = currentBuffer.indexOf('\n\n');
-      
       if (doubleNewlineIndex === -1) {
-        // No more complete messages, return what we have
         return { messages, remaining: currentBuffer };
       }
-      
-      // Extract one complete message
       const message = currentBuffer.substring(0, doubleNewlineIndex);
       if (message.trim()) {
         messages.push(message);
       }
-      
-      // Move past the double newline
       currentBuffer = currentBuffer.substring(doubleNewlineIndex + 2);
     }
   };
 
+  const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
-    
-    // Prevent duplicate sends - check both ref and state
-    if (sendingRef.current || isStreaming || isTyping) {
-      return;
-    }
+    if (sendingRef.current || isStreaming || isTyping) return;
     
     sendingRef.current = true;
 
     const userMessage: Message = {
-      id: `user-${Date.now()}`,
+      id: `user-${generateId()}`,
       role: 'user',
       content: message,
       timestamp: new Date()
@@ -517,11 +456,9 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     setIsTyping(true);
     setIsStreaming(true);
     setThinkingSteps([]);
-    setStreamedBlocks([]);  // Reset to empty blocks array
+    setStreamedBlocks([]);
     setStreamingDataCards([]);
-    setThinkingCollapsed(true);
     
-    // Reset content buffer ref
     contentBufferRef.current = '';
     if (contentFlushTimeoutRef.current) {
       clearTimeout(contentFlushTimeoutRef.current);
@@ -533,9 +470,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     }
 
     try {
-      // Get user's timezone for accurate date interpretation
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
       const response = await fetch('https://catalyst-copilot-2nndy.ondigitalocean.app/chat', {
         method: 'POST',
         headers: {
@@ -552,45 +487,38 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Response error:', errorText);
-        throw new Error(`Chat request failed: ${response.status} - ${errorText}`);
+        throw new Error(`Chat request failed: ${response.status}`);
       }
 
-      // ALWAYS handle as SSE stream - this endpoint ONLY streams
-      console.log('📡 SSE stream handler initialized');
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       let collectedThinking: ThinkingStep[] = [];
       let collectedContent = '';
-      let collectedBlocks: StreamBlock[] = [];  // Track all blocks for final message
+      let collectedBlocks: StreamBlock[] = [];
       let collectedDataCards: DataCard[] = [];
       let eventData: Record<string, any> = {};
-      let thinkingStartTime: number | null = null; // Track thinking start time
-      let blockIdCounter = 0;  // Unique ID counter for blocks
+      let thinkingStartTime: number | null = null;
+      let blockIdCounter = 0;
+      let hasReprocessedForMetadata = false;
       
-      // Helper to extract and render blocks from buffer
       const processContentBuffer = (forceFlush: boolean = false) => {
         const { blocks, remaining } = extractStreamBlocks(contentBufferRef.current, collectedDataCards);
         
         if (blocks.length > 0) {
-          // Assign unique IDs to new blocks
           const newBlocks = blocks.map(block => ({
             ...block,
-            id: `block-${blockIdCounter++}-${block.id}`
+            id: `block-${generateId()}-${blockIdCounter++}`
           }));
-          
           collectedBlocks.push(...newBlocks);
           setStreamedBlocks(prev => [...prev, ...newBlocks]);
         }
         
         contentBufferRef.current = remaining;
         
-        // If force flush and there's remaining content, add it as a text block
         if (forceFlush && remaining.trim()) {
           const finalBlock: StreamBlock = {
-            id: `block-${blockIdCounter++}-final`,
+            id: `block-${generateId()}-final`,
             type: 'text',
             content: remaining
           };
@@ -600,28 +528,78 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
         }
       };
       
-      // Helper to process a batch of messages
+      const reprocessStreamedBlocks = () => {
+        console.log(`🔍 [reprocessStreamedBlocks] Scanning ${collectedBlocks.length} blocks for article markers`);
+        
+        const newBlocks: StreamBlock[] = [];
+        let hasChanges = false;
+        
+        for (const block of collectedBlocks) {
+          if (block.type === 'text') {
+            // Try to extract article markers from this text block
+            const { blocks, remaining } = extractStreamBlocks(block.content, collectedDataCards);
+            
+            if (blocks.length > 0) {
+              // We found article markers! Replace this text block with the extracted blocks
+              console.log(`✅ [reprocessStreamedBlocks] Extracted ${blocks.length} blocks from text block`);
+              newBlocks.push(...blocks.map(b => ({
+                ...b,
+                id: `block-${generateId()}-${blockIdCounter++}`
+              })));
+              
+              // Add remaining text if any
+              if (remaining.trim()) {
+                newBlocks.push({
+                  id: `block-${generateId()}-${blockIdCounter++}`,
+                  type: 'text',
+                  content: remaining
+                });
+              }
+              hasChanges = true;
+            } else {
+              // No markers found, keep the original block
+              newBlocks.push(block);
+            }
+          } else {
+            // Non-text blocks pass through unchanged
+            newBlocks.push(block);
+          }
+        }
+        
+        if (hasChanges) {
+          console.log(`🔄 [reprocessStreamedBlocks] Updating blocks: ${collectedBlocks.length} → ${newBlocks.length}`);
+          collectedBlocks.length = 0;
+          collectedBlocks.push(...newBlocks);
+          setStreamedBlocks([...newBlocks]);
+        } else {
+          console.log(`ℹ️ [reprocessStreamedBlocks] No article markers found in existing blocks`);
+        }
+      };
+      
       const processMessages = (msgs: string[]) => {
         for (const messageBlock of msgs) {
-          // Each message block should be a complete SSE message
-          // Don't split by \n - the entire block is one message
           const trimmedBlock = messageBlock.trim();
-          
-          // Skip empty blocks and comments
           if (!trimmedBlock || trimmedBlock.startsWith(':')) continue;
           
-          // Process the entire message block as one SSE message
           if (trimmedBlock.startsWith('data: ')) {
             const data = processSSEData(trimmedBlock);
             if (!data || !data.type) continue;
-
-            console.log('📥 SSE:', data.type);
 
             switch (data.type) {
               case 'metadata':
                 if (data.dataCards) {
                   collectedDataCards = data.dataCards;
                   setStreamingDataCards(data.dataCards);
+                  console.log(`📦 [StreamingChat] Received metadata with ${data.dataCards.length} dataCards:`, {
+                    articleCards: data.dataCards.filter(c => c.type === 'article').map(c => c.data.id),
+                    currentStreamedBlocks: streamedBlocks.length,
+                    currentTextContent: contentBufferRef.current.substring(0, 200)
+                  });
+                  
+                  // Re-process existing text blocks to extract article markers that are now available
+                  console.log(`🔄 [StreamingChat] Re-processing existing blocks with newly available dataCards`);
+                  reprocessStreamedBlocks();
+                  hasReprocessedForMetadata = true;
                 }
                 if (data.eventData) {
                   eventData = data.eventData;
@@ -629,32 +607,30 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 break;
 
               case 'thinking':
-                // Track start time on first thinking step
                 if (thinkingStartTime === null) {
                   thinkingStartTime = Date.now();
                 }
-                const newStep = { phase: data.phase || 'thinking', content: data.content };
+                const newStep = { phase: data.phase || 'thinking', content: data.content, timestamp: Date.now() };
                 collectedThinking.push(newStep);
                 setThinkingSteps(prev => [...prev, newStep]);
                 break;
 
               case 'content':
-                // Add content to buffer and track full content
                 contentBufferRef.current += data.content;
                 collectedContent += data.content;
                 
-                // Process buffer to extract complete blocks
-                // Clear any pending timeout since we're processing now
                 if (contentFlushTimeoutRef.current) {
                   clearTimeout(contentFlushTimeoutRef.current);
                   contentFlushTimeoutRef.current = null;
                 }
-                
-                // Try to extract blocks immediately
                 processContentBuffer(false);
                 
-                // Set a fallback timeout to flush partial content if no more data arrives
-                // Increased delay to slow down rendering for smoother scrolling experience
+                // Only reprocess once when metadata first arrives, not on every content chunk
+                if (collectedDataCards.length > 0 && !hasReprocessedForMetadata) {
+                  reprocessStreamedBlocks();
+                  hasReprocessedForMetadata = true;
+                }
+                
                 contentFlushTimeoutRef.current = setTimeout(() => {
                   if (contentBufferRef.current.trim()) {
                     processContentBuffer(false);
@@ -663,11 +639,9 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 }, 150);
                 break;
 
-              // Handle structured block events from backend StreamProcessor
               case 'chart_block':
-                // Chart block - render immediately as a chart
                 const chartBlock: StreamBlock = {
-                  id: `chart-${blockIdCounter++}`,
+                  id: `chart-${generateId()}-${blockIdCounter++}`,
                   type: 'chart',
                   content: '',
                   data: { symbol: data.symbol, timeRange: data.timeRange }
@@ -676,38 +650,11 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 setStreamedBlocks(prev => [...prev, chartBlock]);
                 break;
 
-              case 'article_block':
-                // Article block - find card data and render
-                const articleCard = collectedDataCards.find(c => c.type === 'article' && c.data?.id === data.cardId);
-                if (articleCard) {
-                  const articleBlock: StreamBlock = {
-                    id: `article-${blockIdCounter++}`,
-                    type: 'article',
-                    content: '',
-                    data: articleCard.data
-                  };
-                  collectedBlocks.push(articleBlock);
-                  setStreamedBlocks(prev => [...prev, articleBlock]);
-                }
-                break;
-
-              case 'horizontal_rule':
-                // Horizontal separator - styled divider after article discussions
-                const separatorBlock: StreamBlock = {
-                  id: `separator-${blockIdCounter++}`,
-                  type: 'separator',
-                  content: ''
-                };
-                collectedBlocks.push(separatorBlock);
-                setStreamedBlocks(prev => [...prev, separatorBlock]);
-                break;
-
               case 'image_block':
-                // Image block - find card data and render
                 const imageCard = collectedDataCards.find(c => c.type === 'image' && c.data?.id === data.cardId);
                 if (imageCard) {
                   const imageBlock: StreamBlock = {
-                    id: `image-${blockIdCounter++}`,
+                    id: `image-${generateId()}-${blockIdCounter++}`,
                     type: 'image',
                     content: '',
                     data: imageCard.data
@@ -717,12 +664,32 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 }
                 break;
 
+              case 'article_block':
+                // Flush any pending text content before adding article card
+                if (contentFlushTimeoutRef.current) {
+                  clearTimeout(contentFlushTimeoutRef.current);
+                  contentFlushTimeoutRef.current = null;
+                }
+                processContentBuffer(false);
+                
+                const articleCard = collectedDataCards.find(c => c.type === 'article' && c.data?.id === data.cardId);
+                if (articleCard) {
+                  const articleBlock: StreamBlock = {
+                    id: `article-${generateId()}-${blockIdCounter++}`,
+                    type: 'article',
+                    content: '',
+                    data: articleCard.data
+                  };
+                  collectedBlocks.push(articleBlock);
+                  setStreamedBlocks(prev => [...prev, articleBlock]);
+                }
+                break;
+
               case 'event_block':
-                // Event block - find card data and render
                 const eventCard = collectedDataCards.find(c => c.type === 'event' && (c.data?.id === data.cardId || c.data?.id?.toString() === data.cardId));
                 if (eventCard) {
                   const eventBlock: StreamBlock = {
-                    id: `event-${blockIdCounter++}`,
+                    id: `event-${generateId()}-${blockIdCounter++}`,
                     type: 'event',
                     content: '',
                     data: eventCard.data
@@ -732,24 +699,32 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 }
                 break;
 
+              case 'horizontal_rule':
+                const hrBlock: StreamBlock = {
+                  id: `hr-${generateId()}-${blockIdCounter++}`,
+                  type: 'horizontal_rule',
+                  content: ''
+                };
+                collectedBlocks.push(hrBlock);
+                setStreamedBlocks(prev => [...prev, hrBlock]);
+                break;
+
               case 'done':
-                // Flush any remaining buffered content as final blocks
                 if (contentFlushTimeoutRef.current) {
                   clearTimeout(contentFlushTimeoutRef.current);
                   contentFlushTimeoutRef.current = null;
                 }
-                processContentBuffer(true);  // Force flush remaining content
+                processContentBuffer(true);
                 
-                // Calculate thinking duration
                 const thinkingDuration = thinkingStartTime 
                   ? Math.round((Date.now() - thinkingStartTime) / 1000) 
                   : undefined;
                   
                 const aiMessage: Message = {
-                  id: `ai-${Date.now()}`,
+                  id: `ai-${generateId()}`,
                   role: 'assistant',
                   content: collectedContent,
-                  contentBlocks: collectedBlocks,  // Store blocks for final rendering
+                  contentBlocks: collectedBlocks,
                   dataCards: collectedDataCards,
                   eventData: eventData,
                   thinkingSteps: collectedThinking,
@@ -759,7 +734,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 setMessages(prev => [...prev, aiMessage]);
                 setIsStreaming(false);
                 setThinkingSteps([]);
-                setStreamedBlocks([]);  // Clear streamed blocks
+                setStreamedBlocks([]);
                 setStreamingDataCards([]);
                 break;
             }
@@ -767,40 +742,19 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
         }
       };
 
-      // Continue reading the stream
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         const chunk = decoder.decode(value, { stream: true });
-        console.log('📦 Received chunk (length:', chunk.length, '):', chunk.substring(0, 100));
-        
         buffer += chunk;
-        console.log('📚 Buffer before parse (length:', buffer.length, '):', buffer.substring(0, 150));
-        
         const { messages: completeMessages, remaining } = parseSSEStream(buffer);
-        console.log('✅ Found', completeMessages.length, 'complete messages, remaining buffer length:', remaining.length);
-        
         buffer = remaining;
-
         processMessages(completeMessages);
       }
     } catch (error) {
-      console.error('❌ Error sending message:', error);
-      console.error('❌ Error name:', (error as Error).name);
-      console.error('❌ Error message:', (error as Error).message);
-      console.error('❌ Error stack:', (error as Error).stack);
-      
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        console.error('❌ Network error - possible causes:');
-        console.error('  1. CORS not configured on DigitalOcean app');
-        console.error('  2. DigitalOcean app is not running');
-        console.error('  3. Network connectivity issue');
-        console.error('  4. Invalid endpoint URL');
-      }
-      
+      console.error('Error sending message:', error);
       const errorMessage: Message = {
-        id: `error-${Date.now()}`,
+        id: `error-${generateId()}`,
         role: 'assistant',
         content: "I'm sorry, I encountered an error. Please try again.",
         timestamp: new Date()
@@ -809,12 +763,11 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
       setIsStreaming(false);
     } finally {
       setIsTyping(false);
-      sendingRef.current = false; // Reset the flag
+      sendingRef.current = false;
     }
   };
 
   const handleQuickStart = (question: string) => {
-    // Don't send if already sending
     if (!sendingRef.current && !isStreaming && !isTyping) {
       handleSendMessage(question);
     }
@@ -839,12 +792,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
   const handleClose = () => {
     setChatState('collapsed');
     setMessages([]);
-    try {
-      localStorage.removeItem('catalyst_chat_messages');
-      localStorage.setItem('catalyst_chat_state', 'collapsed');
-    } catch (error) {
-      console.error('Error clearing chat state:', error);
-    }
+    localStorage.removeItem('catalyst_chat_messages');
+    localStorage.setItem('catalyst_chat_state', 'collapsed');
   };
 
   const handleEditMessage = (messageId: string, content: string) => {
@@ -862,11 +811,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
 
   const handleSubmitEdit = async (messageId: string) => {
     if (!editingValue.trim()) return;
-    
-    // Prevent duplicate submits - check both ref and state
-    if (sendingRef.current || isStreaming || isTyping) {
-      return;
-    }
+    if (sendingRef.current || isStreaming || isTyping) return;
     
     sendingRef.current = true;
 
@@ -877,7 +822,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     }
 
     const messagesBeforeEdit = messages.slice(0, messageIndex);
-
     const editedMessage: Message = {
       ...messages[messageIndex],
       content: editingValue,
@@ -890,11 +834,9 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     setIsTyping(true);
     setIsStreaming(true);
     setThinkingSteps([]);
-    setStreamedBlocks([]);  // Reset to empty blocks array
+    setStreamedBlocks([]);
     setStreamingDataCards([]);
-    setThinkingCollapsed(true);
     
-    // Reset content buffer ref
     contentBufferRef.current = '';
     if (contentFlushTimeoutRef.current) {
       clearTimeout(contentFlushTimeoutRef.current);
@@ -902,9 +844,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
     }
 
     try {
-      // Get user's timezone for accurate date interpretation
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
       const response = await fetch('https://catalyst-copilot-2nndy.ondigitalocean.app/chat', {
         method: 'POST',
         headers: {
@@ -921,43 +861,35 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Chat API error:', response.status, response.statusText, errorText);
-        throw new Error(`Failed to get response from AI: ${response.status} ${errorText}`);
+        throw new Error(`Failed to get response from AI: ${response.status}`);
       }
 
-      // Handle as SSE stream
-      console.log('📡 SSE stream handler initialized (edit mode)');
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       let collectedThinking: ThinkingStep[] = [];
       let collectedContent = '';
-      let collectedBlocks: StreamBlock[] = [];  // Track all blocks for final message
+      let collectedBlocks: StreamBlock[] = [];
       let collectedDataCards: DataCard[] = [];
       let eventData: Record<string, any> = {};
-      let thinkingStartTime: number | null = null; // Track thinking start time
-      let editBlockIdCounter = 0;  // Unique ID counter for blocks
+      let thinkingStartTime: number | null = null;
+      let editBlockIdCounter = 0;
+      let hasReprocessedEditForMetadata = false;
       
-      // Helper to extract and render blocks from buffer (edit mode)
       const processEditContentBuffer = (forceFlush: boolean = false) => {
         const { blocks, remaining } = extractStreamBlocks(contentBufferRef.current, collectedDataCards);
-        
         if (blocks.length > 0) {
           const newBlocks = blocks.map(block => ({
             ...block,
-            id: `edit-block-${editBlockIdCounter++}-${block.id}`
+            id: `edit-block-${generateId()}-${editBlockIdCounter++}`
           }));
-          
           collectedBlocks.push(...newBlocks);
           setStreamedBlocks(prev => [...prev, ...newBlocks]);
         }
-        
         contentBufferRef.current = remaining;
-        
         if (forceFlush && remaining.trim()) {
           const finalBlock: StreamBlock = {
-            id: `edit-block-${editBlockIdCounter++}-final`,
+            id: `edit-block-${generateId()}-final`,
             type: 'text',
             content: remaining
           };
@@ -967,68 +899,100 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
         }
       };
       
-      // Helper to process a batch of messages
+      const reprocessEditStreamedBlocks = () => {
+        console.log(`🔍 [reprocessEditStreamedBlocks] Scanning ${collectedBlocks.length} blocks for article markers`);
+        
+        const newBlocks: StreamBlock[] = [];
+        let hasChanges = false;
+        
+        for (const block of collectedBlocks) {
+          if (block.type === 'text') {
+            const { blocks, remaining } = extractStreamBlocks(block.content, collectedDataCards);
+            
+            if (blocks.length > 0) {
+              console.log(`✅ [reprocessEditStreamedBlocks] Extracted ${blocks.length} blocks from text block`);
+              newBlocks.push(...blocks.map(b => ({
+                ...b,
+                id: `edit-block-${generateId()}-${editBlockIdCounter++}`
+              })));
+              
+              if (remaining.trim()) {
+                newBlocks.push({
+                  id: `edit-block-${generateId()}-${editBlockIdCounter++}`,
+                  type: 'text',
+                  content: remaining
+                });
+              }
+              hasChanges = true;
+            } else {
+              newBlocks.push(block);
+            }
+          } else {
+            newBlocks.push(block);
+          }
+        }
+        
+        if (hasChanges) {
+          console.log(`🔄 [reprocessEditStreamedBlocks] Updating blocks: ${collectedBlocks.length} → ${newBlocks.length}`);
+          collectedBlocks.length = 0;
+          collectedBlocks.push(...newBlocks);
+          setStreamedBlocks([...newBlocks]);
+        } else {
+          console.log(`ℹ️ [reprocessEditStreamedBlocks] No article markers found in existing blocks`);
+        }
+      };
+      
       const processMessages = (msgs: string[]) => {
         for (const messageBlock of msgs) {
           const trimmedBlock = messageBlock.trim();
-          
-          // Skip empty blocks and comments
           if (!trimmedBlock || trimmedBlock.startsWith(':')) continue;
           
-          // Process the entire message block as one SSE message
           if (trimmedBlock.startsWith('data: ')) {
             const data = processSSEData(trimmedBlock);
             if (!data || !data.type) continue;
-
-            console.log('📥 SSE (edit):', data.type);
 
             switch (data.type) {
               case 'metadata':
                 if (data.dataCards) {
                   collectedDataCards = data.dataCards;
                   setStreamingDataCards(data.dataCards);
+                  
+                  // Re-process existing text blocks to extract article markers that are now available
+                  console.log(`🔄 [EditStreamingChat] Re-processing existing blocks with newly available dataCards`);
+                  reprocessEditStreamedBlocks();
+                  hasReprocessedEditForMetadata = true;
                 }
-                if (data.eventData) {
-                  eventData = data.eventData;
-                }
+                if (data.eventData) eventData = data.eventData;
                 break;
-
               case 'thinking':
-                // Track start time on first thinking step
-                if (thinkingStartTime === null) {
-                  thinkingStartTime = Date.now();
-                }
-                const newStep = { phase: data.phase || 'thinking', content: data.content };
+                if (thinkingStartTime === null) thinkingStartTime = Date.now();
+                const newStep = { phase: data.phase || 'thinking', content: data.content, timestamp: Date.now() };
                 collectedThinking.push(newStep);
                 setThinkingSteps(prev => [...prev, newStep]);
                 break;
-
               case 'content':
-                // Add content to buffer and track full content
                 contentBufferRef.current += data.content;
                 collectedContent += data.content;
-                
-                // Process buffer to extract complete blocks
                 if (contentFlushTimeoutRef.current) {
                   clearTimeout(contentFlushTimeoutRef.current);
                   contentFlushTimeoutRef.current = null;
                 }
-                
                 processEditContentBuffer(false);
                 
-                // Increased delay to slow down rendering for smoother scrolling experience
+                // Only reprocess once when metadata first arrives, not on every content chunk
+                if (collectedDataCards.length > 0 && !hasReprocessedEditForMetadata) {
+                  reprocessEditStreamedBlocks();
+                  hasReprocessedEditForMetadata = true;
+                }
+                
                 contentFlushTimeoutRef.current = setTimeout(() => {
-                  if (contentBufferRef.current.trim()) {
-                    processEditContentBuffer(false);
-                  }
+                  if (contentBufferRef.current.trim()) processEditContentBuffer(false);
                   contentFlushTimeoutRef.current = null;
                 }, 150);
                 break;
-
-              // Handle structured block events from backend StreamProcessor
               case 'chart_block':
                 const editChartBlock: StreamBlock = {
-                  id: `edit-chart-${editBlockIdCounter++}`,
+                  id: `edit-chart-${generateId()}-${editBlockIdCounter++}`,
                   type: 'chart',
                   content: '',
                   data: { symbol: data.symbol, timeRange: data.timeRange }
@@ -1036,37 +1000,11 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 collectedBlocks.push(editChartBlock);
                 setStreamedBlocks(prev => [...prev, editChartBlock]);
                 break;
-
-              case 'article_block':
-                const editArticleCard = collectedDataCards.find(c => c.type === 'article' && c.data?.id === data.cardId);
-                if (editArticleCard) {
-                  const editArticleBlock: StreamBlock = {
-                    id: `edit-article-${editBlockIdCounter++}`,
-                    type: 'article',
-                    content: '',
-                    data: editArticleCard.data
-                  };
-                  collectedBlocks.push(editArticleBlock);
-                  setStreamedBlocks(prev => [...prev, editArticleBlock]);
-                }
-                break;
-
-              case 'horizontal_rule':
-                // Horizontal separator - styled divider after article discussions
-                const editSeparatorBlock: StreamBlock = {
-                  id: `edit-separator-${editBlockIdCounter++}`,
-                  type: 'separator',
-                  content: ''
-                };
-                collectedBlocks.push(editSeparatorBlock);
-                setStreamedBlocks(prev => [...prev, editSeparatorBlock]);
-                break;
-
               case 'image_block':
                 const editImageCard = collectedDataCards.find(c => c.type === 'image' && c.data?.id === data.cardId);
                 if (editImageCard) {
                   const editImageBlock: StreamBlock = {
-                    id: `edit-image-${editBlockIdCounter++}`,
+                    id: `edit-image-${generateId()}-${editBlockIdCounter++}`,
                     type: 'image',
                     content: '',
                     data: editImageCard.data
@@ -1075,12 +1013,31 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   setStreamedBlocks(prev => [...prev, editImageBlock]);
                 }
                 break;
-
+              case 'article_block':
+                // Flush any pending text content before adding article card
+                if (contentFlushTimeoutRef.current) {
+                  clearTimeout(contentFlushTimeoutRef.current);
+                  contentFlushTimeoutRef.current = null;
+                }
+                processEditContentBuffer(false);
+                
+                const editArticleCard = collectedDataCards.find(c => c.type === 'article' && c.data?.id === data.cardId);
+                if (editArticleCard) {
+                  const editArticleBlock: StreamBlock = {
+                    id: `edit-article-${generateId()}-${editBlockIdCounter++}`,
+                    type: 'article',
+                    content: '',
+                    data: editArticleCard.data
+                  };
+                  collectedBlocks.push(editArticleBlock);
+                  setStreamedBlocks(prev => [...prev, editArticleBlock]);
+                }
+                break;
               case 'event_block':
                 const editEventCard = collectedDataCards.find(c => c.type === 'event' && (c.data?.id === data.cardId || c.data?.id?.toString() === data.cardId));
                 if (editEventCard) {
                   const editEventBlock: StreamBlock = {
-                    id: `edit-event-${editBlockIdCounter++}`,
+                    id: `edit-event-${generateId()}-${editBlockIdCounter++}`,
                     type: 'event',
                     content: '',
                     data: editEventCard.data
@@ -1089,25 +1046,29 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   setStreamedBlocks(prev => [...prev, editEventBlock]);
                 }
                 break;
-
+              case 'horizontal_rule':
+                const editHrBlock: StreamBlock = {
+                  id: `edit-hr-${generateId()}-${editBlockIdCounter++}`,
+                  type: 'horizontal_rule',
+                  content: ''
+                };
+                collectedBlocks.push(editHrBlock);
+                setStreamedBlocks(prev => [...prev, editHrBlock]);
+                break;
               case 'done':
-                // Flush any remaining buffered content
                 if (contentFlushTimeoutRef.current) {
                   clearTimeout(contentFlushTimeoutRef.current);
                   contentFlushTimeoutRef.current = null;
                 }
                 processEditContentBuffer(true);
-                
-                // Calculate thinking duration
                 const editThinkingDuration = thinkingStartTime 
                   ? Math.round((Date.now() - thinkingStartTime) / 1000) 
                   : undefined;
-                  
                 const editAiMessage: Message = {
-                  id: `ai-${Date.now()}`,
+                  id: `ai-${generateId()}`,
                   role: 'assistant',
                   content: collectedContent,
-                  contentBlocks: collectedBlocks,  // Store blocks for final rendering
+                  contentBlocks: collectedBlocks,
                   dataCards: collectedDataCards,
                   eventData: eventData,
                   thinkingSteps: collectedThinking,
@@ -1117,7 +1078,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                 setMessages(prev => [...prev, editAiMessage]);
                 setIsStreaming(false);
                 setThinkingSteps([]);
-                setStreamedBlocks([]);  // Clear streamed blocks
+                setStreamedBlocks([]);
                 setStreamingDataCards([]);
                 break;
             }
@@ -1125,27 +1086,19 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
         }
       };
 
-      // Continue reading the stream
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         const chunk = decoder.decode(value, { stream: true });
-        console.log('📦 Received chunk (edit mode, length:', chunk.length, ')');
-        
         buffer += chunk;
-        
         const { messages: completeMessages, remaining } = parseSSEStream(buffer);
-        console.log('✅ Found', completeMessages.length, 'complete messages (edit mode)');
-        
         buffer = remaining;
-
         processMessages(completeMessages);
       }
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
-        id: `error-${Date.now()}`,
+        id: `error-${generateId()}`,
         role: 'assistant',
         content: "I'm sorry, I encountered an error. Please try again.",
         timestamp: new Date()
@@ -1154,7 +1107,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
       setIsStreaming(false);
     } finally {
       setIsTyping(false);
-      sendingRef.current = false; // Reset the flag
+      sendingRef.current = false;
     }
   };
 
@@ -1236,7 +1189,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
               <div className="p-4">
                 <p className="text-xs text-muted-foreground mb-3 font-medium">Quick start:</p>
                 <div className="flex flex-wrap gap-2">
-                  {quickStartChips.map((chip, index) => (
+                  {quickStartChips.map((chip) => (
                     <Badge
                       key={chip}
                       variant="outline"
@@ -1257,18 +1210,15 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   value={inputValue}
                   onChange={(e) => {
                     setInputValue(e.target.value);
-                    // Auto-resize textarea
                     e.target.style.height = 'auto';
                     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      // Don't send if already sending or if input is empty
                       if (!sendingRef.current && !isStreaming && !isTyping && inputValue.trim()) {
                         handleSendMessage(inputValue);
                       }
-                      // Reset height after sending
                       if (inputRef.current) {
                         (inputRef.current as any).style.height = 'auto';
                       }
@@ -1291,7 +1241,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                         : ''
                     }`}
                     onClick={() => {
-                      // Don't send if already sending or if input is empty
                       if (!sendingRef.current && !isStreaming && !isTyping && inputValue.trim()) {
                         handleSendMessage(inputValue);
                       }
@@ -1358,19 +1307,20 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
   return (
     <AnimatePresence mode="wait">
       <motion.div
+        ref={modalRef}
         key="full-window"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="fixed inset-0 z-50 bg-background flex flex-col"
+        className="fixed inset-0 z-[100] bg-background flex flex-col"
       >
         <div className="flex items-center justify-between p-4 border-b border-border bg-background/95 backdrop-blur-sm">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-ai-accent to-muted-foreground rounded-full flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-primary-foreground" />
             </div>
-            <h2 className="font-semibold">Catalyst Copilot</h2>
+            <h2>Catalyst Copilot</h2>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -1392,7 +1342,7 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-6" ref={chatContainerRef}>
+        <div className="flex-1 overflow-y-auto p-4 pb-4 space-y-6" ref={(el) => { chatContainerRef.current = el; messagesContainerRef.current = el; }}>
           {messages.length === 0 && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -1448,19 +1398,22 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
           {messages.map((msg, index) => (
             <div
               key={msg.id}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} -mb-2`}
             >
-              <div className={`${msg.role === 'user' ? 'max-w-[85%]' : 'w-full'} ${msg.role === 'assistant' ? 'space-y-3' : ''}`}>
-                {/* AI Avatar for assistant messages */}
+              <div className={`${msg.role === 'user' ? 'max-w-[85%]' : 'w-full'} ${msg.role === 'assistant' ? 'space-y-3 mb-8' : 'mb-3'}`}>
                 {msg.role === 'assistant' && (
                   <motion.div 
                     ref={index === messages.length - 1 && msg.role === 'assistant' ? latestMessageRef : null}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                    className="flex items-center gap-2 mb-2"
+                    className="mb-2"
                   >
-                    <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
+                    {msg.thinkingDuration !== undefined && (
+                      <div className="text-xs text-muted-foreground mt-0.5 mb-5 not-italic">
+                        Thought for {msg.thinkingDuration}s
+                      </div>
+                    )}
                   </motion.div>
                 )}
                 
@@ -1511,50 +1464,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                     transition={{ duration: 0.3 }}
                     className="space-y-2"
                   >
-                    {/* Show thinking steps for assistant messages if available */}
-                    {msg.role === 'assistant' && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (() => {
-                      // Check if this is the currently streaming message
-                      const isCurrentlyStreaming = index === messages.length - 1 && isStreaming && thinkingSteps.length > 0;
-                      // Get the current thinking step (last one in the array during streaming)
-                      const currentThinkingText = isCurrentlyStreaming && thinkingSteps.length > 0
-                        ? thinkingSteps[thinkingSteps.length - 1].content
-                        : null;
-                      
-                      return (
-                        <details className="rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-br from-muted/40 to-muted/20 backdrop-blur-sm mb-2 max-w-[85%]">
-                          <summary className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 transition-colors list-none">
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <Sparkles className="w-4 h-4 text-ai-accent flex-shrink-0" />
-                              <span className={`text-xs font-medium ${
-                                isCurrentlyStreaming && currentThinkingText
-                                  ? 'thinking-text-animated'
-                                  : 'text-muted-foreground'
-                              } truncate`}>
-                                {isCurrentlyStreaming && currentThinkingText
-                                  ? currentThinkingText
-                                  : msg.thinkingDuration
-                                    ? `Thought for ${msg.thinkingDuration}s`
-                                    : 'View thinking process'
-                                }
-                              </span>
-                            </div>
-                            <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                          </summary>
-                          <div className="px-4 pb-3 space-y-2">
-                            {msg.thinkingSteps.map((step, index) => (
-                              <div
-                                key={`${msg.id}-thinking-${index}`}
-                                className="text-xs text-muted-foreground flex items-start gap-2"
-                              >
-                                <div className="w-1 h-1 rounded-full bg-ai-accent mt-1.5 flex-shrink-0" />
-                                <span>{step.content}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      );
-                    })()}
-
                     <div
                       className={`${
                         msg.role === 'user'
@@ -1562,17 +1471,17 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                           : 'text-foreground'
                       }`}
                     >
-                      {/* Use contentBlocks if available (from streaming), otherwise parse content with MarkdownText */}
                       {msg.contentBlocks && msg.contentBlocks.length > 0 ? (
                         <StreamBlockRenderer 
                           blocks={msg.contentBlocks} 
                           dataCards={msg.dataCards} 
                           onEventClick={onEventClick} 
                           onImageClick={setFullscreenImage} 
-                          onTickerClick={onTickerClick} 
+                          onTickerClick={onTickerClick}
+                          isUserMessage={msg.role === 'user'}
                         />
                       ) : (
-                        <MarkdownText text={msg.content} dataCards={msg.dataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
+                        <MarkdownText text={msg.content} dataCards={msg.dataCards} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} isUserMessage={msg.role === 'user'} />
                       )}
                     </div>
 
@@ -1590,15 +1499,10 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                       </div>
                     )}
 
-                    {/* Render non-inline cards at the bottom (stock cards, charts that aren't referenced inline) */}
                     {msg.dataCards && msg.dataCards.filter(card => {
-                      // Exclude event cards (they're inline)
                       if (card.type === 'event') return false;
-                      // Exclude image cards completely - they should only appear inline
                       if (card.type === 'image') return false;
-                      // Exclude article cards - they're rendered inline via VIEW_ARTICLE markers
                       if (card.type === 'article') return false;
-                      // Exclude chart cards - they're rendered inline via VIEW_CHART markers
                       if (card.type === 'chart') return false;
                       return true;
                     }).length > 0 && (
@@ -1614,22 +1518,21 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                           if (card.type === 'article') return false;
                           if (card.type === 'chart') return false;
                           return true;
-                        }).map((card, index) => {
-                          // Generate a unique key based on card type, data, and index
+                        }).map((card, idx) => {
                           const cardKey = card.type === 'stock' 
-                            ? `${msg.id}-stock-${card.data?.ticker || 'unknown'}-${index}` 
+                            ? `${msg.id}-stock-${card.data?.ticker || 'unknown'}-${idx}` 
                             : card.type === 'chart'
-                            ? `${msg.id}-chart-${card.data?.ticker || 'unknown'}-${index}`
+                            ? `${msg.id}-chart-${card.data?.ticker || 'unknown'}-${idx}`
                             : card.type === 'event-list'
-                            ? `${msg.id}-event-list-${index}`
-                            : `${msg.id}-card-${index}`;
+                            ? `${msg.id}-event-list-${idx}`
+                            : `${msg.id}-card-${idx}`;
                           
                           return (
                             <motion.div
                               key={cardKey}
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.3, delay: 0.1 + (index * 0.05) }}
+                              transition={{ duration: 0.3, delay: 0.1 + (idx * 0.05) }}
                             >
                               <DataCardComponent card={card} onEventClick={onEventClick} onImageClick={setFullscreenImage} onTickerClick={onTickerClick} />
                             </motion.div>
@@ -1643,27 +1546,13 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
             </div>
           ))}
 
-          {/* Streaming Message with Thinking Box */}
           {isStreaming && (
             <div className="flex justify-start">
-              <div className="w-full space-y-3">
-                {/* AI Avatar */}
-                <div 
-                  ref={latestMessageRef}
-                  className="flex items-center gap-2 mb-2"
-                >
-                  <span className="text-xs font-medium text-muted-foreground">Catalyst AI</span>
-                </div>
-
-                {/* Streaming Non-Inline Data Cards - Show First (stock cards, charts that aren't referenced inline) */}
+              <div ref={latestMessageRef} className="w-full space-y-3 mt-2.5">
                 {streamingDataCards.filter(card => {
-                  // Exclude event cards (they're inline)
                   if (card.type === 'event') return false;
-                  // Exclude image cards completely - they should only appear inline
                   if (card.type === 'image') return false;
-                  // Exclude article cards - they're rendered inline via VIEW_ARTICLE markers
                   if (card.type === 'article') return false;
-                  // Exclude chart cards - they're rendered inline via VIEW_CHART markers
                   if (card.type === 'chart') return false;
                   return true;
                 }).length > 0 && (
@@ -1677,15 +1566,14 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                       if (card.type === 'article') return false;
                       if (card.type === 'chart') return false;
                       return true;
-                    }).map((card, index) => {
-                      // Generate a unique key based on card type, data, and index
+                    }).map((card, idx) => {
                       const cardKey = card.type === 'stock' 
-                        ? `streaming-stock-${card.data?.ticker || 'unknown'}-${index}` 
+                        ? `streaming-stock-${card.data?.ticker || 'unknown'}-${idx}` 
                         : card.type === 'chart'
-                        ? `streaming-chart-${card.data?.ticker || 'unknown'}-${index}`
+                        ? `streaming-chart-${card.data?.ticker || 'unknown'}-${idx}`
                         : card.type === 'event-list'
-                        ? `streaming-event-list-${index}`
-                        : `streaming-card-${index}`;
+                        ? `streaming-event-list-${idx}`
+                        : `streaming-card-${idx}`;
                       
                       return (
                         <div
@@ -1699,7 +1587,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   </div>
                 )}
 
-                {/* Loading indicator before thinking starts */}
                 {thinkingSteps.length === 0 && streamedBlocks.length === 0 && streamingDataCards.length === 0 && (
                   <motion.div 
                     initial={{ opacity: 0 }}
@@ -1724,54 +1611,23 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                   </motion.div>
                 )}
 
-                {/* Thinking Box (ChatGPT style) */}
                 {thinkingSteps.length > 0 && (
                   <div 
-                    className={`rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-br from-muted/40 to-muted/20 backdrop-blur-sm max-w-[85%]`}
+                    className={`overflow-hidden max-w-[85%]`}
                     style={{ willChange: 'contents' }}
                   >
                     <div 
-                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 transition-colors"
-                      onClick={() => setThinkingCollapsed(!thinkingCollapsed)}
+                      className="flex items-center justify-between py-1"
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                          className="flex-shrink-0"
-                        >
-                          <Sparkles className="w-4 h-4 text-ai-accent" />
-                        </motion.div>
-                        <span className="text-xs font-medium thinking-text-animated truncate">
+                        <span className="text-xs font-medium thinking-text-animated truncate text-[14px]">
                           {thinkingSteps.length > 0 ? thinkingSteps[thinkingSteps.length - 1].content : 'Thinking...'}
                         </span>
                       </div>
-                      <motion.div
-                        animate={{ rotate: thinkingCollapsed ? -90 : 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex-shrink-0"
-                      >
-                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                      </motion.div>
                     </div>
-                    
-                    {!thinkingCollapsed && (
-                      <div className="px-4 pb-3 space-y-2">
-                        {thinkingSteps.map((step, index) => (
-                          <div
-                            key={`streaming-thinking-${index}`}
-                            className="text-xs text-muted-foreground flex items-start gap-2"
-                          >
-                            <div className="w-1 h-1 rounded-full bg-ai-accent mt-1.5 flex-shrink-0" />
-                            <span>{step.content}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )}
 
-                {/* Streamed Content Blocks - Rendered inline in final form with Typing Cursor */}
                 {streamedBlocks.length > 0 && (
                   <div 
                     className="text-foreground"
@@ -1786,7 +1642,8 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                       dataCards={streamingDataCards} 
                       onEventClick={onEventClick} 
                       onImageClick={setFullscreenImage} 
-                      onTickerClick={onTickerClick} 
+                      onTickerClick={onTickerClick}
+                      isUserMessage={false}
                     />
                     <span
                       className="inline-block w-[2px] h-4 bg-foreground/60 ml-0.5 animate-pulse"
@@ -1803,60 +1660,64 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
               animate={{ opacity: 1, y: 0 }}
               className="flex justify-start"
             >
-              <div className="flex items-center gap-2">
+              <div className="w-full space-y-3">
                 <motion.div 
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                  className="w-7 h-7 bg-gradient-to-br from-ai-accent via-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-md"
+                  className="flex items-center gap-2 mb-2"
                 >
-                  <Sparkles className="w-4 h-4 text-white" />
+                  <span className="text-[15px] font-medium text-black mb-0">Catalyst AI</span>
                 </motion.div>
-                <div className="bg-gradient-to-br from-muted/80 to-muted/60 backdrop-blur-sm rounded-2xl px-4 py-3 border border-border/50">
-                  <div className="flex items-center gap-1.5">
-                    <motion.div 
-                      className="w-2 h-2 bg-ai-accent rounded-full"
-                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: 0 }}
-                    />
-                    <motion.div 
-                      className="w-2 h-2 bg-ai-accent rounded-full"
-                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
-                    />
-                    <motion.div 
-                      className="w-2 h-2 bg-ai-accent rounded-full"
-                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
-                    />
+                
+                <div className="rounded-2xl mb-2 inline-block">
+                  <div className="flex items-center gap-2 py-1.5 pr-3">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <motion.div 
+                        className="w-2 h-2 bg-ai-accent rounded-full"
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                        transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+                      />
+                      <motion.div 
+                        className="w-2 h-2 bg-ai-accent rounded-full"
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                        transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
+                      />
+                      <motion.div 
+                        className="w-2 h-2 bg-ai-accent rounded-full"
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                        transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground ml-1 whitespace-nowrap">
+                      Analyzing your question...
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   </div>
                 </div>
               </div>
             </motion.div>
           )}
 
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} className="mb-6" />
         </div>
 
-        <div className="p-4 pb-24 border-t border-border bg-background">
+        <div ref={inputContainerRef} className="flex-shrink-0 p-3 border-t border-border bg-background">
           <div className="flex items-end gap-2">
             <textarea
               ref={inputRef as any}
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
-                // Auto-grow height
                 e.target.style.height = 'auto';
                 e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  // Don't send if already sending or if input is empty
                   if (!sendingRef.current && !isStreaming && !isTyping && inputValue.trim()) {
                     handleSendMessage(inputValue);
                   }
-                  // Reset height after sending
                   if (inputRef.current) {
                     (inputRef.current as any).style.height = 'auto';
                   }
@@ -1879,7 +1740,6 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
                     : ''
                 }`}
                 onClick={() => {
-                  // Don't send if already sending or if input is empty
                   if (!sendingRef.current && !isStreaming && !isTyping && inputValue.trim()) {
                     handleSendMessage(inputValue);
                   }
@@ -1901,13 +1761,12 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
               </Button>
             </motion.div>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-[8px] text-center mr-[0px] mb-[-30px] ml-[0px]">
+          <p className="text-[10px] text-muted-foreground mt-2 text-center">
             Powered by OpenAI + Catalyst data (Supabase)
           </p>
         </div>
       </motion.div>
 
-      {/* Fullscreen Image Modal */}
       <AnimatePresence>
         {fullscreenImage && (
           <motion.div
@@ -1946,28 +1805,37 @@ export function CatalystCopilot({ selectedTickers = [], onEventClick, onTickerCl
   );
 }
 
-/**
- * StreamBlockRenderer - Renders pre-processed streaming blocks in their final form
- * Each block renders immediately as text, chart, or card - no post-processing needed
- */
 function StreamBlockRenderer({ 
   blocks, 
   dataCards,
   onEventClick, 
   onImageClick, 
-  onTickerClick 
+  onTickerClick,
+  isUserMessage
 }: { 
   blocks: StreamBlock[];
   dataCards?: DataCard[];
   onEventClick?: (event: MarketEvent) => void;
   onImageClick?: (imageUrl: string) => void;
   onTickerClick?: (ticker: string) => void;
+  isUserMessage?: boolean;
 }) {
   return (
     <div className="space-y-0">
       {blocks.map((block) => {
         switch (block.type) {
           case 'text':
+            // DEBUG: Check if this text block contains VIEW_ARTICLE markers
+            const hasArticleMarkers = block.content.includes('[VIEW_ARTICLE:');
+            if (hasArticleMarkers) {
+              console.log(`📝 [StreamBlockRenderer] Rendering text block with VIEW_ARTICLE markers`, {
+                blockId: block.id,
+                dataCardsCount: dataCards?.length || 0,
+                articleCardsCount: dataCards?.filter(c => c.type === 'article').length || 0,
+                contentPreview: block.content.substring(0, 200)
+              });
+            }
+            
             return (
               <div key={block.id}>
                 <MarkdownText 
@@ -1975,7 +1843,8 @@ function StreamBlockRenderer({
                   dataCards={dataCards} 
                   onEventClick={onEventClick} 
                   onImageClick={onImageClick} 
-                  onTickerClick={onTickerClick} 
+                  onTickerClick={onTickerClick}
+                  isUserMessage={isUserMessage}
                 />
               </div>
             );
@@ -2030,7 +1899,7 @@ function StreamBlockRenderer({
               </div>
             );
           
-          case 'separator':
+          case 'horizontal_rule':
             return (
               <div key={block.id} className="my-4">
                 <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 dark:via-neutral-700 to-transparent" />
@@ -2044,4 +1913,3 @@ function StreamBlockRenderer({
     </div>
   );
 }
-

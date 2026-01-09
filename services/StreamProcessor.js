@@ -270,11 +270,13 @@ class StreamProcessor {
             this.emitChart(marker.data.symbol, marker.data.timeRange);
             break;
           case 'ARTICLE':
-            console.log(`   → Emitting ARTICLE block: ${marker.data.cardId}`);
-            this.emitArticle(marker.data.cardId);
-            // Always add horizontal rule after article card for visual separation
-            console.log(`   → Emitting HORIZONTAL_RULE after article`);
-            this.emitHorizontalRule();
+            // IMPORTANT: Emit article markers as TEXT content, not separate events
+            // This ensures the frontend's extractStreamBlocks processes them in correct order
+            // relative to surrounding text content (article cards appear after discussion text)
+            console.log(`   → Keeping ARTICLE marker in text stream: ${marker.data.cardId}`);
+            this.foundMarkers.add(`article:${marker.data.cardId}`);
+            // Emit the marker as text so frontend handles positioning
+            this.emitText(marker.marker);
             break;
           case 'IMAGE':
             this.emitImage(marker.data.cardId);

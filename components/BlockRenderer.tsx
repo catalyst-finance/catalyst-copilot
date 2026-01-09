@@ -6,7 +6,7 @@
  */
 
 import { motion } from 'motion/react';
-import type { ContentBlock } from '../lib/StreamBlockTypes';
+import type { ContentBlock } from './lib/StreamBlockTypes';
 
 // These will be imported from the main component file
 // In a real setup, these would be separate component files
