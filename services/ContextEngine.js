@@ -1597,7 +1597,7 @@ class ContextEngine {
 
   /**
    * Format daily price history
-   * Fields: symbol, timestamp, open, high, low, close, volume
+   * Fields: symbol, date (NOT timestamp!), open, high, low, close, volume
    */
   formatDailyPrices(items, detailLevel, output) {
     if (items.length === 0) return output;
@@ -1610,17 +1610,23 @@ class ContextEngine {
     });
     
     for (const symbol of Object.keys(bySymbol)) {
-      const bars = bySymbol[symbol].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      const firstBar = bars[0];
-      const lastBar = bars[bars.length - 1];
+      // CRITICAL: daily_prices uses 'date' column, NOT 'timestamp'
+      // Sort chronologically (oldest first) for proper period calculation
+      const bars = bySymbol[symbol].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const firstBar = bars[0];  // Oldest date
+      const lastBar = bars[bars.length - 1];  // Most recent date
       
-      const priceChange = lastBar.close - firstBar.open;
-      const pctChange = ((priceChange / firstBar.open) * 100).toFixed(2);
+      // CRITICAL: Calculate period change using CLOSE prices (close-to-close)
+      // firstBar.close = starting closing price (oldest day)
+      // lastBar.close = ending closing price (most recent day)
+      const priceChange = lastBar.close - firstBar.close;
+      const pctChange = ((priceChange / firstBar.close) * 100).toFixed(2);
       const changePrefix = priceChange >= 0 ? '+' : '';
       
-      output += `**${symbol} Daily Price History** (${bars.length} days)\n`;
-      output += `   Period: ${new Date(firstBar.timestamp).toLocaleDateString()} - ${new Date(lastBar.timestamp).toLocaleDateString()}\n`;
-      output += `   Start: $${firstBar.open?.toFixed(2)} → End: $${lastBar.close?.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
+      output += `**${symbol} Daily Price History** (${bars.length} trading days)\n`;
+      output += `   Period: ${new Date(firstBar.date).toLocaleDateString()} to ${new Date(lastBar.date).toLocaleDateString()}\n`;
+      output += `   PERIOD CHANGE: $${firstBar.close?.toFixed(2)} → $${lastBar.close?.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
+      output += `   ⚠️ USE THESE EXACT PRICES WHEN DISCUSSING PERIOD MOVEMENT\n`;
       
       // Calculate period high/low
       const periodHigh = Math.max(...bars.map(b => b.high));
@@ -1628,14 +1634,15 @@ class ContextEngine {
       output += `   Period High: $${periodHigh.toFixed(2)} | Period Low: $${periodLow.toFixed(2)}\n`;
       output += `\n`;
       
-      // Show recent daily bars
+      // Show recent daily bars (most recent 5)
       if (detailLevel === 'full' || detailLevel === 'moderate') {
-        output += `   Recent Days:\n`;
-        bars.slice(-5).forEach(bar => {
+        output += `   Recent Days (most recent first):\n`;
+        // Show most recent days first for easier reading
+        bars.slice(-5).reverse().forEach(bar => {
           const dayChange = bar.close - bar.open;
           const dayPct = ((dayChange / bar.open) * 100).toFixed(2);
           const dayPrefix = dayChange >= 0 ? '+' : '';
-          output += `   ${new Date(bar.timestamp).toLocaleDateString()}: $${bar.close?.toFixed(2)} (${dayPrefix}${dayPct}%) | Vol: ${(bar.volume || 0).toLocaleString()}\n`;
+          output += `   ${new Date(bar.date).toLocaleDateString()}: $${bar.close?.toFixed(2)} (${dayPrefix}${dayPct}% day) | Vol: ${(bar.volume || 0).toLocaleString()}\n`;
         });
         output += `\n`;
       }
