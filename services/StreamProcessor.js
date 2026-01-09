@@ -289,10 +289,10 @@ class StreamProcessor {
             this.emitText(marker.marker);
             
             // Add horizontal rule ONLY for inline articles (not stacked in Related Coverage)
-            // Check if "Related Coverage" header has appeared - if so, we're in stacked section
+            // Use the styled horizontal_rule event, not text "---"
             if (!this.inRelatedCoverageSection) {
               console.log(`   → Adding HR after inline article`);
-              this.emitText('\n\n---\n\n');
+              this.emitHorizontalRule();
             } else {
               console.log(`   → Skipping HR (in Related Coverage section)`);
             }
