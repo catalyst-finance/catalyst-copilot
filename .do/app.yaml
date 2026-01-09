@@ -27,19 +27,16 @@ ingress:
   - component:
       name: catalyst-api
     match:
-      authority: {}
       path:
         prefix: /api/price-targets
   - component:
       name: catalyst-api
     match:
-      authority: {}
       path:
         prefix: /api/quote
   - component:
       name: catalyst-copilot
     match:
-      authority: {}
       path:
         prefix: /
 name: catalyst-copilot

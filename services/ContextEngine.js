@@ -55,9 +55,11 @@ const UNIVERSAL_FORMATTING_RULES = `
    ❌ WRONG: Leave marker at end of response (must move to start)
 
 6. **Article Discussion Format - MANDATORY 4-PART STRUCTURE**:
+   ⚠️ THIS APPLIES TO BOTH NEWS ARTICLES AND PRESS RELEASES ⚠️
+   
    Part 1: Header - Create a UNIQUE thematic header, NOT the article's exact title
-   Part 2: Discussion - 1-2 paragraphs, each with 1-3 sentences
-   Part 3: [VIEW_ARTICLE:article-X-Y] marker
+   Part 2: Discussion - 1-2 paragraphs, each with 1-3 sentences analyzing the content
+   Part 3: [VIEW_ARTICLE:article-X-Y] or [VIEW_ARTICLE:press-X-Y] marker
    Part 4: Horizontal separator (auto-added by backend)
    
    ✅ HEADER RULES:
@@ -65,10 +67,30 @@ const UNIVERSAL_FORMATTING_RULES = `
    - DO NOT copy article title: "### TMC Chief Development Officer Was Highly..." ❌
    - Summarize the TOPIC, not repeat the title
    
-   ✅ CORRECT STRUCTURE:
+   ✅ DISCUSSION RULES:
+   - Write 1-2 analytical paragraphs (not just facts)
+   - Extract key details from the content provided
+   - Explain significance, context, or implications
+   - Place marker AFTER all discussion text
+   
+   ✅ CORRECT STRUCTURE FOR NEWS:
    ### Insider Trading Activity
-   Recent insider sales by TMC's Chief Development Officer raised concerns...
+   Recent insider sales by TMC's Chief Development Officer raised concerns about
+   leadership confidence. The executive sold 50,000 shares at an average price of
+   $12.50, representing 25% of their holdings.
    [VIEW_ARTICLE:article-TMC-0]
+   
+   ✅ CORRECT STRUCTURE FOR PRESS RELEASES:
+   ### Board Appointment
+   Steve Jurvetson joined TMC's board on April 10, 2024, bringing decades of
+   experience in technology and automotive sectors. His background in venture
+   capital and previous board positions at Tesla make him a strategic addition
+   as TMC transitions to commercial production.
+   [VIEW_ARTICLE:press-TMC-4]
+   
+   ❌ WRONG (no analysis):
+   Steve Jurvetson joined TMC's board on April 10, 2024.
+   [VIEW_ARTICLE:press-TMC-4]
 
 7. **Preserve ALL Markers**: Every [VIEW_ARTICLE:...] and [IMAGE_CARD:...] from the data MUST appear in your response.
 `;
