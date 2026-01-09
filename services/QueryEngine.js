@@ -536,10 +536,9 @@ Response:
     {
       "database": "supabase",
       "collection": "one_minute_prices",
-      "query": {"symbol": "TSLA", "timestamp_gte": "24h_ago"},
-      "sort": {"timestamp": "desc"},
+      "query": {"symbol": "TSLA"},
       "limit": 60,
-      "reasoning": "Get recent price history to show movement alongside news"
+      "reasoning": "Get price history - backend auto-applies date filter from chartConfig.timeRange"
     }
   ],
   "extractCompanies": false,
@@ -615,10 +614,9 @@ Response:
     {
       "database": "supabase",
       "collection": "one_minute_prices",
-      "query": {"symbol": "NVDA", "timestamp_gte": "24h_ago"},
-      "sort": {"timestamp": "asc"},
+      "query": {"symbol": "NVDA"},
       "limit": 120,
-      "reasoning": "Get intraday price action to identify when the spike occurred"
+      "reasoning": "Get intraday price action - backend auto-applies date filter from chartConfig.timeRange"
     },
     {
       "database": "mongodb",
@@ -682,9 +680,8 @@ Response:
       "database": "supabase",
       "collection": "daily_prices",
       "query": {"symbol": "MSFT"},
-      "sort": {"date": "desc"},  // CORRECT: daily_prices uses 'date' column
       "limit": 10,
-      "reasoning": "Get daily price data around earnings date to see reaction"
+      "reasoning": "Get daily price data - backend auto-applies date filter and ASC sort from chartConfig.timeRange"
     },
     {
       "database": "supabase",

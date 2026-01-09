@@ -379,6 +379,13 @@ class ContextEngine {
         // AI needs full period data to calculate accurate percentage changes
         maxItems: 60 // Allow up to ~3 months of trading days
       },
+      ten_minute_prices: {
+        priority: /price|stock|movement|performance|chart|week|month/i.test(userMessage) ? 4 : 3,
+        detailLevel: 'moderate',
+        fetchExternalContent: false,
+        // CRITICAL: Keep all price data for 1W/1M charts
+        maxItems: 4500 // ~30 days of 10-min bars
+      },
       intraday_prices: {
         priority: /intraday|today|real-?time/i.test(userMessage) ? 5 : 2,
         detailLevel: 'moderate',
@@ -613,6 +620,16 @@ class ContextEngine {
         if (queryIntent?.needsChart && queryIntent?.chartConfig?.timeRange === '1D') {
           console.log(`⏭️  Skipping intraday text formatting - visual chart is being displayed`);
           return '';  // Return empty string to skip this section
+        }
+        return this.formatIntradayPrices(itemsToShow, detailLevel, output);
+      
+      case 'ten_minute_prices':
+        // For 1W/1M charts, skip detailed text - chart shows it visually
+        // But include summary stats for AI context
+        if (queryIntent?.needsChart && ['1W', '1M'].includes(queryIntent?.chartConfig?.timeRange)) {
+          console.log(`⏭️  Skipping ten_minute_prices text - visual chart covers ${queryIntent.chartConfig.timeRange}`);
+          // Still provide summary for AI to reference
+          return this.formatIntradayPricesSummary(itemsToShow, output, queryIntent?.chartConfig?.timeRange);
         }
         return this.formatIntradayPrices(itemsToShow, detailLevel, output);
       
@@ -1621,6 +1638,53 @@ class ContextEngine {
         });
         output += `\n`;
       }
+    }
+    return output;
+  }
+
+  /**
+   * Format intraday prices as a summary (for use when chart is displayed)
+   * Provides key stats for AI context without verbose listing
+   * 
+   * @param items - Price bars (one_minute_prices or ten_minute_prices)
+   * @param output - Output string to append to
+   * @param timeRange - Chart time range (e.g., '1M', '1W')
+   */
+  formatIntradayPricesSummary(items, output, timeRange = 'Unknown') {
+    if (items.length === 0) return output;
+    
+    // Group by symbol
+    const bySymbol = {};
+    items.forEach(bar => {
+      if (!bySymbol[bar.symbol]) bySymbol[bar.symbol] = [];
+      bySymbol[bar.symbol].push(bar);
+    });
+    
+    for (const symbol of Object.keys(bySymbol)) {
+      const bars = bySymbol[symbol].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const firstBar = bars[0];
+      const lastBar = bars[bars.length - 1];
+      
+      // Calculate period stats
+      const periodHigh = Math.max(...bars.map(b => b.high));
+      const periodLow = Math.min(...bars.map(b => b.low));
+      const totalVolume = bars.reduce((sum, b) => sum + (b.volume || 0), 0);
+      
+      const priceChange = lastBar.close - firstBar.open;
+      const pctChange = ((priceChange / firstBar.open) * 100).toFixed(2);
+      const changePrefix = priceChange >= 0 ? '+' : '';
+      
+      // Format dates for the period
+      const startDate = new Date(firstBar.timestamp).toLocaleDateString();
+      const endDate = new Date(lastBar.timestamp).toLocaleDateString();
+      
+      output += `**${symbol} ${timeRange} Price Summary** (${bars.length} data points)\n`;
+      output += `   📅 Period: ${startDate} to ${endDate}\n`;
+      output += `   📈 PERIOD CHANGE: $${firstBar.open?.toFixed(2)} → $${lastBar.close?.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
+      output += `   ⚠️ WHEN DISCUSSING "${timeRange}" MOVEMENT: "${changePrefix}${pctChange}% from $${firstBar.open?.toFixed(2)} (${startDate}) to $${lastBar.close?.toFixed(2)} (${endDate})"\n`;
+      output += `   📊 Period High: $${periodHigh.toFixed(2)} | Period Low: $${periodLow.toFixed(2)}\n`;
+      output += `   📊 Total Volume: ${totalVolume.toLocaleString()}\n`;
+      output += `\n`;
     }
     return output;
   }

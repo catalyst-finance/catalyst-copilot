@@ -122,7 +122,7 @@ const QUERY_SCHEMA_CONTEXT = `
    - 3M, 6M, 1Y, 5Y → daily_prices (date column)
    Note: When chartConfig.timeRange is set, the backend automatically queries the correct table with proper date filtering
 
-6. **Supabase format**: .select(), .eq(), .ilike(), .gte()/.lte(), .order(), .limit()
+7. **Supabase format**: .select(), .eq(), .ilike(), .gte()/.lte(), .order(), .limit()
 `;
 
 /**
