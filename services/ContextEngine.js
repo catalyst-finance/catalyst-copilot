@@ -370,6 +370,20 @@ class ContextEngine {
         detailLevel: needsDeep ? 'detailed' : 'moderate',
         fetchExternalContent: needsDeep && !isListQuery,
         maxItems: 5
+      },
+      daily_prices: {
+        priority: /price|stock|movement|performance|chart/i.test(userMessage) ? 4 : 3,
+        detailLevel: 'moderate',
+        fetchExternalContent: false,
+        // CRITICAL: Keep all price data - do NOT limit this!
+        // AI needs full period data to calculate accurate percentage changes
+        maxItems: 60 // Allow up to ~3 months of trading days
+      },
+      intraday_prices: {
+        priority: /intraday|today|real-?time/i.test(userMessage) ? 5 : 2,
+        detailLevel: 'moderate',
+        fetchExternalContent: false,
+        maxItems: 50 // Most recent intraday bars
       }
     };
     
@@ -1616,19 +1630,12 @@ class ContextEngine {
       const firstBar = bars[0];  // Oldest date
       const lastBar = bars[bars.length - 1];  // Most recent date
       
-      console.log(`📊 formatDailyPrices DEBUG for ${symbol}:`);
-      console.log(`   Total bars: ${bars.length}`);
-      console.log(`   First bar (oldest): ${firstBar.date} close=$${firstBar.close}`);
-      console.log(`   Last bar (newest): ${lastBar.date} close=$${lastBar.close}`);
-      
       // CRITICAL: Calculate period change using CLOSE prices (close-to-close)
       // firstBar.close = starting closing price (oldest day)
       // lastBar.close = ending closing price (most recent day)
       const priceChange = lastBar.close - firstBar.close;
       const pctChange = ((priceChange / firstBar.close) * 100).toFixed(2);
       const changePrefix = priceChange >= 0 ? '+' : '';
-      
-      console.log(`   Calculated change: ${changePrefix}${pctChange}%`);
       
       output += `**${symbol} Daily Price History** (${bars.length} trading days)\n`;
       output += `   Period: ${new Date(firstBar.date).toLocaleDateString()} to ${new Date(lastBar.date).toLocaleDateString()}\n`;
