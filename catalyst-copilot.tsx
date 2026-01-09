@@ -60,8 +60,8 @@ function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: S
       break;
     }
     
-    // First, check if there are ANY markers in the buffer
-    const anyMarkerMatch = remaining.match(/\[(?:VIEW_CHART|VIEW_ARTICLE|IMAGE_CARD|EVENT_CARD):[^\]]+\]/);
+    // First, check if there are ANY markers in the buffer (including [HR])
+    const anyMarkerMatch = remaining.match(/\[(?:VIEW_CHART|VIEW_ARTICLE|IMAGE_CARD|EVENT_CARD):[^\]]+\]|\[HR\]/);
     
     // If we have a marker that's NOT at the start, extract text before it first
     if (anyMarkerMatch && anyMarkerMatch.index && anyMarkerMatch.index > 0) {
@@ -177,6 +177,18 @@ function extractStreamBlocks(buffer: string, dataCards: DataCard[]): { blocks: S
       } else {
         break;
       }
+    }
+    
+    // Check for [HR] (horizontal rule) marker
+    const hrMatch = remaining.match(/^(\s*)\[HR\](\s*)/);
+    if (hrMatch) {
+      blocks.push({
+        id: `hr-${blockId++}-${Math.random().toString(36).substr(2, 5)}`,
+        type: 'horizontal_rule',
+        content: ''
+      });
+      remaining = remaining.substring(hrMatch[0].length);
+      continue;
     }
     
     // Look for the next marker or paragraph break
