@@ -862,7 +862,12 @@ Return JSON only: {"tickers": ["AAPL", "TSLA"], "reasoning": "brief explanation"
       }
     }
 
-    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ 
+      type: 'done',
+      conversationId: userId ? finalConversationId : undefined,
+      messageId: userId ? messageIds.assistant : undefined,
+      data_cards: dataCards.length > 0 ? dataCards : []
+    })}\n\n`);
     res.end();
     
     // Save messages to database after streaming completes
