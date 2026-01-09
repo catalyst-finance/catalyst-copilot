@@ -1612,6 +1612,9 @@ class ContextEngine {
   /**
    * Format daily price history
    * Fields: symbol, date (NOT timestamp!), open, high, low, close, volume
+   * 
+   * CRITICAL: Uses calendar-based "1 month ago" (same day last month)
+   * to find the proper period start, accounting for weekends/holidays
    */
   formatDailyPrices(items, detailLevel, output) {
     if (items.length === 0) return output;
@@ -1627,24 +1630,43 @@ class ContextEngine {
       // CRITICAL: daily_prices uses 'date' column, NOT 'timestamp'
       // Sort chronologically (oldest first) for proper period calculation
       const bars = bySymbol[symbol].sort((a, b) => new Date(a.date) - new Date(b.date));
-      const firstBar = bars[0];  // Oldest date
-      const lastBar = bars[bars.length - 1];  // Most recent date
       
-      // CRITICAL: Calculate period change using CLOSE prices (close-to-close)
-      // firstBar.close = starting closing price (oldest day)
-      // lastBar.close = ending closing price (most recent day)
-      const priceChange = lastBar.close - firstBar.close;
-      const pctChange = ((priceChange / firstBar.close) * 100).toFixed(2);
+      // Get the most recent trading day (end of period)
+      const lastBar = bars[bars.length - 1];
+      const endDate = new Date(lastBar.date);
+      
+      // Calculate "1 month ago" from end date (same day of previous month)
+      const oneMonthAgo = new Date(endDate);
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      
+      // Find the closest trading day to oneMonthAgo (on or after that date)
+      // This handles weekends/holidays by finding the next available trading day
+      let periodStartBar = bars[0]; // Default to oldest if no match
+      for (const bar of bars) {
+        const barDate = new Date(bar.date);
+        if (barDate >= oneMonthAgo) {
+          periodStartBar = bar;
+          break;
+        }
+      }
+      
+      // Calculate period change using CLOSE prices (close-to-close)
+      const priceChange = lastBar.close - periodStartBar.close;
+      const pctChange = ((priceChange / periodStartBar.close) * 100).toFixed(2);
       const changePrefix = priceChange >= 0 ? '+' : '';
       
-      output += `**${symbol} Daily Price History** (${bars.length} trading days)\n`;
-      output += `   Period: ${new Date(firstBar.date).toLocaleDateString()} to ${new Date(lastBar.date).toLocaleDateString()}\n`;
-      output += `   PERIOD CHANGE: $${firstBar.close?.toFixed(2)} → $${lastBar.close?.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
-      output += `   ⚠️ USE THESE EXACT PRICES WHEN DISCUSSING PERIOD MOVEMENT\n`;
+      // Calculate actual trading days in this period
+      const periodBars = bars.filter(b => new Date(b.date) >= new Date(periodStartBar.date));
+      const tradingDays = periodBars.length;
       
-      // Calculate period high/low
-      const periodHigh = Math.max(...bars.map(b => b.high));
-      const periodLow = Math.min(...bars.map(b => b.low));
+      // Calculate period high/low (only within the 1-month period)
+      const periodHigh = Math.max(...periodBars.map(b => b.high));
+      const periodLow = Math.min(...periodBars.map(b => b.low));
+      
+      output += `**${symbol} Daily Price History** (Past Month: ${tradingDays} trading days)\n`;
+      output += `   Period: ${new Date(periodStartBar.date).toLocaleDateString()} to ${new Date(lastBar.date).toLocaleDateString()}\n`;
+      output += `   1-MONTH CHANGE: $${periodStartBar.close?.toFixed(2)} → $${lastBar.close?.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
+      output += `   ⚠️ USE THESE EXACT PRICES WHEN DISCUSSING "PAST MONTH" MOVEMENT\n`;
       output += `   Period High: $${periodHigh.toFixed(2)} | Period Low: $${periodLow.toFixed(2)}\n`;
       output += `\n`;
       
