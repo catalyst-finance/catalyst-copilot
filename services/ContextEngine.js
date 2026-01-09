@@ -1720,8 +1720,12 @@ class ContextEngine {
         output += `   📊 TODAY'S CHANGE: ${todayPrefix}$${todayChange.toFixed(2)} (${todayPrefix}${todayPct}%) from yesterday's close\n`;
       }
       
-      output += `   1-MONTH CHANGE: $${periodStartBar.close?.toFixed(2)} → $${endPrice.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
-      output += `   ⚠️ USE THESE EXACT PRICES WHEN DISCUSSING "PAST MONTH" MOVEMENT\n`;
+      // Format dates for the period change
+      const startDateStr = new Date(periodStartBar.date).toLocaleDateString();
+      const endDateStr = hasCurrentQuote ? 'current price' : new Date(lastBar.date).toLocaleDateString();
+      
+      output += `   1-MONTH CHANGE: $${periodStartBar.close?.toFixed(2)} (${startDateStr}) → $${endPrice.toFixed(2)} (${endDateStr}) = ${changePrefix}${pctChange}%\n`;
+      output += `   ⚠️ WHEN DISCUSSING "PAST MONTH" MOVEMENT, INCLUDE THESE DATES: "${changePrefix}${pctChange}% from $${periodStartBar.close?.toFixed(2)} (${startDateStr}) to $${endPrice.toFixed(2)} (${endDateStr})"\n`;
       output += `   Period High: $${periodHigh.toFixed(2)} | Period Low: $${periodLow.toFixed(2)}\n`;
       output += `\n`;
       
