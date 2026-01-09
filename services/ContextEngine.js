@@ -384,6 +384,12 @@ class ContextEngine {
         detailLevel: 'moderate',
         fetchExternalContent: false,
         maxItems: 50 // Most recent intraday bars
+      },
+      stock_quote_now: {
+        priority: /price|stock|current|live|today|now/i.test(userMessage) ? 5 : 4,
+        detailLevel: 'moderate',
+        fetchExternalContent: false,
+        maxItems: 10 // Usually just 1 per symbol
       }
     };
     
@@ -450,6 +456,10 @@ class ContextEngine {
       hasPolicyData: false
     };
 
+    // Extract current quotes for use in daily_prices formatting
+    const stockQuoteNowResult = queryResults.find(r => r.collection === 'stock_quote_now');
+    const currentQuotes = stockQuoteNowResult?.data || [];
+
     // Sort by priority (highest first)
     const sortedPlan = plan.formattingPlan.sort((a, b) => b.priority - a.priority);
 
@@ -479,7 +489,8 @@ class ContextEngine {
         dataCards,
         intelligenceMetadata,
         queryIntent,
-        userMessage
+        userMessage,
+        currentQuotes  // Pass current quotes for price integration
       );
 
       if (formatted) {
@@ -531,7 +542,7 @@ class ContextEngine {
   /**
    * Format a specific collection based on formatting spec
    */
-  async formatCollection(result, formatSpec, DataConnector, sendThinking, dataCards, intelligenceMetadata, queryIntent = null, userMessage = '') {
+  async formatCollection(result, formatSpec, DataConnector, sendThinking, dataCards, intelligenceMetadata, queryIntent = null, userMessage = '', currentQuotes = []) {
     const { collection, detailLevel, fetchExternalContent, maxItems, formattingNotes } = formatSpec;
     
     let output = `\n\n═══ ${this.getCollectionTitle(collection)} (${result.data.length} items) ═══\n`;
@@ -606,7 +617,12 @@ class ContextEngine {
         return this.formatIntradayPrices(itemsToShow, detailLevel, output);
       
       case 'daily_prices':
-        return this.formatDailyPrices(itemsToShow, detailLevel, output);
+        return this.formatDailyPrices(itemsToShow, detailLevel, output, currentQuotes);
+      
+      case 'stock_quote_now':
+        // stock_quote_now is integrated into daily_prices formatting
+        // Don't output separately to avoid duplication
+        return '';
       
       case 'company_information':
         return this.formatCompanyInformation(itemsToShow, detailLevel, output);
@@ -1610,14 +1626,25 @@ class ContextEngine {
   }
 
   /**
-   * Format daily price history
+   * Format daily price history with optional current quote integration
    * Fields: symbol, date (NOT timestamp!), open, high, low, close, volume
    * 
    * CRITICAL: Uses calendar-based "1 month ago" (same day last month)
    * to find the proper period start, accounting for weekends/holidays
+   * 
+   * @param items - daily_prices data
+   * @param detailLevel - formatting detail level
+   * @param output - output string to append to
+   * @param currentQuotes - optional stock_quote_now data for current price
    */
-  formatDailyPrices(items, detailLevel, output) {
+  formatDailyPrices(items, detailLevel, output, currentQuotes = []) {
     if (items.length === 0) return output;
+    
+    // Index current quotes by symbol for quick lookup
+    const currentQuoteBySymbol = {};
+    currentQuotes.forEach(quote => {
+      if (quote.symbol) currentQuoteBySymbol[quote.symbol] = quote;
+    });
     
     // Group by symbol
     const bySymbol = {};
@@ -1650,8 +1677,16 @@ class ContextEngine {
         }
       }
       
+      // Get current quote if available
+      const currentQuote = currentQuoteBySymbol[symbol];
+      const hasCurrentQuote = currentQuote && currentQuote.close;
+      
+      // Determine the "end" price: use current quote if available, otherwise last daily close
+      const endPrice = hasCurrentQuote ? currentQuote.close : lastBar.close;
+      const endPriceLabel = hasCurrentQuote ? 'Current' : 'Last Close';
+      
       // Calculate period change using CLOSE prices (close-to-close)
-      const priceChange = lastBar.close - periodStartBar.close;
+      const priceChange = endPrice - periodStartBar.close;
       const pctChange = ((priceChange / periodStartBar.close) * 100).toFixed(2);
       const changePrefix = priceChange >= 0 ? '+' : '';
       
@@ -1660,12 +1695,32 @@ class ContextEngine {
       const tradingDays = periodBars.length;
       
       // Calculate period high/low (only within the 1-month period)
-      const periodHigh = Math.max(...periodBars.map(b => b.high));
-      const periodLow = Math.min(...periodBars.map(b => b.low));
+      let periodHigh = Math.max(...periodBars.map(b => b.high));
+      let periodLow = Math.min(...periodBars.map(b => b.low));
       
-      output += `**${symbol} Daily Price History** (Past Month: ${tradingDays} trading days)\n`;
+      // Adjust high/low if current price is outside the range
+      if (hasCurrentQuote) {
+        if (currentQuote.close > periodHigh) periodHigh = currentQuote.close;
+        if (currentQuote.close < periodLow) periodLow = currentQuote.close;
+      }
+      
+      output += `**${symbol} Price Summary** (Past Month: ${tradingDays} trading days)\n`;
       output += `   Period: ${new Date(periodStartBar.date).toLocaleDateString()} to ${new Date(lastBar.date).toLocaleDateString()}\n`;
-      output += `   1-MONTH CHANGE: $${periodStartBar.close?.toFixed(2)} → $${lastBar.close?.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
+      
+      // Show current price if available
+      if (hasCurrentQuote) {
+        const quoteTime = currentQuote.timestamp_et || currentQuote.timestamp;
+        const timeStr = quoteTime ? new Date(quoteTime).toLocaleTimeString() : 'live';
+        output += `   📍 CURRENT PRICE: $${currentQuote.close.toFixed(2)} (as of ${timeStr})\n`;
+        
+        // Show today's change from previous close
+        const todayChange = currentQuote.close - lastBar.close;
+        const todayPct = ((todayChange / lastBar.close) * 100).toFixed(2);
+        const todayPrefix = todayChange >= 0 ? '+' : '';
+        output += `   📊 TODAY'S CHANGE: ${todayPrefix}$${todayChange.toFixed(2)} (${todayPrefix}${todayPct}%) from yesterday's close\n`;
+      }
+      
+      output += `   1-MONTH CHANGE: $${periodStartBar.close?.toFixed(2)} → $${endPrice.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
       output += `   ⚠️ USE THESE EXACT PRICES WHEN DISCUSSING "PAST MONTH" MOVEMENT\n`;
       output += `   Period High: $${periodHigh.toFixed(2)} | Period Low: $${periodLow.toFixed(2)}\n`;
       output += `\n`;

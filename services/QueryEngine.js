@@ -118,7 +118,7 @@ Return JSON with this structure:
   "queries": [
     {
       "database": "mongodb" | "supabase",
-      "collection": "government_policy" | "sec_filings" | "ownership" | "macro_economics" | "news" | "press_releases" | "price_targets" | "earnings_transcripts" | "hype" | "event_data" | "company_information" | "finnhub_quote_snapshots" | "one_minute_prices" | "daily_prices" | "intraday_prices",
+      "collection": "government_policy" | "sec_filings" | "ownership" | "macro_economics" | "news" | "press_releases" | "price_targets" | "earnings_transcripts" | "hype" | "event_data" | "company_information" | "finnhub_quote_snapshots" | "one_minute_prices" | "daily_prices" | "intraday_prices" | "stock_quote_now",
       "query": { /* MongoDB query object or Supabase filter params */ },
       "sort": { /* optional sort params */ },
       "limit": 10,
@@ -451,6 +451,13 @@ Response:
       "reasoning": "Get historical daily price data for TMC. Use 'date' field for sorting, not 'timestamp'"
     },
     {
+      "database": "supabase",
+      "collection": "stock_quote_now",
+      "query": {"symbol": "TMC"},
+      "limit": 1,
+      "reasoning": "Get current/live price to show today's price and change alongside historical data"
+    },
+    {
       "database": "mongodb",
       "collection": "news",
       "query": {"ticker": "TMC"},
@@ -557,6 +564,13 @@ Response:
       "sort": {"date": "desc"},  // CORRECT: daily_prices uses 'date' column
       "limit": 10,
       "reasoning": "Get daily price data around earnings date to see reaction"
+    },
+    {
+      "database": "supabase",
+      "collection": "stock_quote_now",
+      "query": {"symbol": "MSFT"},
+      "limit": 1,
+      "reasoning": "Get current price to show live data alongside historical analysis"
     }
   ],
   "extractCompanies": false,
@@ -687,7 +701,7 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
               reasoning: query.reasoning
             });
             console.log(`   ✅ Found ${formattedData.length} quote snapshots (source: ${result.data?.source || 'unknown'})`);
-          } else if (query.collection === 'one_minute_prices' || query.collection === 'daily_prices' || query.collection === 'hourly_prices') {
+          } else if (query.collection === 'one_minute_prices' || query.collection === 'daily_prices' || query.collection === 'hourly_prices' || query.collection === 'stock_quote_now') {
             // Fetch price history from Supabase
             const { supabase } = require('../config/database');
             

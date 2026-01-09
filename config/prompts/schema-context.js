@@ -77,6 +77,10 @@ const QUERY_SCHEMA_CONTEXT = `
    Fields: symbol, date, open, high, low, close, volume (NOTE: Use 'date' not 'timestamp' for sorting)
    Use: Historical charts, long-term analysis
 
+7. **stock_quote_now** - Current/real-time stock price (single row per symbol)
+   Fields: symbol, close, timestamp, timestamp_et, volume, session, source
+   Use: Current price, live quotes, today's price (combines with daily_prices for complete picture)
+
 **QUERY GENERATION RULES:**
 
 1. **Speaker mapping**: "Trump" → search for "trump"/"hassett", "Biden" → "biden", "Powell" → "powell", "Vance" → "vance"
@@ -98,6 +102,8 @@ const QUERY_SCHEMA_CONTEXT = `
    - Company news → news
    - Official announcements/board changes/executive appointments → press_releases
    - Earnings calls → earnings_transcripts
+   - Current/live price → stock_quote_now
+   - Historical daily prices → daily_prices (ALWAYS include stock_quote_now alongside for current day)
    - Social sentiment → hype
    - Economic indicators → macro_economics
    - Company profile → company_information (Supabase)
@@ -152,6 +158,7 @@ const RESPONSE_SCHEMA_CONTEXT = `
 **one_minute_prices:** symbol, timestamp, open, high, low, close, volume
 **intraday_prices:** symbol, timestamp, timestamp_et, price, volume
 **daily_prices:** symbol, date, open, high, low, close, volume
+**stock_quote_now:** symbol, close, timestamp, timestamp_et, volume, session (current/live price)
 **company_information:** symbol, name, exchange, country, sector, industry, market_cap, shares_outstanding, ipo_date, weburl, logo
 `;
 
