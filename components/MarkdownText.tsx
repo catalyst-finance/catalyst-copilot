@@ -1,8 +1,9 @@
 import { FileText } from 'lucide-react';
-import { DataCard, ImageCardData, ArticleCardData } from '../catalyst-copilot';
-import { MarketEvent } from '../utils/supabase/events-api';
+import type { DataCard, ImageCardData, ArticleCardData } from './lib/StreamBlockTypes';
+import { MarketEvent } from '../../utils/supabase/events-api';
 import DataCardComponent from './DataCardComponent';
 import InlineChartCard from './InlineChartCard';
+import { useEffect } from 'react';
 
 interface MarkdownTextProps {
   text: string;
@@ -10,11 +11,41 @@ interface MarkdownTextProps {
   onEventClick?: (event: MarketEvent) => void;
   onImageClick?: (imageUrl: string) => void;
   onTickerClick?: (ticker: string) => void;
+  isUserMessage?: boolean;
 }
 
-export default function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerClick }: MarkdownTextProps) {
+export default function MarkdownText({ text, dataCards, onEventClick, onImageClick, onTickerClick, isUserMessage }: MarkdownTextProps) {
   // Text is already pre-processed by the streaming block extractor
   const mainText = text;
+  
+  // DEBUG: Log dataCards and article markers
+  useEffect(() => {
+    const articleMarkers = text.match(/\[VIEW_ARTICLE:([^\]]+)\]/g);
+    if (articleMarkers && articleMarkers.length > 0) {
+      const extractedIds = articleMarkers.map(m => m.match(/\[VIEW_ARTICLE:([^\]]+)\]/)?.[1]).filter(Boolean);
+      const articleCards = dataCards?.filter(c => c.type === 'article') || [];
+      const articleCardIds = articleCards.map(c => c.data.id);
+      
+      console.log(`🔍 [MarkdownText] Found ${articleMarkers.length} VIEW_ARTICLE markers in text:`, extractedIds);
+      console.log(`🔍 [MarkdownText] Available article dataCards (${articleCards.length}):`, articleCardIds);
+      console.log(`🔍 [MarkdownText] Marker/Card matching:`, {
+        markersInText: extractedIds,
+        cardsAvailable: articleCardIds,
+        missing: extractedIds.filter(id => !articleCardIds.includes(id)),
+        timestamp: new Date().toISOString().split('T')[1]
+      });
+    }
+  }, [text, dataCards]);
+  
+  // ARTICLE RENDERING STRATEGY:
+  // Articles are rendered ONLY from inline [VIEW_ARTICLE:...] markers in the content text.
+  // The backend's article_block SSE events are DISABLED because they arrive before the content,
+  // causing articles to render in the wrong position (before the text that discusses them).
+  // 
+  // This component handles three scenarios:
+  // 1. Inline markers in paragraphs: "text here [VIEW_ARTICLE:id]" → renders text, then card
+  // 2. Inline markers in list items: "1. text [VIEW_ARTICLE:id]" → renders list, then card  
+  // 3. Standalone markers: "[VIEW_ARTICLE:id]" on own line → renders card directly
   
   const formatRollCallLink = (linkText: string, url: string) => {
     // Check if this is a Roll Call URL
@@ -87,11 +118,18 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
     let currentParagraph: string[] = [];
     let pendingImageCards: string[] = []; // Track IMAGE_CARD markers to render after paragraph
     let pendingArticleCards: string[] = []; // Track VIEW_ARTICLE markers to render after paragraph
+    let isAfterList = false; // Track if we're rendering content immediately after a bullet list
     
     const flushParagraph = () => {
       if (currentParagraph.length > 0) {
+        // Apply indentation only if this paragraph is directly under a bulleted list
+        // Use mb-0 for user messages, mb-[30px] for AI responses
+        const paragraphClass = isAfterList 
+          ? `leading-relaxed ${isUserMessage ? 'mb-0' : 'mb-[30px]'} ml-6`
+          : `leading-relaxed ${isUserMessage ? 'mb-0' : 'mb-[30px]'}`;
+        
         elements.push(
-          <p key={`para-${uniqueKeyCounter++}`} className="mb-0 leading-relaxed m-[0px]">
+          <p key={`para-${uniqueKeyCounter++}`} className={paragraphClass}>
             {parseInlineFormatting(currentParagraph.join(' '))}
           </p>
         );
@@ -105,45 +143,25 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
           pendingImageCards = [];
         }
         
-        // After flushing paragraph, add any pending article cards
-        if (pendingArticleCards.length > 0) {
-          pendingArticleCards.forEach(articleId => {
-            insertArticleCard(articleId);
-          });
-          pendingArticleCards = [];
-        }
+        // DO NOT flush article cards here - they should only render where explicitly placed
+        // Article cards will be flushed at the end of all content or when explicitly placed
       }
     };
     
     const flushList = () => {
       if (currentList.length > 0) {
         elements.push(
-          <ul key={`list-${uniqueKeyCounter++}`} className="space-y-1 my-3 ml-4">
+          <ul key={`list-${uniqueKeyCounter++}`} className="space-y-2 my-3 ml-4">
             {currentList.map((item, idx) => (
               <li key={idx} className="flex items-start gap-2">
-                <span className="text-muted-foreground mt-0.5">•</span>
-                <span className="flex-1">{parseInlineFormatting(item)}</span>
+                <span className="text-muted-foreground mt-0.5 flex-shrink-0">•</span>
+                <span className="flex-1 leading-relaxed">{parseInlineFormatting(item)}</span>
               </li>
             ))}
           </ul>
         );
         currentList = [];
-        
-        // After flushing list, add any pending image cards
-        if (pendingImageCards.length > 0) {
-          pendingImageCards.forEach(imageId => {
-            insertImageCard(imageId);
-          });
-          pendingImageCards = [];
-        }
-        
-        // After flushing list, add any pending article cards
-        if (pendingArticleCards.length > 0) {
-          pendingArticleCards.forEach(articleId => {
-            insertArticleCard(articleId);
-          });
-          pendingArticleCards = [];
-        }
+        isAfterList = true; // Mark that following paragraphs should be indented
       }
     };
     
@@ -183,18 +201,26 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
     
     const insertArticleCard = (articleId: string) => {
       // Find the matching article card
+      console.log(`🔍 [insertArticleCard] Looking for article ID: ${articleId}`);
+      console.log(`🔍 [insertArticleCard] Available dataCards:`, dataCards?.filter(c => c.type === 'article').map(c => c.data.id));
+      
       if (dataCards) {
         const articleCard = dataCards.find(card => 
           card.type === 'article' && card.data.id === articleId
         );
         
         if (articleCard) {
+          console.log(`✅ [insertArticleCard] Found article card for ${articleId}, rendering...`);
           elements.push(
             <div key={`article-card-${articleId}-${uniqueKeyCounter++}`} className="my-3">
               <DataCardComponent card={articleCard} onEventClick={onEventClick} onImageClick={onImageClick} onTickerClick={onTickerClick} />
             </div>
           );
+        } else {
+          console.warn(`⚠️ [insertArticleCard] Article card NOT FOUND for ${articleId}`);
         }
+      } else {
+        console.warn(`⚠️ [insertArticleCard] No dataCards available`);
       }
     };
     
@@ -222,23 +248,8 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
       // Remove IMAGE_CARD markers from text
       currentText = currentText.replace(imageCardRegex, '');
       
-      // Store extracted image cards  (similar to IMAGE_CARD handling)
-      const articleCardRegex = /\[VIEW_ARTICLE:([^\]]+)\]/g;
-      const extractedArticleCardIds: string[] = [];
-      let articleMatch;
-      
-      while ((articleMatch = articleCardRegex.exec(currentText)) !== null) {
-        extractedArticleCardIds.push(articleMatch[1]);
-      }
-      
-      // Store extracted article cards in pendingArticleCards to render after paragraph/list
-      // NOTE: We ONLY use pending mechanism now (no immediate render) to prevent duplicates
-      if (extractedArticleCardIds.length > 0) {
-        pendingArticleCards.push(...extractedArticleCardIds);
-      }
-      
-      // Remove VIEW_ARTICLE markers from text
-      currentText = currentText.replace(articleCardRegex, '');
+      // DO NOT extract VIEW_ARTICLE markers here - they should be rendered inline where they appear
+      // (similar to VIEW_CHART markers which are handled in the main line processing loop)
       
       // NOTE: VIEW_CHART markers should NOT be removed here - they need to be detected
       // in the main line processing loop to render InlineChartCard components
@@ -327,7 +338,8 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
       segments.forEach((segment) => {
         if (typeof segment === 'string') {
           // Match any [text] pattern (these are sources without URLs)
-          const sourceRegex = /\[([^\]]+)\]/g;
+          // EXCLUDE: [HR] (horizontal rule marker - should be handled at block level)
+          const sourceRegex = /\[(?!HR\])([^\]]+)\]/g;
           let sourceLastIndex = 0;
           let sourceMatch;
           const sourceParts: (string | JSX.Element)[] = [];
@@ -413,6 +425,11 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
       const viewChartMatch = trimmedLine.match(/\[VIEW_CHART:([A-Z]+):([^\]]+)\]/);
       const hasViewChart = viewChartMatch !== null;
       
+      // Check for VIEW_ARTICLE marker (standalone on its own line)
+      const viewArticleMatch = trimmedLine.match(/\[VIEW_ARTICLE:([^\]]+)\]/);
+      const hasViewArticle = viewArticleMatch !== null;
+      const isStandaloneViewArticle = hasViewArticle && trimmedLine.replace(/\[VIEW_ARTICLE:([^\]]+)\]/, '').trim().length === 0;
+      
       // Check if line is ONLY an IMAGE_CARD (standalone) - not mixed with text
       const isStandaloneImageCard = hasImageCard && trimmedLine.replace(/\[IMAGE_CARD:([^\]]+)\]/, '').trim().length === 0;
       
@@ -420,11 +437,20 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
       const isStandaloneViewChart = hasViewChart && trimmedLine.replace(/\[VIEW_CHART:([A-Z]+):([^\]]+)\]/, '').trim().length === 0;
       
       // Check if this is a list item (with or without event card)
-      const isListItem = trimmedLine.match(/^\d+\.\s+/) || trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ');
+      const isListItem = trimmedLine.match(/^(\d+\.|-|•)\s+/) || trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ');
+      
+      // Check if this is an indented continuation of a list item (2+ leading spaces, not itself a list marker)
+      const isListContinuation = /^  +/.test(line) && !isListItem && currentList.length > 0 && trimmedLine.length > 0;
+      
+      // Check if this is a numbered article title (e.g., "1. **Article Title Here**")
+      // These should be rendered as headings, not list items
+      const numberedArticleTitleMatch = trimmedLine.match(/^(\d+\.)\s+\*\*(.+?)\*\*$/);
+      const isNumberedArticleTitle = numberedArticleTitleMatch !== null;
       
       if (line.startsWith('### ')) {
         flushParagraph();
         flushList();
+        isAfterList = false; // Reset list context
         elements.push(
           <h3 key={`h3-${index}`} className="font-semibold mt-4 mb-2">
             {parseInlineFormatting(line.substring(4))}
@@ -433,6 +459,7 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
       } else if (line.startsWith('## ')) {
         flushParagraph();
         flushList();
+        isAfterList = false; // Reset list context
         elements.push(
           <h2 key={`h2-${index}`} className="font-semibold text-base mt-4 mb-2">
             {parseInlineFormatting(line.substring(3))}
@@ -441,6 +468,7 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
       } else if (line.startsWith('# ')) {
         flushParagraph();
         flushList();
+        isAfterList = false; // Reset list context
         elements.push(
           <h1 key={`h1-${index}`} className="font-semibold text-lg mt-4 mb-2">
             {parseInlineFormatting(line.substring(2))}
@@ -450,6 +478,7 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
         // Detect bold text on its own line as a subheading (e.g., **Q4 2025**, **2026 Roadmap**)
         flushParagraph();
         flushList();
+        isAfterList = false; // Reset list context
         
         const headerText = trimmedLine.replace(/^\*\*|\*\*$/g, '');
         const isCurrentPriceHeader = /^current price$/i.test(headerText.trim());
@@ -459,9 +488,24 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
             {parseInlineFormatting(trimmedLine)}
           </h3>
         );
+      } else if (isNumberedArticleTitle && numberedArticleTitleMatch) {
+        // Numbered article title (e.g., "1. **Truist Cuts Tesla...**")
+        // Render as a heading, not a list item
+        flushParagraph();
+        flushList();
+        isAfterList = false; // Reset list context
+        
+        const articleTitle = numberedArticleTitleMatch[2]; // Just the title text without ** and number
+        elements.push(
+          <h3 key={`h3-article-${index}`} className="font-semibold mt-4 mb-2">
+            {parseInlineFormatting(`**${articleTitle}**`)}
+          </h3>
+        );
       } else if (isListItem) {
         flushParagraph();
-        // List item - extract text and remove EVENT_CARD/IMAGE_CARD markers if present
+        isAfterList = false; // Reset when starting a new list
+        
+        // List item - extract text and remove EVENT_CARD/IMAGE_CARD/VIEW_ARTICLE markers if present
         let itemText = trimmedLine.replace(/^(\d+\.\s+|-\s+|•\s+)/, '');
         
         if (hasEventCard) {
@@ -471,6 +515,10 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
         if (hasImageCard) {
           // Remove the IMAGE_CARD marker from the text
           itemText = itemText.replace(/\[IMAGE_CARD:[^\]]+\]/, '').trim();
+        }
+        if (hasViewArticle && viewArticleMatch) {
+          // Remove the VIEW_ARTICLE marker from the text
+          itemText = itemText.replace(/\[VIEW_ARTICLE:[^\]]+\]/, '').trim();
         }
         
         currentList.push(itemText);
@@ -484,6 +532,16 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
         if (hasImageCard && imageCardMatch) {
           flushList();
           insertImageCard(imageCardMatch[1]);
+        }
+        // If there's a view article marker, flush the list and insert it
+        if (hasViewArticle && viewArticleMatch) {
+          flushList();
+          insertArticleCard(viewArticleMatch[1]);
+        }
+      } else if (isListContinuation) {
+        // Indented continuation of a list item
+        if (currentList.length > 0) {
+          currentList[currentList.length - 1] += ' ' + trimmedLine;
         }
       } else if (hasEventCard && eventCardMatch) {
         // Event card on its own line (not in a list item)
@@ -510,6 +568,38 @@ export default function MarkdownText({ text, dataCards, onEventClick, onImageCli
             />
           </div>
         );
+      } else if (isStandaloneViewArticle && viewArticleMatch) {
+        // View article on its own line - render article card inline
+        flushParagraph();
+        flushList();
+        insertArticleCard(viewArticleMatch[1]);
+      } else if (hasViewArticle && viewArticleMatch) {
+        // View article marker mixed with text - split the line
+        flushList();
+        
+        // Extract text before the marker
+        const parts = trimmedLine.split(/\[VIEW_ARTICLE:([^\]]+)\]/);
+        
+        // parts[0] = text before marker
+        // parts[1] = article ID
+        // parts[2] = text after marker (if any)
+        
+        if (parts[0] && parts[0].trim()) {
+          currentParagraph.push(parts[0].trim());
+        }
+        
+        // Flush the paragraph with text before the marker
+        flushParagraph();
+        
+        // Render the article card
+        if (parts[1]) {
+          insertArticleCard(parts[1]);
+        }
+        
+        // If there's text after the marker, add it to a new paragraph
+        if (parts[2] && parts[2].trim()) {
+          currentParagraph.push(parts[2].trim());
+        }
       } else if (trimmedLine) {
         flushList();
         // Regular paragraph text - IMAGE_CARD markers will be extracted by parseInlineFormatting

@@ -2,9 +2,9 @@ import { motion } from 'motion/react';
 import { Calendar, BarChart3, AlertCircle, Target, TrendingUp, DollarSign, Sparkles, Package, ShoppingCart, Presentation, Users, Landmark, Handshake, Building, Tag, Shield, Scale, ExternalLink, FileText } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { DataCard, ImageCardData, ArticleCardData, StockCardData } from '../catalyst-copilot';
-import { MarketEvent } from '../utils/supabase/events-api';
-import { getEventTypeConfig, formatEventDateTime } from '../utils/formatting';
+import { DataCard, ImageCardData, ArticleCardData, StockCardData } from './lib/StreamBlockTypes';
+import { MarketEvent } from '../../utils/supabase/events-api';
+import { getEventTypeConfig, formatEventDateTime } from '../../utils/formatting';
 import StockCard from './StockCard';
 
 interface DataCardComponentProps {
