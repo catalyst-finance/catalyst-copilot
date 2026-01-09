@@ -85,6 +85,8 @@ ${this.schemaContext}
 **CRITICAL RULES:**
 - For government policy queries about politicians, prioritize querying government_policy collection in MongoDB
 - For board changes, executive appointments, management updates → query press_releases collection first (not event_data)
+- **For press_releases searches with acronyms:** Search BOTH title AND content fields with $or, include spelled-out versions
+  Example: "PFS" → search for {"$or": [{"title": {"$regex": "PFS|Pre-Feasibility Study|Preliminary Feasibility", "$options": "i"}}, {"content": {"$regex": "PFS|Pre-Feasibility Study", "$options": "i"}}]}
 - Extract semantic synonyms for concepts (e.g., "take a stake" → ["stake", "investment", "invest", "acquire", ...])
 - Use $or to match ANY keyword when searching transcripts
 - Map speaker names correctly (Trump → search for "trump" OR "hassett")
@@ -231,6 +233,37 @@ Response:
 }
 
 **EXAMPLE 3:**
+User: "When did TMC release their PFS?"
+Response:
+{
+  "queries": [
+    {
+      "database": "mongodb",
+      "collection": "press_releases",
+      "query": {
+        "$and": [
+          {"ticker": "TMC"},
+          {
+            "$or": [
+              {"title": {"$regex": "PFS|Pre-Feasibility Study|Preliminary Feasibility", "$options": "i"}},
+              {"content": {"$regex": "PFS|Pre-Feasibility Study", "$options": "i"}}
+            ]
+          }
+        ]
+      },
+      "sort": {"date": -1},
+      "limit": 10,
+      "reasoning": "Search both title and content for PFS mentions since acronyms may not appear in titles"
+    }
+  ],
+  "extractCompanies": false,
+  "needsChart": false,
+  "needsDeepAnalysis": true,
+  "analysisKeywords": ["PFS", "Pre-Feasibility Study", "feasibility"],
+  "intent": "Find when TMC published their Pre-Feasibility Study"
+}
+
+**EXAMPLE 4:**
 User: "What did the CEO say on TMC's last earnings call?"
 Response:
 {
