@@ -16,6 +16,7 @@ const conversationRoutes = require('./routes/conversation.routes');
 const chatRoutes = require('./routes/chat.routes');
 const quoteRoutes = require('./routes/quote.routes');
 const priceTargetsRoutes = require('./routes/price-targets.routes');
+const mongodbRoutes = require('./routes/mongodb.routes');
 
 // Initialize Express app
 const app = express();
@@ -32,6 +33,7 @@ app.use('/conversations', conversationRoutes);
 app.use('/chat', chatRoutes);
 app.use('/api/quote', quoteRoutes);
 app.use('/api/price-targets', priceTargetsRoutes);
+app.use('/api/mongodb', mongodbRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -55,7 +57,8 @@ app.get('/', (req, res) => {
       conversations: '/conversations/*',
       chat: '/chat',
       quote: '/api/quote/:symbol',
-      priceTargets: '/api/price-targets/:symbol'
+      priceTargets: '/api/price-targets/:symbol',
+      mongodb: '/api/mongodb/:collection'
     }
   });
 });
