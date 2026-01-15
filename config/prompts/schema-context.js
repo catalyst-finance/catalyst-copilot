@@ -69,7 +69,8 @@ const QUERY_SCHEMA_CONTEXT = `
    Fields: symbol, timestamp, open, high, low, close, volume, timestamp_et, created_at, source
    Use: Intraday charts (1D, 5D), price analysis, volume patterns
 
-5. **ten_minute_prices** - 10-minute intraday bars  
+5. **five_minute_prices** - 5-minute intraday bars
+6. **ten_minute_prices** - 10-minute intraday bars  
    Fields: symbol, timestamp, open, high, low, close, volume, timestamp_et
    Use: Medium-term intraday charts (1W, 1M), smoother price visualization
 
@@ -118,7 +119,8 @@ const QUERY_SCHEMA_CONTEXT = `
 
 6. **Chart time range to table mapping** (backend auto-applies correct table):
    - 1D, 5D → one_minute_prices (timestamp column)
-   - 1W, 1M → ten_minute_prices (timestamp column) 
+   - 5D, 1W → five_minute_prices (timestamp column)
+   - 1M → ten_minute_prices (timestamp column) 
    - 3M, 6M, 1Y, 5Y → daily_prices (date column)
    Note: When chartConfig.timeRange is set, the backend automatically queries the correct table with proper date filtering
 
@@ -166,6 +168,7 @@ const RESPONSE_SCHEMA_CONTEXT = `
 
 **finnhub_quote_snapshots:** symbol, timestamp, c (current), o (open), h (high), l (low), pc (previous close), d (change), dp (change %)
 **one_minute_prices:** symbol, timestamp, open, high, low, close, volume
+**five_minute_prices:** symbol, timestamp, open, high, low, close, volume
 **ten_minute_prices:** symbol, timestamp, open, high, low, close, volume
 **intraday_prices:** symbol, timestamp, timestamp_et, price, volume
 **daily_prices:** symbol, date, open, high, low, close, volume
@@ -228,8 +231,13 @@ const COLLECTION_METADATA = {
     hasExternalContent: false
   },
   one_minute_prices: {
-    title: 'INTRADAY PRICE DATA',
-    friendlyName: 'intraday price data',
+    title: 'INTRADAY PRICE DATA (1MIN)',
+    friendlyName: '1-minute price data',
+    hasExternalContent: false
+  },
+  five_minute_prices: {
+    title: 'INTRADAY PRICE DATA (5MIN)',
+    friendlyName: '5-minute price data',
     hasExternalContent: false
   },
   ten_minute_prices: {

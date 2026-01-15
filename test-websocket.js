@@ -5,10 +5,17 @@
 
 const WebSocket = require('ws');
 
-const WS_URL = 'ws://localhost:3000/ws/chat';
+// Toggle between local and production
+const USE_PRODUCTION = true;
+
+const WS_URL = USE_PRODUCTION 
+  ? 'wss://catalyst-copilot-2nndy.ondigitalocean.app/ws/chat'
+  : 'ws://localhost:3000/ws/chat';
 
 console.log('🔌 Connecting to WebSocket server...');
 console.log('URL:', WS_URL);
+console.log('Environment:', USE_PRODUCTION ? 'PRODUCTION' : 'LOCAL');
+console.log('');
 
 const ws = new WebSocket(WS_URL);
 

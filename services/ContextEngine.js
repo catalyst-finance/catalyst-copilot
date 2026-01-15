@@ -623,10 +623,20 @@ class ContextEngine {
         }
         return this.formatIntradayPrices(itemsToShow, detailLevel, output);
       
-      case 'ten_minute_prices':
-        // For 1W/1M charts, skip detailed text - chart shows it visually
+      case 'five_minute_prices':
+        // For 5D/1W charts, skip detailed text - chart shows it visually
         // But include summary stats for AI context
-        if (queryIntent?.needsChart && ['1W', '1M'].includes(queryIntent?.chartConfig?.timeRange)) {
+        if (queryIntent?.needsChart && ['5D', '1W'].includes(queryIntent?.chartConfig?.timeRange)) {
+          console.log(`⏭️  Skipping five_minute_prices text - visual chart covers ${queryIntent.chartConfig.timeRange}`);
+          // Still provide summary for AI to reference
+          return this.formatIntradayPricesSummary(itemsToShow, output, queryIntent?.chartConfig?.timeRange);
+        }
+        return this.formatIntradayPrices(itemsToShow, detailLevel, output);
+      
+      case 'ten_minute_prices':
+        // For 1M charts, skip detailed text - chart shows it visually
+        // But include summary stats for AI context
+        if (queryIntent?.needsChart && queryIntent?.chartConfig?.timeRange === '1M') {
           console.log(`⏭️  Skipping ten_minute_prices text - visual chart covers ${queryIntent.chartConfig.timeRange}`);
           // Still provide summary for AI to reference
           return this.formatIntradayPricesSummary(itemsToShow, output, queryIntent?.chartConfig?.timeRange);
@@ -1668,7 +1678,7 @@ class ContextEngine {
    * Format intraday prices as a summary (for use when chart is displayed)
    * Provides key stats for AI context without verbose listing
    * 
-   * @param items - Price bars (one_minute_prices or ten_minute_prices)
+   * @param items - Price bars (one_minute_prices, five_minute_prices, or ten_minute_prices)
    * @param output - Output string to append to
    * @param timeRange - Chart time range (e.g., '1M', '1W')
    */

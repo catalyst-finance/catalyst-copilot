@@ -100,14 +100,14 @@ class QueryEngine {
 
       case '5D':
         startDate = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
-        table = 'one_minute_prices';
+        table = 'five_minute_prices';
         limit = 1950;
         break;
 
       case '1W':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        table = 'ten_minute_prices';
-        limit = 1000;
+        table = 'five_minute_prices';
+        limit = 2000;
         break;
 
       case '1M':
@@ -235,7 +235,7 @@ Return JSON with this structure:
   "queries": [
     {
       "database": "mongodb" | "supabase",
-      "collection": "government_policy" | "sec_filings" | "ownership" | "macro_economics" | "news" | "press_releases" | "price_targets" | "earnings_transcripts" | "hype" | "event_data" | "company_information" | "finnhub_quote_snapshots" | "one_minute_prices" | "daily_prices" | "intraday_prices" | "stock_quote_now",
+      "collection": "government_policy" | "sec_filings" | "ownership" | "macro_economics" | "news" | "press_releases" | "price_targets" | "earnings_transcripts" | "hype" | "event_data" | "company_information" | "finnhub_quote_snapshots" | "one_minute_prices" | "five_minute_prices" | "ten_minute_prices" | "daily_prices" | "intraday_prices" | "stock_quote_now",
       "query": { /* MongoDB query object or Supabase filter params */ },
       "sort": { /* optional sort params */ },
       "limit": 10,
@@ -564,7 +564,7 @@ Response:
       "query": {"symbol": "TMC"},
       "sort": {"date": "asc"},
       "limit": 30,
-      "reasoning": "Get price data for TMC - backend will auto-select ten_minute_prices for 1M timeRange"
+      "reasoning": "Get price data for TMC - backend will auto-select appropriate granularity (five_minute_prices for 1W, ten_minute_prices for 1M)"
     },
     {
       "database": "supabase",
@@ -594,7 +594,7 @@ Response:
   }
 }
 NOTE: When chartConfig.timeRange is set, backend automatically:
-- Maps 1D/5D → one_minute_prices, 1W/1M → ten_minute_prices, 3M+ → daily_prices
+- Maps 1D → one_minute_prices, 5D/1W → five_minute_prices, 1M → ten_minute_prices, 3M+ → daily_prices
 - Uses correct date filtering aligned with frontend chart
 - Sorts chronologically (ASC) for proper chart data
 
@@ -819,7 +819,7 @@ Return ONLY valid JSON, no explanation outside the JSON structure.`;
               reasoning: query.reasoning
             });
             console.log(`   ✅ Found ${formattedData.length} quote snapshots (source: ${result.data?.source || 'unknown'})`);
-          } else if (query.collection === 'one_minute_prices' || query.collection === 'daily_prices' || query.collection === 'hourly_prices' || query.collection === 'ten_minute_prices' || query.collection === 'stock_quote_now') {
+          } else if (query.collection === 'one_minute_prices' || query.collection === 'five_minute_prices' || query.collection === 'ten_minute_prices' || query.collection === 'daily_prices' || query.collection === 'hourly_prices' || query.collection === 'stock_quote_now') {
             // Fetch price history from Supabase
             const { supabase } = require('../config/database');
             

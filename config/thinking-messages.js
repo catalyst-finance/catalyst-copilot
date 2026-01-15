@@ -111,6 +111,7 @@ function buildPromptForPhase(phase, context) {
       const filteredCollections = (context.collections || []).filter(c => 
         c !== 'finnhub_quote_snapshots' && 
         c !== 'one_minute_prices' && 
+        c !== 'five_minute_prices' && 
         c !== 'daily_prices'
       );
       
