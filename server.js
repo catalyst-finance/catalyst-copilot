@@ -6,6 +6,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
+const WebSocket = require('ws');
 const { connectMongo, isMongoConnected } = require('./config/database');
 const corsOptions = require('./config/cors');
 
@@ -17,14 +19,29 @@ const chatRoutes = require('./routes/chat.routes');
 const quoteRoutes = require('./routes/quote.routes');
 const priceTargetsRoutes = require('./routes/price-targets.routes');
 const mongodbRoutes = require('./routes/mongodb.routes');
+const { handleChatWebSocket } = require('./routes/websocket.routes');
 
 // Initialize Express app
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Create HTTP server
+const server = http.createServer(app);
+
+// Create WebSocket server
+const wss = new WebSocket.Server({ 
+  server,
+  path: '/ws/chat'
+});
+
 // Apply middleware
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// WebSocket connection handler
+wss.on('connection', handleChatWebSocket);
+
+console.log('🔌 WebSocket server initialized on /ws/chat');
 
 // Mount routes
 app.use('/auth', authRoutes);
@@ -78,8 +95,9 @@ async function start() {
     // Connect to MongoDB on startup
     await connectMongo();
     
-    app.listen(port, () => {
+    server.listen(port, () => {
       console.log(`🚀 Catalyst AI Agent running on port ${port}`);
+      console.log(`🔌 WebSocket endpoint: ws://localhost:${port}/ws/chat`);
       console.log(`📊 Connected to Supabase: ${!!process.env.SUPABASE_URL}`);
       console.log(`🗄️  Connected to MongoDB: ${isMongoConnected()}`);
       console.log(`🤖 OpenAI API configured: ${!!process.env.OPENAI_API_KEY}`);
