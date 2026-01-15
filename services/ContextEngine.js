@@ -787,6 +787,9 @@ class ContextEngine {
     items.forEach((doc, index) => {
       // Create dataCard for this government policy document
       const cardId = doc._id || doc.id || `gov-policy-${index}`;
+      const domain = doc.url ? this.extractDomain(doc.url) : null;
+      const logoUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null;
+      
       dataCards.push({
         type: 'article',  // Government policy cards render similar to articles
         data: {
@@ -796,7 +799,8 @@ class ContextEngine {
           url: doc.url,
           published_at: doc.date,  // Use date as published_at for sorting
           participants: doc.participants || [],
-          source: doc.participants?.[0] || 'Government Officials'
+          source: doc.participants?.[0] || 'Government Officials',
+          logoUrl: logoUrl  // Add favicon from source domain
         }
       });
       
