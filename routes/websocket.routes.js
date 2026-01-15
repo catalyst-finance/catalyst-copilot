@@ -11,6 +11,7 @@ const QueryEngine = require('../services/QueryEngine');
 const ContextEngine = require('../services/ContextEngine');
 const { buildSystemPrompt } = require('../config/prompts/system-prompt');
 const { allocateTokenBudget, getTokenBudget } = require('../config/token-allocation');
+const { StreamProcessor } = require('../services/StreamProcessor');
 
 /**
  * Handle WebSocket chat connection
@@ -256,16 +257,33 @@ async function handleChatWebSocket(ws, req) {
         stream: true
       });
 
-      let fullResponse = '';
+      // Create WebSocket adapter for StreamProcessor
+      const wsAdapter = {
+        write: (data) => {
+          // StreamProcessor emits SSE format: "data: {...}\n\n"
+          // Extract JSON and send via WebSocket
+          const match = data.match(/^data: (.+)\n\n$/);
+          if (match) {
+            try {
+              const event = JSON.parse(match[1]);
+              send(event);
+            } catch (e) {
+              console.error('Failed to parse StreamProcessor event:', e);
+            }
+          }
+        }
+      };
+
+      // Use StreamProcessor to handle markers, Related Coverage, etc.
+      const processor = new StreamProcessor(wsAdapter, dataCards);
       let finishReason = null;
       let model = null;
 
-      // Stream OpenAI response through WebSocket
+      // Stream OpenAI response through StreamProcessor
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || '';
         if (content) {
-          fullResponse += content;
-          send({ type: 'content', content });
+          processor.addChunk(content);
         }
         
         if (chunk.choices[0]?.finish_reason) {
@@ -276,6 +294,10 @@ async function handleChatWebSocket(ws, req) {
           model = chunk.model;
         }
       }
+
+      // Finalize processing - flush buffer and inject missing markers
+      processor.finalize();
+      const fullResponse = processor.getFullResponse();
 
       // Log complete response for debugging
       console.log('\n📄 FULL RESPONSE:');
