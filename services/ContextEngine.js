@@ -587,7 +587,7 @@ class ContextEngine {
         return await this.formatSecFilings(itemsToShow, detailLevel, fetchExternalContent, DataConnector, dataCards, intelligenceMetadata, output, sendThinking);
       
       case 'government_policy':
-        return this.formatGovernmentPolicy(itemsToShow, detailLevel, output, queryIntent, sendThinking);
+        return this.formatGovernmentPolicy(itemsToShow, detailLevel, output, dataCards, queryIntent, sendThinking);
       
       case 'news':
         return await this.formatNews(itemsToShow, detailLevel, fetchExternalContent, DataConnector, output, dataCards, sendThinking, userMessage, queryIntent);
@@ -771,7 +771,7 @@ class ContextEngine {
   /**
    * Format government policy documents
    */
-  formatGovernmentPolicy(items, detailLevel, output, queryContext = null, sendThinking) {
+  formatGovernmentPolicy(items, detailLevel, output, dataCards, queryContext = null, sendThinking) {
     // Send thinking message about government policy
     if (sendThinking && items.length > 0) {
       const speaker = items[0]?.participants?.[0] || 'officials';
@@ -785,6 +785,21 @@ class ContextEngine {
     }
     
     items.forEach((doc, index) => {
+      // Create dataCard for this government policy document
+      const cardId = doc._id || doc.id || `gov-policy-${index}`;
+      dataCards.push({
+        type: 'article',  // Government policy cards render similar to articles
+        data: {
+          id: cardId,
+          title: doc.title || 'Government Policy Statement',
+          date: doc.date,
+          url: doc.url,
+          published_at: doc.date,  // Use date as published_at for sorting
+          participants: doc.participants || [],
+          source: doc.participants?.[0] || 'Government Officials'
+        }
+      });
+      
       output += `${index + 1}. ${doc.title || 'Untitled'} - ${doc.date || 'No date'}\n`;
       if (doc.participants && doc.participants.length > 0) {
         output += `   Participants: ${doc.participants.join(', ')}\n`;
