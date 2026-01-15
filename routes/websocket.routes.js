@@ -277,7 +277,12 @@ async function handleChatWebSocket(ws, req) {
         }
       }
 
-      console.log('\n📄 FULL RESPONSE LENGTH:', fullResponse.length);
+      // Log complete response for debugging
+      console.log('\n📄 FULL RESPONSE:');
+      console.log('='.repeat(80));
+      console.log(fullResponse);
+      console.log('='.repeat(80));
+      console.log(`Response length: ${fullResponse.length} characters\n`);
 
       // Send done message
       send({ 
