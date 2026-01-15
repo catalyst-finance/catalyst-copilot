@@ -1232,11 +1232,10 @@ class ContextEngine {
         output += `${article.content.substring(0, contentLength)}${article.content.length > contentLength ? '...' : ''}\n`;
       }
       
-      // DO NOT include marker in data context - GPT will place it after discussion
-      // Store article ID for reference
+      // Show GPT the exact marker ID to use for this article
       if (article.url) {
         const articleId = `article-${article.ticker || 'news'}-${index}`;
-        // Marker will be: [VIEW_ARTICLE:${articleId}]
+        output += `Marker for this article: [VIEW_ARTICLE:${articleId}]\n`;
       }
 
       output += `\n`;
