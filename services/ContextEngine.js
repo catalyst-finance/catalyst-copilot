@@ -794,6 +794,23 @@ class ContextEngine {
       keywords = queryContext.analysisKeywords;
     }
     
+    // Add marker placement instructions (same format as news articles)
+    output += `\n═══════════════════════════════════════════════════════════\n`;
+    output += `🚨 REQUIRED FORMAT: POLICY DISCUSSION (3-PART STRUCTURE) 🚨\n`;
+    output += `═══════════════════════════════════════════════════════════\n\n`;
+    output += `EVERY POLICY STATEMENT MUST FOLLOW THIS EXACT SEQUENCE:\n\n`;
+    output += `  1️⃣ Header (bold, numbered): 1. **Topic or Theme**\n`;
+    output += `  2️⃣ Discussion: 1-2 paragraphs analyzing the statement\n`;
+    output += `  3️⃣ Policy Card: [VIEW_ARTICLE:policy-X-Y]\n\n`;
+    output += `✅ EXAMPLE:\n`;
+    output += `1. **Trade Policy Announcement**\n`;
+    output += `President Trump announced new tariffs on steel imports during\n`;
+    output += `a press conference on January 14, 2026. The 25% tariff aims to\n`;
+    output += `protect domestic manufacturers and will take effect immediately.\n`;
+    output += `[VIEW_ARTICLE:policy-donald-tru-0]\n\n`;
+    output += `NOTE: Markers do NOT appear in data below - you place them.\n`;
+    output += `═══════════════════════════════════════════════════════════\n\n`;
+    
     items.forEach((doc, index) => {
       // Create dataCard for this government policy document
       // Use consistent ID format: policy-{source}-{index} to match article-{ticker}-{index} pattern
@@ -817,7 +834,7 @@ class ContextEngine {
       });
       
       output += `${index + 1}. ${doc.title || 'Untitled'} - ${doc.date || 'No date'}\n`;
-      output += `   [Use marker: [VIEW_ARTICLE:${cardId}]]\n`;  // Add marker instruction
+      output += `   Marker for this statement: [VIEW_ARTICLE:${cardId}]\n`;
       if (doc.participants && doc.participants.length > 0) {
         output += `   Participants: ${doc.participants.join(', ')}\n`;
       }
