@@ -786,7 +786,9 @@ class ContextEngine {
     
     items.forEach((doc, index) => {
       // Create dataCard for this government policy document
-      const cardId = doc._id || doc.id || `gov-policy-${index}`;
+      // Use consistent ID format: policy-{source}-{index} to match article-{ticker}-{index} pattern
+      const shortSource = (doc.participants?.[0] || 'gov').toLowerCase().replace(/\s+/g, '-').substring(0, 10);
+      const cardId = `policy-${shortSource}-${index}`;
       const domain = doc.url ? this.extractDomain(doc.url) : null;
       const logoUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128` : null;
       
@@ -805,6 +807,7 @@ class ContextEngine {
       });
       
       output += `${index + 1}. ${doc.title || 'Untitled'} - ${doc.date || 'No date'}\n`;
+      output += `   [Use marker: [VIEW_ARTICLE:${cardId}]]\n`;  // Add marker instruction
       if (doc.participants && doc.participants.length > 0) {
         output += `   Participants: ${doc.participants.join(', ')}\n`;
       }
@@ -1699,10 +1702,13 @@ class ContextEngine {
       
       output += `**${symbol} ${timeRange} Price Summary** (${bars.length} data points)\n`;
       output += `   📅 Period: ${startDate} to ${endDate}\n`;
-      output += `   📈 PERIOD CHANGE: $${firstBar.open?.toFixed(2)} → $${lastBar.close?.toFixed(2)} (${changePrefix}${pctChange}%)\n`;
-      output += `   ⚠️ WHEN DISCUSSING "${timeRange}" MOVEMENT: "${changePrefix}${pctChange}% from $${firstBar.open?.toFixed(2)} (${startDate}) to $${lastBar.close?.toFixed(2)} (${endDate})"\n`;
+      output += `   � OPENING PRICE: $${firstBar.open?.toFixed(2)} (${startDate})\n`;
+      output += `   💰 CLOSING PRICE: $${lastBar.close?.toFixed(2)} (${endDate})\n`;
+      output += `   📈 PERIOD CHANGE: ${changePrefix}$${Math.abs(priceChange).toFixed(2)} (${changePrefix}${pctChange}%)\n`;
       output += `   📊 Period High: $${periodHigh.toFixed(2)} | Period Low: $${periodLow.toFixed(2)}\n`;
       output += `   📊 Total Volume: ${totalVolume.toLocaleString()}\n`;
+      output += `   ⚠️  YOU HAVE PRICE DATA - Use these numbers when discussing ${symbol}'s ${timeRange} price movement\n`;
+      output += `   ⚠️  CORRECT: "Over the past ${timeRange}, ${symbol} ${priceChange >= 0 ? 'gained' : 'declined'} ${pctChange}% from $${firstBar.open?.toFixed(2)} to $${lastBar.close?.toFixed(2)}"\n`;
       output += `\n`;
     }
     return output;
